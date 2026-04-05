@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.backstage.system.mapper.openSourceProject.OpenSourceProjectMapper">
+    
+    <resultMap id="OpenSourceProjectResult" type="com.backstage.system.domain.openSourceProject.OpenSourceProject">
+
+        <id property="id" column="id"/>
+        <result property="projectName" column="project_name"/>
+        <result property="projectCover" column="project_cover"/>
+        <result property="projectUrl" column="project_url"/>
+        <result property="projectDesc" column="project_desc"/>
+        <result property="tags" column="tags"/>
+        <result property="techStack" column="tech_stack"/>
+        <result property="authorName" column="author_name"/>
+        <result property="authorUrl" column="author_url"/>
+        <result property="status" column="status"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="creationTime" column="creation_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+
+
+
+
+    </resultMap>
+
+
+    <sql id="selectOpenSourceProjectVO">
+        select id,project_name,project_cover,project_url, project_desc, tags ,tech_stack, author_name,author_url,created_by,creation_time,update_by,update_time
+        from osh_open_source_project
+
+    </sql>
+    <!-- -->
+    
+    <select id="selectOpenSourceProjectByName" parameterType="String" resultMap="OpenSourceProjectResult">
+        <include refid="selectOpenSourceProjectVO"/>
+        where project_name = #{project_name}
+        and is_deleted= 0
+    </select>
+
+    <select id="selectOpenSourceProjectById" parameterType="Long" resultMap="OpenSourceProjectResult">
+        <include refid="selectOpenSourceProjectVO"/>
+        <where>
+            id = #{id}
+            and is_deleted = 0
+        </where>
+    </select>
+
+    <select id = "selectOpenSourceProjectList" parameterType="OpenSourceProject" resultMap="OpenSourceProjectResult">
+        <include refid="selectOpenSourceProjectVO"/>
+        <where>
+            and is_deleted=0
+            and status = 1
+            <if test="projectName != null and projectName != ''">
+                and project_name like concat( #{projectName}, '%')
+            </if>
+<!--            <if test="status != null">-->
+<!--                and status = #{status}-->
+<!--            </if>-->
+<!--            <if test="tags != null and tags != ''">-->
+<!--                and tags like concat('%', #{tags}, '%')-->
+<!--            </if>-->
+<!--            <if test="techStack != null and techStack != ''">-->
+<!--                and tech_stack like concat('%', #{techStack}, '%')-->
+<!--            </if>-->
+        </where>
+        ORDER BY id DESC
+    </select>
+
+    <!-- ====================== 新增====================== -->
+    <insert id="add" parameterType="OpenSourceProject"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        insert into osh_open_source_project
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectName != null">project_name,</if>
+            <if test="projectCover != null">project_cover,</if>
+            <if test="projectUrl != null">project_url,</if>
+            <if test="projectDesc != null">project_desc,</if>
+            <if test="tags != null">tags,</if>
+            <if test="techStack != null">tech_stack,</if>
+            <if test="authorName != null">author_name,</if>
+            <if test="authorUrl != null">author_url,</if>
+            <if test="status != null">status,</if>
+            <if test="createdBy != null">created_by,</if>
+            <if test="creationTime != null">creation_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="isDeleted != null">is_deleted,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectName != null">#{projectName},</if>
+            <if test="projectCover != null">#{projectCover},</if>
+            <if test="projectUrl != null">#{projectUrl},</if>
+            <if test="projectDesc != null">#{projectDesc},</if>
+            <if test="tags != null">#{tags},</if>
+            <if test="techStack != null">#{techStack},</if>
+            <if test="authorName != null">#{authorName},</if>
+            <if test="authorUrl != null">#{authorUrl},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createdBy != null">#{createdBy},</if>
+            <if test="creationTime != null">#{creationTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="isDeleted != null">#{isDeleted},</if>
+        </trim>
+    </insert>
+
+    <!-- ====================== 修改====================== -->
+    <update id="updateOpenSourceProject" parameterType="OpenSourceProject" >
+        update osh_open_source_project
+        <set>
+            <if test="projectName != null">project_name = #{projectName},</if>
+            <if test="projectCover != null">project_cover = #{projectCover},</if>
+            <if test="projectUrl != null">project_url = #{projectUrl},</if>
+            <if test="projectDesc != null">project_desc = #{projectDesc},</if>
+            <if test="tags != null">tags = #{tags},</if>
+            <if test="techStack != null">tech_stack = #{techStack},</if>
+            <if test="authorName != null">author_name = #{authorName},</if>
+            <if test="authorUrl != null">author_url = #{authorUrl},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        where id = #{id} and is_deleted = 0
+    </update>
+
+    <!-- ====================== 逻辑删除 ====================== -->
+    <update id="deleteOpenSourceProjectById" parameterType="Long">
+        update osh_open_source_project
+        set is_deleted = 1,
+            update_time = now()
+        where id = #{id} and is_deleted = 0
+    </update>
+
+
+
+</mapper>
