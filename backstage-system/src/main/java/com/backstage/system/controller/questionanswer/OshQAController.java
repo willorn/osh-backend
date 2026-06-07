@@ -31,7 +31,7 @@ import java.util.List;
  * Time: 21:08
  */
 @RestController
-@RequestMapping("/api/qna")
+@RequestMapping("/pc/qna")
 public class OshQAController {
 
     @Autowired

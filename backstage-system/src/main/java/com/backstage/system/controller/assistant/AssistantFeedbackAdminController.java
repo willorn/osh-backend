@@ -5,7 +5,10 @@ import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.exception.ServiceException;
-import com.backstage.system.domain.assistant.dto.*;
+import com.backstage.system.domain.assistant.dto.AssistantFeedbackPageDTO;
+import com.backstage.system.domain.assistant.dto.AssistantFeedbackTagCreateDTO;
+import com.backstage.system.domain.assistant.dto.AssistantTicketStatusUpdateDTO;
+import com.backstage.system.domain.assistant.dto.UpdateRemarkDTO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackTagVO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackVO;
 import com.backstage.system.service.assistant.*;
@@ -68,43 +71,6 @@ public class AssistantFeedbackAdminController extends BaseController {
     }
 
     /**
-     * 工单管理列表（分页）
-     */
-    @ApiOperation("工单管理列表")
-    @PreAuthorize("hasAuthority('system:feedback:manage')")
-    @GetMapping("/ticket/list")
-    public TableDataInfo ticketList(AssistantTicketQueryDTO queryDTO) {
-        ensureAdmin();
-        startPage();
-        return feedbackService.listTickets(queryDTO);
-    }
-
-    /**
-     * 置顶反馈
-     */
-    @ApiOperation("置顶反馈")
-    @PreAuthorize("hasAuthority('system:feedback:manage')")
-    @PostMapping("/{id}/pin")
-    public R<String> pinFeedback(@PathVariable("id") Long feedbackId,
-                                  @RequestParam("pinOrder") Integer pinOrder) {
-        ensureAdmin();
-        feedbackService.pinFeedback(feedbackId, pinOrder);
-        return R.ok("置顶成功");
-    }
-
-    /**
-     * 取消置顶
-     */
-    @ApiOperation("取消置顶")
-    @PreAuthorize("hasAuthority('system:feedback:manage')")
-    @PostMapping("/{id}/unpin")
-    public R<String> unpinFeedback(@PathVariable("id") Long feedbackId) {
-        ensureAdmin();
-        feedbackService.unpinFeedback(feedbackId);
-        return R.ok("取消置顶成功");
-    }
-
-    /**
      * 更新反馈状态
      */
     @ApiOperation("更新反馈状态")
@@ -119,34 +85,6 @@ public class AssistantFeedbackAdminController extends BaseController {
     }
 
     /**
-     * 更新工单状态
-     */
-    @ApiOperation("更新工单状态")
-    @PreAuthorize("hasAuthority('system:feedback:manage')")
-    @PostMapping("/ticket/{ticketId}/status")
-    public R<AssistantFeedbackVO> updateTicketStatus(@PathVariable("ticketId") Long ticketId,
-                                                     @Validated @RequestBody AssistantTicketStatusUpdateDTO dto) {
-        ensureAdmin();
-        Long handlerId = getCurrentUserId();
-        AssistantFeedbackVO feedback = feedbackService.updateTicketStatus(ticketId, handlerId, dto);
-        return R.ok(feedback, "工单状态更新成功");
-    }
-
-    /**
-     * 追加处理备注（不改变状态）
-     */
-    @ApiOperation("追加处理备注")
-    @PreAuthorize("hasAuthority('system:feedback:manage')")
-    @PostMapping("/{id}/remark")
-    public R<String> appendRemark(@PathVariable("id") Long feedbackId,
-                                  @Validated @RequestBody AssistantTicketStatusUpdateDTO dto) {
-        ensureAdmin();
-        Long handlerId = getCurrentUserId();
-        feedbackService.appendProcessingRemark(feedbackId, handlerId, dto.getRemark());
-        return R.ok("备注追加成功");
-    }
-
-    /**
      * 修改处理记录备注
      */
     @ApiOperation("修改处理记录备注")
@@ -158,18 +96,6 @@ public class AssistantFeedbackAdminController extends BaseController {
         Long operatorId = getCurrentUserId();
         processRecordService.updateRemark(recordId, dto.getRemark(), operatorId);
         return R.ok("备注修改成功");
-    }
-
-    /**
-     * 删除反馈（逻辑删除）
-     */
-    @ApiOperation("删除反馈")
-    @PreAuthorize("hasAuthority('system:feedback:manage')")
-    @DeleteMapping("/{id}")
-    public R<String> deleteFeedback(@PathVariable("id") Long feedbackId) {
-        ensureAdmin();
-        feedbackService.deleteFeedback(feedbackId);
-        return R.ok("删除成功");
     }
 
     /**
@@ -195,6 +121,26 @@ public class AssistantFeedbackAdminController extends BaseController {
     public R<Integer> syncAllFeedbackToEs() {
         ensureAdmin();
         return R.ok(feedbackEsService.syncAllFeedbacksToEs(), "ok");
+    }
+
+    /**
+     * 重建 ES 索引（删除旧索引 → 创建新索引 → 全量同步数据）
+     * <p>
+     * 适用场景：
+     * 1. mapping 变更（如字段类型从 text 改为 keyword）
+     * 2. 分片数、副本数等 settings 调整
+     * 3. 分析器配置变更
+     * </p>
+     * 执行期间 ES 查询会降级到 MySQL，业务不中断。
+     *
+     * @return 同步的数据条数
+     */
+    @ApiOperation("重建ES索引（mapping变更/灾难恢复专用）")
+    @PreAuthorize("hasAuthority('system:feedback:manage')")
+    @PostMapping("/esIndex/rebuild")
+    public R<Integer> rebuildEsIndex() {
+        ensureAdmin();
+        return R.ok(feedbackEsService.rebuildIndex(), "索引重建完成");
     }
 
     /**

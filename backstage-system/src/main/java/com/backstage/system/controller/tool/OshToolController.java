@@ -93,6 +93,7 @@ public class OshToolController extends BaseController {
     @ApiOperation("全量同步工具到ES")
     @PostMapping("/esSync/all")
 //    @PreAuthorize("hasAuthority('tool:es:sync')")
+    @Anonymous
     public R<Integer> syncAllToolsToEs() {
         return R.ok(oshToolEsService.syncAllToolsToEs(), "ok");
     }

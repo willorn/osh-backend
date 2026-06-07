@@ -188,34 +188,37 @@ public class AssistantFeedbackQuerySupport {
      * <ol>
      *   <li>置顶状态降序（置顶在前）</li>
      *   <li>置顶排序升序（置顶顺序）</li>
-     *   <li>根据sortType指定的排序方式</li>
+     *   <li>根据sortType指定的排序方式（白名单校验，防SQL注入）</li>
      * </ol>
-     * 支持的排序类型：hot(热度)、comment(评论数)、latest(最新)
+     * 支持的排序类型：hot(热度)、comment(评论数)、latest(最新)、related(最相关)
      * </p>
      *
-     * @param sortType 排序类型
+     * @param dto 分页查询参数
      * @return 完整的ORDER BY SQL语句
      */
     private String buildOrderBySql(AssistantFeedbackPageDTO dto) {
         boolean searchMode = StrUtil.isNotBlank(dto.getKeyword());
         String resolvedSortType = resolveSortType(dto.getSortType(), searchMode);
         String queryMode = normalizeQueryMode(dto.getQueryMode());
+        // 前缀：置顶优先 + mine模式待确认优先
         String minePrioritySql = !searchMode && "mine".equals(queryMode) ? "CASE WHEN status = 'PENDING_CONFIRM' THEN 0 ELSE 1 END ASC, " : "";
-        String pinOrderSql = !searchMode ? "ORDER BY " + minePrioritySql + "is_pinned DESC, pin_order ASC, " : "ORDER BY ";
-        if ("related".equals(resolvedSortType)) {
-            return pinOrderSql + "CASE WHEN title LIKE CONCAT('%', '" + escapeSqlLike(dto.getKeyword()) + "', '%') THEN 0 ELSE 1 END ASC, "
-                    + "hot_score DESC, create_time DESC";
+        String pinOrderPrefix = !searchMode ? "ORDER BY " + minePrioritySql + "is_pinned DESC, pin_order ASC, " : "ORDER BY ";
+
+        // 白名单校验 sortType，防止 SQL 注入
+        switch (resolvedSortType) {
+            case "related":
+                String escapedKeyword = escapeSqlLike(dto.getKeyword());
+                return pinOrderPrefix + "CASE WHEN title LIKE '%" + escapedKeyword + "%' THEN 0 ELSE 1 END ASC, "
+                        + "hot_score DESC, create_time DESC";
+            case "hot":
+                return pinOrderPrefix + "hot_score DESC, create_time DESC";
+            case "comment":
+                return pinOrderPrefix + "comment_count DESC, create_time DESC";
+            case "latest":
+                return pinOrderPrefix + "create_time DESC";
+            default:
+                return pinOrderPrefix + "hot_score DESC, create_time DESC";
         }
-        if ("hot".equals(resolvedSortType)) {
-            return pinOrderSql + "hot_score DESC, create_time DESC";
-        }
-        if ("comment".equals(resolvedSortType)) {
-            return pinOrderSql + "comment_count DESC, create_time DESC";
-        }
-        if ("latest".equals(resolvedSortType)) {
-            return pinOrderSql + "create_time DESC";
-        }
-        return pinOrderSql + "hot_score DESC, create_time DESC";
     }
 
     private String resolveSortType(String sortType, boolean searchMode) {
@@ -226,8 +229,18 @@ public class AssistantFeedbackQuerySupport {
         return resolvedSortType;
     }
 
+    /**
+     * 转义 SQL LIKE 特殊字符，防止注入和通配符逃逸。
+     * 转义字符：\ % _ '
+     */
     private String escapeSqlLike(String keyword) {
-        return keyword.replace("\\", "\\\\").replace("'", "''");
+        if (StrUtil.isBlank(keyword)) {
+            return "";
+        }
+        return keyword.replace("\\", "\\\\")
+                .replace("'", "''")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 
     /**

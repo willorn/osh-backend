@@ -1,44 +1,86 @@
-# @DistributeLock 注解设计与使用说明
+# @DistributeLock 使用说明
 
 ## 1. 作用概述
 
-`@DistributeLock` 是当前系统提供的分布式锁注解，用于在方法执行前自动加 Redis 分布式锁，方法执行后按配置释放锁或等待锁自然过期。
+`@DistributeLock` 是系统内统一的分布式锁注解，用于在多实例部署场景下控制方法并发执行。
 
-当前实现由 `DistributeLockAspect` 切面完成，底层使用 Redisson 的 `RLock`。
+当前实现特点：
 
-它主要解决的问题是：在多实例部署、接口重复提交、异步任务重复消费、后台操作并发执行等场景下，避免同一份业务资源被多个线程或多个服务节点同时处理。
+- 基于 AOP 切面拦截
+- 底层使用 Redisson `RLock`
+- 支持固定 key
+- 支持 SpEL 动态 key
+- 支持自动拼接当前用户 ID
+- 支持执行完成立即释放
+- 支持“定时锁”模式，即方法执行结束也不主动释放，只等待超时自动释放
 
-## 2. 设计原理
+适用场景：
 
-### 2.1 基于 AOP 拦截方法
+- 防重复提交
+- 用户维度串行操作
+- 同一资源的并发更新互斥
+- 定时任务防重复执行
+- 高风险接口限时防重试
 
-只要方法上标记了：
+## 2. 核心实现位置
+
+注解定义：
+
+- [backstage-common/src/main/java/com/backstage/common/annotation/DistributeLock.java](/Users/whiskey_liu/IdeaProjects/osh-backend/backstage-common/src/main/java/com/backstage/common/annotation/DistributeLock.java)
+
+切面实现：
+
+- [backstage-common/src/main/java/com/backstage/common/aspect/DistributeLockAspect.java](/Users/whiskey_liu/IdeaProjects/osh-backend/backstage-common/src/main/java/com/backstage/common/aspect/DistributeLockAspect.java)
+
+## 3. 总体原理
+
+### 3.1 基于 AOP 自动加锁
+
+只要方法上加了：
 
 ```java
 @DistributeLock(...)
 ```
 
-`DistributeLockAspect` 就会在方法执行前拦截。
+切面 `DistributeLockAspect` 就会在方法执行前后自动处理锁。
 
-执行流程如下：
+整体流程：
 
-1. 读取注解参数
-2. 计算锁 key
-3. 从 Redisson 获取 `RLock`
-4. 根据 `waitTime` 和 `expireTime` 选择加锁方式
-5. 加锁成功后执行原方法
-6. 根据 `releaseImmediately` 决定是否在 `finally` 中立即释放锁
-7. 加锁失败时抛出 `DistributeLockException`
+```text
+[请求进入 Controller / Service 方法]
+        |
+        v
+[AOP 拦截到 @DistributeLock]
+        |
+        +--> 解析 scene
+        +--> 解析 key 或 keyExpression
+        +--> 判断是否拼接 userId
+        +--> 组装最终 lockKey
+        |
+        v
+[调用 RedissonClient.getLock(lockKey)]
+        |
+        +--> 加锁成功 -> 执行业务方法
+        |
+        +--> 加锁失败 -> 抛出 DistributeLockException
+        |
+        v
+[业务方法执行完成]
+        |
+        +--> releaseImmediately=true  -> 立即 unlock
+        |
+        +--> releaseImmediately=false -> 不主动 unlock，等待 expireTime 到期
+```
 
-### 2.2 锁 key 的组成
+### 3.2 最终锁 key 结构
 
-最终锁 key 由三部分组成：
+基础结构：
 
 ```text
 scene#key
 ```
 
-如果 `includeUserId = true`，并且当前线程中能拿到用户 ID，则会变成：
+如果 `includeUserId = true` 且当前线程拿得到用户 ID，则会变成：
 
 ```text
 scene#user:用户ID#key
@@ -47,59 +89,18 @@ scene#user:用户ID#key
 例如：
 
 ```java
-@DistributeLock(scene = "resource", key = "operation")
+@DistributeLock(scene = "tool:save", key = "operation")
 ```
 
-当前用户 ID 为 `10001` 时，最终锁 key 是：
+当前用户 ID 为 `10001`，最终锁 key：
 
 ```text
-resource#user:10001#operation
+tool:save#user:10001#operation
 ```
 
-如果 `includeUserId = false`，最终锁 key 是：
+## 4. 注解参数说明
 
-```text
-resource#operation
-```
-
-### 2.3 key 和 keyExpression 的优先级
-
-注解中可以通过两种方式指定锁 key：
-
-```java
-key = "固定值"
-```
-
-或者：
-
-```java
-keyExpression = "#request.id"
-```
-
-优先级规则：
-
-1. 优先使用 `key`
-2. 如果 `key` 是默认值 `NONE`，才会使用 `keyExpression`
-3. 如果两个都没配置，会抛出 `DistributeLockException`
-
-例如：
-
-```java
-@DistributeLock(scene = "course:update", keyExpression = "#request.id", includeUserId = false)
-public R<Long> update(@RequestBody CourseUpdateRequest request) {
-    ...
-}
-```
-
-当 `request.id = 10` 时，最终锁 key 是：
-
-```text
-course:update#10
-```
-
-## 3. 注解参数说明
-
-当前注解定义：
+注解定义：
 
 ```java
 public @interface DistributeLock {
@@ -120,108 +121,61 @@ public @interface DistributeLock {
 }
 ```
 
-## 4. 参数详细解释
+参数说明如下。
 
-### 4.1 scene：业务场景
+### 4.1 scene
 
-`scene` 用来区分不同业务域。
+业务场景名，用于区分锁域。
 
-推荐写法：
-
-```java
-@DistributeLock(scene = "course:update", keyExpression = "#request.id")
-```
-
-效果：
-
-- 课程更新和订单支付不会因为 key 相同而误抢同一把锁
-- 日志中可以直接看出锁属于哪个业务场景
-- 后续排查 Redis 锁 key 更清楚
-
-不推荐：
+推荐：
 
 ```java
-@DistributeLock(key = "operation")
+scene = "tool:update"
+scene = "course:audit"
+scene = "order:create"
 ```
 
-虽然能用，但场景为空，排查问题时不直观。
+不推荐用空字符串，否则 Redis 中的 key 不够直观。
 
-### 4.2 key：固定锁 key
+### 4.2 key
 
-`key` 适合锁定某一类固定操作。
+固定锁 key。
 
 示例：
 
 ```java
-@DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000)
-public R<Long> save(@RequestBody CourseCreateRequest request) {
-    ...
-}
+@DistributeLock(scene = "resource", key = "operation")
 ```
 
-效果：
+适合：
 
-- 同一个用户的 `resource#operation` 操作会串行执行
-- 如果 3 秒内拿不到锁，会抛出异常
-- 锁最多持有 10 秒
-- 方法执行结束后默认立即释放锁
+- 某类固定操作防重复
+- 用户维度固定行为串行化
 
-适合场景：
+### 4.3 keyExpression
 
-- 防止用户重复点击提交
-- 限制某类资源操作并发
-- 不需要按具体业务 ID 细分锁粒度
-
-### 4.3 keyExpression：动态锁 key
-
-`keyExpression` 使用 SpEL 表达式从方法参数中取值。
+支持 SpEL 表达式，从方法参数中动态提取 key。
 
 示例：
 
 ```java
-@DistributeLock(scene = "course:update", keyExpression = "#request.id", includeUserId = false, waitTime = 0)
-public R<Long> update(@RequestBody CourseUpdateRequest request) {
-    ...
-}
+@DistributeLock(scene = "tool:update", keyExpression = "#request.id", includeUserId = false)
 ```
 
-效果：
-
-- 同一个课程 ID 的更新请求互斥
-- 不同课程 ID 可以并发执行
-- 不区分用户，因为课程是公共资源
-- 拿不到锁立即失败
-
-例如：
+当 `request.id = 2001` 时，锁 key 为：
 
 ```text
-用户 A 修改 courseId=1
-用户 B 修改 courseId=1
+tool:update#2001
 ```
 
-这两个请求会抢同一把锁：
+适合：
 
-```text
-course:update#1
-```
+- 按资源 ID 加锁
+- 同一资源互斥，不同资源并发
 
-但：
+### 4.4 includeUserId
 
-```text
-用户 A 修改 courseId=1
-用户 B 修改 courseId=2
-```
-
-这两个请求使用不同锁：
-
-```text
-course:update#1
-course:update#2
-```
-
-可以并发执行。
-
-### 4.4 includeUserId：是否拼接用户 ID
+是否自动拼接当前用户 ID。
 
 默认值：
 
@@ -229,189 +183,55 @@ course:update#2
 includeUserId = true
 ```
 
-表示锁 key 中会拼接当前用户 ID。
-
-示例：
-
-```java
-@DistributeLock(scene = "website_submit", key = "website_submit_lock", includeUserId = true, waitTime = 0)
-public int submitWebsite(WebsiteSubmitDTO submitDto) {
-    ...
-}
-```
-
 效果：
 
 ```text
-website_submit#user:10001#website_submit_lock
-website_submit#user:10002#website_submit_lock
+scene#user:10001#key
 ```
 
-用户 `10001` 和用户 `10002` 使用不同锁，因此互不影响。
+适合：
 
-适合场景：
+- 防止同一个用户重复提交
+- 不同用户之间允许并发
 
-- 每个用户不能重复提交
-- 每个用户自己的操作要串行
-- 不同用户之间可以并发
+### 4.5 expireTime
+
+锁超时时间，单位毫秒。
+
+说明：
+
+- `-1` 表示使用 Redisson 默认续期机制
+- 显式设置后，锁会在指定时间后自动失效
 
 例如：
 
-```text
-用户 A 连续点击两次“提交网站”
+```java
+expireTime = 60000
 ```
 
-第二次请求会因为抢不到同一把锁而失败。
+表示锁 60 秒后自动过期。
 
-但：
+### 4.6 waitTime
 
-```text
-用户 A 提交网站
-用户 B 提交网站
-```
+获取锁等待时长，单位毫秒。
 
-两个用户可以同时提交。
+说明：
 
-如果锁的是公共资源，要关闭用户维度：
+- `-1` 表示阻塞等待
+- `0` 表示立即尝试，失败就返回
+- 大于 `0` 表示等待指定时间
+
+例如：
 
 ```java
-@DistributeLock(scene = "course:update", keyExpression = "#request.id", includeUserId = false)
+waitTime = 3000
 ```
 
-否则不同用户修改同一门课程时会拿到不同锁，达不到公共资源互斥的效果。
+表示最多等 3 秒获取锁。
 
-### 4.5 waitTime：等待拿锁时间
+### 4.7 releaseImmediately
 
-`waitTime` 单位是毫秒。
-
-当前实现规则：
-
-| waitTime | 效果 |
-|---|---|
-| `-1` | 阻塞等待，直到拿到锁 |
-| `0` | 立即尝试拿锁，拿不到马上失败 |
-| `> 0` | 最多等待指定毫秒数，超时失败 |
-
-#### 效果一：阻塞等待
-
-```java
-@DistributeLock(scene = "job:sync", key = "full", waitTime = -1)
-public void syncData() {
-    ...
-}
-```
-
-效果：
-
-- 如果当前锁被占用，后续请求会一直等待
-- 等前一个任务执行完释放锁后，后一个任务继续执行
-
-适合：
-
-- 后台任务
-- 队列消费
-- 不希望直接失败的内部流程
-
-不太适合普通接口，因为用户可能一直卡住。
-
-#### 效果二：快速失败
-
-```java
-@DistributeLock(scene = "order:pay", keyExpression = "#request.orderId", includeUserId = false, waitTime = 0)
-public R<Void> pay(@RequestBody PayRequest request) {
-    ...
-}
-```
-
-效果：
-
-- 同一订单正在支付时，重复支付请求立即失败
-- 前端可以提示“处理中，请勿重复提交”
-
-适合：
-
-- 支付
-- 提交表单
-- 审核按钮
-- 用户可感知的接口操作
-
-#### 效果三：等待一段时间
-
-```java
-@DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000)
-public R<Long> save(@RequestBody CourseCreateRequest request) {
-    ...
-}
-```
-
-效果：
-
-- 如果锁被占用，最多等 3 秒
-- 3 秒内锁释放，则继续执行
-- 超过 3 秒仍拿不到锁，则失败
-
-适合：
-
-- 希望减少失败率
-- 但又不希望接口无限等待的场景
-
-### 4.6 expireTime：锁过期时间
-
-`expireTime` 单位是毫秒。
-
-当前实现规则：
-
-| expireTime | 效果 |
-|---|---|
-| `-1` | 不手动指定租约时间，由 Redisson 看门狗自动续期 |
-| `> 0` | 指定锁最多持有时间，到期后自动释放 |
-
-#### 效果一：默认自动续期
-
-```java
-@DistributeLock(scene = "job:import", key = "excel", waitTime = -1)
-public void importExcel() {
-    ...
-}
-```
-
-效果：
-
-- 方法执行时间不确定时，Redisson 会自动续期
-- 避免业务还没执行完锁就过期
-
-适合：
-
-- 执行时间不可预估的任务
-- 大文件处理
-- 第三方接口耗时不稳定的流程
-
-#### 效果二：指定过期时间
-
-```java
-@DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000)
-public R<Long> save(@RequestBody CourseCreateRequest request) {
-    ...
-}
-```
-
-效果：
-
-- 锁最多持有 10 秒
-- 即使服务异常退出，锁也会在 10 秒后自动释放
-- 正常情况下，方法执行完会立即释放锁
-
-适合：
-
-- 执行时间比较确定的接口
-- 需要避免异常情况下锁长时间存在的场景
-
-注意：
-
-- `expireTime` 设置太短，可能方法没执行完锁就过期，导致并发请求进入
-- `expireTime` 设置太长，异常时其他请求等待时间会变长
-
-### 4.7 releaseImmediately：是否方法结束立即释放锁
+是否在方法执行结束后立即释放锁。
 
 默认值：
 
@@ -419,450 +239,446 @@ public R<Long> save(@RequestBody CourseCreateRequest request) {
 releaseImmediately = true
 ```
 
-表示方法执行结束后，如果当前线程还持有锁，会在 `finally` 中立即释放。
+分两种模式。
 
-#### 效果一：方法结束立即释放
+## 5. 两种锁模式
 
-```java
-@DistributeLock(
-    scene = "resource",
-    key = "operation",
-    expireTime = 10000,
-    waitTime = 3000,
-    releaseImmediately = true
-)
-public R<Long> save(@RequestBody CourseCreateRequest request) {
-    ...
-}
-```
+### 5.1 普通锁：执行完立即释放
 
-效果：
-
-- 请求进入前加锁
-- 方法执行期间其他相同锁请求不能进入
-- 方法结束后立即解锁
-- 后续请求可以马上进入
-
-适合大多数普通接口。
-
-#### 效果二：方法结束后不立即释放，等过期时间结束
+配置：
 
 ```java
-@DistributeLock(
-    scene = "course:audit",
-    key = "api",
-    expireTime = 60000,
-    waitTime = 0,
-    releaseImmediately = false
-)
-public R<Long> audit(@RequestBody CourseAuditRequest request) {
-    ...
-}
+releaseImmediately = true
 ```
 
-效果：
+行为：
 
-- 请求执行完成后不会主动 `unlock`
-- 锁会保留到 `expireTime` 到期
-- 60 秒内相同锁 key 的请求都会失败或等待
+- 业务执行完成后，在 `finally` 里立即 `unlock`
+- 适合大多数提交、更新、审核类接口
 
-适合：
-
-- 审核类接口防连点
-- 需要做冷却时间的接口
-- 不希望方法刚执行完就立刻被再次触发的操作
-
-注意：
-
-当 `releaseImmediately = false` 时，必须显式配置 `expireTime`，否则系统会抛出异常：
+流程：
 
 ```text
-expireTime must be configured when releaseImmediately is false
+[拿到锁]
+   |
+   v
+[执行业务]
+   |
+   v
+[finally 中立即 unlock]
 ```
-
-原因是如果不设置过期时间，又不立即释放锁，锁可能长期不释放。
-
-## 5. 能做到什么效果
-
-### 5.1 防止重复提交
 
 示例：
 
 ```java
-@DistributeLock(scene = "website_submit", key = "website_submit_lock", includeUserId = true, waitTime = 0)
-public int submitWebsite(WebsiteSubmitDTO submitDto) {
-    ...
-}
-```
-
-效果：
-
-- 同一个用户重复点击提交，只会有一个请求进入
-- 第二个请求拿不到锁会立即失败
-- 不同用户提交互不影响
-
-适合：
-
-- 网站提交
-- 表单提交
-- 报名
-- 申请入驻
-- 领取奖励
-
-### 5.2 同一资源串行修改
-
-示例：
-
-```java
-@DistributeLock(scene = "course:update", keyExpression = "#request.id", includeUserId = false, waitTime = 0)
-public R<Long> update(@RequestBody CourseUpdateRequest request) {
-    ...
-}
-```
-
-效果：
-
-- 同一门课程只能被一个请求修改
-- 不同课程可以并发修改
-- 不同用户修改同一门课程也会互斥
-
-适合：
-
-- 修改课程
-- 修改订单
-- 修改工具
-- 更新审核状态
-- 调整库存
-
-### 5.3 全局互斥操作
-
-示例：
-
-```java
-@DistributeLock(scene = "system:sync", key = "all", includeUserId = false, waitTime = 0, expireTime = 60000)
-public void syncAllData() {
-    ...
-}
-```
-
-效果：
-
-- 整个系统同一时刻只允许一个同步任务执行
-- 即使多节点部署，也只有一个节点能拿到锁
-
-适合：
-
-- 全量同步
-- 批量导入
-- 重新生成缓存
-- 定时任务防多实例重复执行
-
-### 5.4 用户维度串行
-
-示例：
-
-```java
-@DistributeLock(scene = "coupon:receive", key = "submit", includeUserId = true, waitTime = 0)
-public R<Void> receiveCoupon() {
-    ...
-}
-```
-
-效果：
-
-- 同一用户领取动作串行
-- 不同用户可以同时领取
-- 锁粒度是“用户 + 场景 + 操作”
-
-适合：
-
-- 领取优惠券
-- 用户签到
-- 用户报名
-- 用户提交申请
-
-### 5.5 业务冷却时间
-
-示例：
-
-```java
+@PostMapping("/save")
 @DistributeLock(
-    scene = "sms:send",
-    key = "code",
-    includeUserId = true,
-    expireTime = 60000,
-    waitTime = 0,
-    releaseImmediately = false
+        scene = "tool:save",
+        key = "operation",
+        expireTime = 10000,
+        waitTime = 3000,
+        releaseImmediately = true
 )
-public R<Void> sendSmsCode() {
-    ...
-}
-```
-
-效果：
-
-- 用户发送一次验证码后，60 秒内不能再次发送
-- 即使方法很快执行完成，也不会立即释放锁
-- 锁自然过期后才允许再次发送
-
-适合：
-
-- 短信验证码
-- 邮件验证码
-- 审核提交冷却
-- 防频繁点击按钮
-
-### 5.6 多节点互斥
-
-假设系统部署了 3 个后端实例：
-
-```text
-server-1
-server-2
-server-3
-```
-
-三个实例同时收到同一订单支付请求。
-
-示例：
-
-```java
-@DistributeLock(scene = "order:pay", keyExpression = "#request.orderId", includeUserId = false, waitTime = 0)
-public R<Void> pay(@RequestBody PayRequest request) {
-    ...
-}
-```
-
-效果：
-
-- 三个实例都会去 Redis 抢同一把锁
-- 只有一个实例能成功执行支付逻辑
-- 其他实例拿锁失败，直接返回失败
-- 避免多节点环境下重复处理同一订单
-
-## 6. 当前系统中的实际使用
-
-### 6.1 课程新增/修改
-
-当前代码：
-
-```java
-@DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
-public R<Long> save(@RequestBody CourseCreateRequest request) {
-    ...
-}
-```
-
-实际效果：
-
-- 同一用户的资源操作会串行
-- 最多等待 3 秒拿锁
-- 锁最多持有 10 秒
-- 方法执行结束后立即释放锁
-
-由于 `includeUserId` 默认是 `true`，所以不同用户之间不会互相阻塞。
-
-### 6.2 工具新增/修改
-
-当前代码：
-
-```java
-@DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
 public R<Long> save(@RequestBody ToolSaveRequest request) {
     ...
 }
 ```
 
-实际效果和课程资源操作类似：
+适合：
 
-- 防止同一用户重复提交资源操作
-- 给 3 秒等待窗口
-- 正常执行结束后释放锁
+- 新增工具
+- 提交课程
+- 下单防重复
+- 资源审核
 
-### 6.3 课程审核
+### 5.2 定时锁：执行完不释放，只等超时
 
-当前代码：
+配置：
 
 ```java
-@DistributeLock(scene = "course:audit", key = "api", expireTime = 60000, waitTime = 0, releaseImmediately = false)
-public R<Long> audit(@RequestBody CourseAuditRequest request) {
-    ...
+releaseImmediately = false
+```
+
+并且必须显式配置：
+
+```java
+expireTime
+```
+
+否则切面会直接抛异常：
+
+```text
+expireTime must be configured when releaseImmediately is false
+```
+
+行为：
+
+- 方法执行结束后不调用 `unlock`
+- 锁一直保留到 `expireTime` 到期
+- 即使接口很快执行完，锁也不会提前释放
+
+这就是你说的“锁 1 分钟，就算接口调用完毕了也不释放，只有 1 分钟后才能重新拿锁”的模式。
+
+流程：
+
+```text
+[拿到锁]
+   |
+   v
+[执行业务方法]
+   |
+   v
+[方法结束]
+   |
+   +--> 不 unlock
+   |
+   v
+[等待 expireTime 到期]
+   |
+   v
+[锁自动失效]
+```
+
+### 5.3 1 分钟定时锁示例
+
+```java
+@PostMapping("/retry-protected")
+@DistributeLock(
+        scene = "tool:highRisk",
+        keyExpression = "#request.toolId",
+        includeUserId = true,
+        waitTime = 0,
+        expireTime = 60000,
+        releaseImmediately = false
+)
+public R<String> highRiskAction(@RequestBody ToolUsageConsumeRequest request) {
+    return R.ok("提交成功，1分钟内不可重复触发");
 }
 ```
 
-实际效果：
+行为说明：
 
-- 审核接口抢不到锁立即失败
-- 抢到锁后，即使方法执行完成，也不会立即释放
-- 锁会保留 60 秒
-- 60 秒内同一用户不能再次触发同一审核锁
+- 用户 `10001` 对 `toolId=88` 发起请求
+- 锁 key：
 
-这个写法更像“接口冷却锁”，不是单纯的方法执行期间互斥。
-
-## 7. 推荐使用规范
-
-### 7.1 优先明确 scene
-
-推荐：
-
-```java
-scene = "course:update"
-scene = "order:pay"
-scene = "website:submit"
+```text
+tool:highRisk#user:10001#88
 ```
 
-不推荐大量使用：
-
-```java
-scene = "resource"
-key = "operation"
-```
-
-粗粒度锁虽然简单，但可能导致无关操作互相影响。
-
-### 7.2 公共资源锁要关闭 includeUserId
-
-如果锁的是课程、订单、工具、库存等公共资源，建议：
-
-```java
-includeUserId = false
-```
-
-示例：
-
-```java
-@DistributeLock(scene = "course:update", keyExpression = "#request.id", includeUserId = false)
-```
-
-否则不同用户操作同一资源时，锁 key 不同，无法实现公共资源互斥。
-
-### 7.3 用户自己的操作才使用 includeUserId=true
+- 接口执行 200ms 就结束
+- 但锁不会释放
+- 60 秒内同一用户再次请求同一个工具会直接拿锁失败
+- 60 秒后才能再次成功
 
 适合：
 
-```java
-@DistributeLock(scene = "website:submit", key = "submit", includeUserId = true)
-```
+- 高风险操作防重试
+- 异步提交后的短时间冷却
+- 支付确认/发放额度等需要短时间防抖的接口
 
-这表示“每个用户自己的提交串行”。
+## 6. 通过用户 ID 加锁
 
-### 7.4 接口请求建议使用 waitTime=0 或短等待
+### 6.1 原理
 
-推荐：
-
-```java
-waitTime = 0
-```
-
-或者：
+当：
 
 ```java
-waitTime = 3000
+includeUserId = true
 ```
 
-普通接口不建议无限阻塞等待，否则用户体验不好。
+切面会从线程上下文中读取当前用户 ID：
 
-### 7.5 releaseImmediately=false 必须配置 expireTime
+- `ThreadLocalUtil`
+- `OshUserConstants.USER_ID`
 
-正确：
+然后把用户 ID 拼进锁 key。
 
-```java
-@DistributeLock(scene = "sms:send", key = "code", expireTime = 60000, waitTime = 0, releaseImmediately = false)
-```
-
-错误：
-
-```java
-@DistributeLock(scene = "sms:send", key = "code", releaseImmediately = false)
-```
-
-错误原因：
-
-```text
-不立即释放锁时，必须让锁有明确过期时间。
-```
-
-### 7.6 分布式锁不是数据库约束的替代品
-
-分布式锁可以减少重复请求和并发冲突，但不能替代：
-
-- 数据库唯一索引
-- 事务
-- 状态机校验
-- 乐观锁
-- 幂等表
-
-推荐组合：
-
-```text
-分布式锁：入口防重
-业务校验：过程防错
-数据库约束：最终兜底
-```
-
-## 8. 常见问题
-
-### 8.1 为什么拿不到锁会抛异常？
-
-当前实现中，如果 `tryLock` 返回 `false`，会抛出：
-
-```text
-DistributeLockException: acquire lock failed...
-```
-
-业务层可以通过全局异常处理统一转换成用户可读提示，例如：
-
-```text
-操作正在处理中，请勿重复提交
-```
-
-### 8.2 keyExpression 取不到参数怎么办？
+### 6.2 效果
 
 例如：
 
 ```java
-@DistributeLock(keyExpression = "#request.id")
+@DistributeLock(scene = "tool:purchase", key = "submit", includeUserId = true)
 ```
 
-要求方法参数名能被正确发现，并且确实存在 `request` 参数。
+两个用户同时请求：
 
-正确示例：
+```text
+用户A -> tool:purchase#user:10001#submit
+用户B -> tool:purchase#user:10002#submit
+```
+
+他们互不影响。
+
+但同一个用户重复提交：
+
+```text
+用户A 第1次 -> tool:purchase#user:10001#submit
+用户A 第2次 -> tool:purchase#user:10001#submit
+```
+
+就会竞争同一把锁。
+
+### 6.3 适用场景
+
+推荐用于：
+
+- 用户提交订单
+- 用户购买工具
+- 用户发起支付
+- 用户收藏/取消收藏防连点
+- 用户个人配置更新
+
+## 7. key 与 keyExpression 的使用建议
+
+### 7.1 用 `key`
+
+适合固定业务动作：
 
 ```java
-public R<Long> update(@RequestBody CourseUpdateRequest request) {
+@DistributeLock(scene = "tool:save", key = "operation")
+```
+
+适用于：
+
+- 新增提交
+- 发布操作
+- 防止用户连续点击同一个按钮
+
+### 7.2 用 `keyExpression`
+
+适合资源级互斥：
+
+```java
+@DistributeLock(scene = "tool:update", keyExpression = "#request.id", includeUserId = false)
+```
+
+适用于：
+
+- 修改工具
+- 审核课程
+- 删除某个资源
+- 按资源 ID 串行处理
+
+## 8. 典型流程图
+
+### 8.1 用户维度防重复提交
+
+```text
+[用户点击“保存工具”]
+        |
+        v
+[进入 Controller.save]
+        |
+        v
+[AOP 生成锁 key: tool:save#user:10001#operation]
+        |
+        +--> 获取成功 -> 执行业务
+        |
+        +--> 获取失败 -> 返回“重复提交/请稍后重试”
+        |
+        v
+[业务执行完成]
+        |
+        v
+[立即释放锁]
+```
+
+### 8.2 资源维度互斥更新
+
+```text
+[管理员A修改工具1001]
+[管理员B修改工具1001]
+        |
+        v
+[AOP 统一生成锁 key: tool:update#1001]
+        |
+        +--> A 先拿到锁并执行
+        |
+        +--> B 等待或直接失败
+```
+
+### 8.3 定时锁防 1 分钟内重复提交
+
+```text
+[用户提交高风险操作]
+        |
+        v
+[AOP 加锁成功]
+        |
+        v
+[业务方法很快执行完成]
+        |
+        v
+[不主动释放锁]
+        |
+        v
+[1分钟内再次请求 -> 拿锁失败]
+        |
+        v
+[1分钟到期 -> 锁自动失效]
+        |
+        v
+[用户可再次请求]
+```
+
+## 9. 代码示例
+
+### 9.1 普通接口防重复提交
+
+```java
+@PostMapping("/save")
+@DistributeLock(
+        scene = "tool:save",
+        key = "operation",
+        includeUserId = true,
+        waitTime = 3000,
+        expireTime = 10000,
+        releaseImmediately = true
+)
+public R<Long> save(@Validated @RequestBody ToolSaveRequest request) {
+    return R.ok(oshToolService.createTool(request, UserContextUtil.getCurrentUser()));
+}
+```
+
+说明：
+
+- 同一个用户 3 秒内重复点保存会等待锁
+- 最多等待 3 秒
+- 锁最长 10 秒
+- 方法结束立刻释放
+
+### 9.2 按资源 ID 更新
+
+```java
+@PostMapping("/update")
+@DistributeLock(
+        scene = "tool:update",
+        keyExpression = "#request.id",
+        includeUserId = false,
+        waitTime = 0,
+        expireTime = 10000,
+        releaseImmediately = true
+)
+public R<Long> update(@Validated @RequestBody ToolSaveRequest request) {
+    return R.ok(oshToolService.updateTool(request, UserContextUtil.getCurrentUser()));
+}
+```
+
+说明：
+
+- 同一个工具 ID 不能并发更新
+- 不同工具 ID 可以并发
+- 拿不到锁立即失败
+
+### 9.3 用户维度 1 分钟定时锁
+
+```java
+@PostMapping("/purchase/submit")
+@DistributeLock(
+        scene = "tool:purchase",
+        keyExpression = "#request.toolId",
+        includeUserId = true,
+        waitTime = 0,
+        expireTime = 60000,
+        releaseImmediately = false
+)
+public R<String> submitPurchase(@RequestBody ToolPurchaseCreateRequest request) {
+    return R.ok("下单请求已受理，1分钟内不可重复提交");
+}
+```
+
+说明：
+
+- 同一用户对同一工具 1 分钟内只能提交一次
+- 接口即使 100ms 内返回，也不会释放锁
+- 到 60 秒后才允许再次提交
+
+### 9.4 定时任务防重复执行
+
+```java
+@Scheduled(cron = "0 */5 * * * ?")
+@DistributeLock(
+        scene = "job:toolSync",
+        key = "global",
+        includeUserId = false,
+        waitTime = 0,
+        expireTime = 300000,
+        releaseImmediately = true
+)
+public void syncTools() {
     ...
 }
 ```
 
-如果参数名或字段路径写错，表达式解析结果可能不是预期值。
+说明：
 
-### 8.3 expireTime 该设置多久？
+- 多实例部署下，同一时间只有一个实例执行同步任务
 
-建议按业务最大执行时间设置，并留一点余量。
+## 10. 使用建议
 
-例如：
+推荐：
 
-- 普通保存接口：`10000`
-- 审核冷却：`60000`
-- 短信验证码：`60000`
-- 大批量任务：优先使用默认自动续期，或者设置足够长的时间
+- 用户防重复提交：`includeUserId=true`
+- 资源级串行更新：`keyExpression + includeUserId=false`
+- 高风险防短时重试：`releaseImmediately=false + expireTime`
 
-### 8.4 什么时候用固定 key，什么时候用动态 key？
+不推荐：
 
-固定 key：
+- 不设置 `scene`
+- `releaseImmediately=false` 但不配 `expireTime`
+- 锁粒度过大，导致不同资源也串行
+- 锁粒度过小，导致该互斥的操作没有真正互斥
+
+## 11. 常见误区
+
+### 11.1 接口执行完就一定释放锁
+
+不一定。
+
+如果：
 
 ```java
-key = "operation"
+releaseImmediately = false
 ```
 
-适合锁一类操作。
+则方法结束后不会主动释放锁，只能等过期。
 
-动态 key：
+### 11.2 includeUserId=true 就是全局锁
+
+不是。
+
+这是用户维度锁，不同用户会得到不同锁 key。
+
+### 11.3 keyExpression 适合所有场景
+
+不是。
+
+如果只是单纯防用户重复点击提交，用固定 `key` 往往更简单。
+
+### 11.4 waitTime=0 会自动重试
+
+不会。
+
+`waitTime=0` 的含义是立即尝试，失败就直接返回。
+
+## 12. 一句话总结
+
+`@DistributeLock` 的本质是：
+
+- 通过 AOP 在方法执行前后自动加 Redis 锁
+- 可按用户维度、资源维度或全局维度控制并发
+- 可选择执行完立即释放，也可选择“定时锁”模式延迟释放
+
+如果你的诉求是“用户调完接口后，1 分钟内不允许再次触发”，正确配置就是：
 
 ```java
-keyExpression = "#request.id"
+@DistributeLock(
+        scene = "...",
+        keyExpression = "...",
+        includeUserId = true,
+        waitTime = 0,
+        expireTime = 60000,
+        releaseImmediately = false
+)
 ```
-
-适合锁具体业务资源。
-
-一般建议优先使用动态 key，因为锁粒度更小，并发性能更好。

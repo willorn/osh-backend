@@ -193,7 +193,7 @@ public class BookControllerApiTest {
         String suffix = String.valueOf(System.currentTimeMillis());
         String questionContent = "这是电子书自动化提问内容-" + suffix;
 
-        performAsUser(buildCurrentUser(), post("/api/qna/question/create")
+        performAsUser(buildCurrentUser(), post("/pc/qna/question/create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"resourceType\":\"电子书\",\"resourceNo\":" + bookId + ",\"content\":\"" + questionContent + "\",\"isPaidOnly\":0}"))
                 .andExpect(status().isOk())
@@ -208,7 +208,7 @@ public class BookControllerApiTest {
         assertNotNull(question);
         assertEquals(Long.valueOf(1L), question.getUserId());
 
-        performAsUser(buildCurrentUser(), post("/api/qna/question/list")
+        performAsUser(buildCurrentUser(), post("/pc/qna/question/list")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"resourceType\":\"电子书\",\"resourceNo\":" + bookId + ",\"type\":\"all\",\"pageNum\":1,\"pageSize\":10}"))
                 .andExpect(status().isOk())

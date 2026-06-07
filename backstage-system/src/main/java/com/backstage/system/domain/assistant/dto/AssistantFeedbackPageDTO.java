@@ -1,5 +1,8 @@
 package com.backstage.system.domain.assistant.dto;
 
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.Size;
 import java.util.List;
 
 /**
@@ -30,8 +33,9 @@ public class AssistantFeedbackPageDTO {
     private Integer isPinned;
 
     /**
-     * 关键词搜索（标题或内容）
+     * 关键词搜索（标题或内容），最大100字符
      */
+    @Size(max = 100, message = "关键词最大长度为100")
     private String keyword;
 
     /**
@@ -55,13 +59,16 @@ public class AssistantFeedbackPageDTO {
     private String sortType;
 
     /**
-     * 页码（默认 1）
+     * 页码（默认 1，最小1）
      */
+    @Min(value = 1, message = "页码最小为1")
     private Integer pageNum = 1;
 
     /**
-     * 每页数量（默认 10）
+     * 每页数量（默认 10，范围1-100）
      */
+    @Min(value = 1, message = "每页数量最小为1")
+    @Max(value = 100, message = "每页数量最大为100")
     private Integer pageSize = 10;
 
     public Long getCategoryId() {

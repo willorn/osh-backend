@@ -10,6 +10,7 @@ import com.backstage.system.mapper.tool.OshToolCollectionMapper;
 import com.backstage.system.mapper.tool.OshToolMapper;
 import com.backstage.system.mapper.tool.OshToolPackageMapper;
 import com.backstage.system.mapper.tool.OshToolTagMapper;
+import com.backstage.system.mapper.tool.OshToolVoteMapper;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.service.OutboxEventService;
 import com.backstage.system.request.tool.ToolPackageSaveRequest;
@@ -30,6 +31,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -52,6 +54,9 @@ public class OshToolServiceImplTest {
 
     @Mock
     private OshToolCollectionMapper oshToolCollectionMapper;
+
+    @Mock
+    private OshToolVoteMapper oshToolVoteMapper;
 
     @Mock
     private IOshToolEsService oshToolEsService;
@@ -157,9 +162,20 @@ public class OshToolServiceImplTest {
                         && tool.getIframeUrl() == null
                         && "tlGh56Ij".equals(tool.getNo())
                         && Integer.valueOf(0).equals(tool.getPointCost())
+                        && Integer.valueOf(1).equals(tool.getLevel())
                         && Integer.valueOf(2).equals(tool.getStatus())
         ));
         verify(oshToolEsService).buildIndexMessage(eq(10003L), eq(ToolIndexEventType.TOOL_INDEX_CREATE));
+    }
+
+    @Test
+    public void shouldMapLevelFromResourceTypeWhenCreatingTool() {
+        assertResourceTypeLevel("FREE", 1, 11001L, "tlFree01");
+        assertResourceTypeLevel("CASH_ONLY", 2, 11002L, "tlCash02");
+        assertResourceTypeLevel("CASH_POINT", 3, 11003L, "tlPoint03");
+        assertResourceTypeLevel("VIP", 4, 11004L, "tlVip004");
+        assertResourceTypeLevel("SMALL_CLASS", 5, 11005L, "tlSmall5");
+        assertResourceTypeLevel("INTERNAL", 6, 11006L, "tlInner6");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -191,7 +207,6 @@ public class OshToolServiceImplTest {
         toolPackage.setPackageName("10次体验包");
         when(oshToolPackageMapper.selectPackagesByToolId(10001L)).thenReturn(Collections.singletonList(toolPackage));
         when(oshToolMapper.selectUserRemainingCount(10001L, 9L)).thenReturn(8);
-
         OshTool result = toolService.getToolDetail(10001L, 9L);
 
         assertEquals("common/image/tool/logo.png", result.getLogoUrl());
@@ -273,6 +288,23 @@ public class OshToolServiceImplTest {
     }
 
     @Test
+    public void shouldReturnForbiddenPermissionWhenUserLevelDoesNotMeetRequiredLevel() {
+        OshTool tool = new OshTool();
+        tool.setId(10001L);
+        tool.setResourceType("FREE");
+        tool.setLevel(4);
+
+        when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
+
+        ToolUsagePermission permission = toolService.checkToolUsagePermission(9L, 3, 10001L);
+
+        assertEquals(Boolean.FALSE, permission.getUseAllowed());
+        assertEquals(Boolean.FALSE, permission.getDeductAllowed());
+        assertEquals(Integer.valueOf(0), permission.getRemainingCount());
+        assertEquals("用户权限不足", permission.getMessage());
+    }
+
+    @Test
     public void shouldIncreaseViewCountWhenRecordingToolView() {
         when(oshToolMapper.increaseViewCount(10001L)).thenReturn(1);
 
@@ -300,5 +332,32 @@ public class OshToolServiceImplTest {
         verify(oshToolMapper).selectToolsWithMissingNo();
         verify(oshToolMapper).updateToolNoById(eq(10001L), eq("tlAa11Bb"));
         verify(oshToolMapper).updateToolNoById(eq(10002L), eq("tlCc22Dd"));
+    }
+
+    private void assertResourceTypeLevel(String resourceType, Integer expectedLevel, Long toolId, String no) {
+        clearInvocations(oshToolMapper, resourceNoGenerator, oshToolEsService);
+        final OshTool[] capturedTool = new OshTool[1];
+
+        ToolSaveRequest request = new ToolSaveRequest();
+        request.setToolName("测试工具-" + resourceType);
+        request.setRoutePath("/test/" + resourceType.toLowerCase());
+        request.setResourceType(resourceType);
+
+        OshUser operator = new OshUser();
+        operator.setUsername("admin");
+
+        when(oshToolMapper.insertTool(any(OshTool.class))).thenAnswer(invocation -> {
+            OshTool tool = invocation.getArgument(0);
+            capturedTool[0] = tool;
+            tool.setId(toolId);
+            return 1;
+        });
+        when(resourceNoGenerator.generateUniqueNo(eq(ResourceCodePrefixEnum.TOOL), any())).thenReturn(no);
+
+        Long createdId = toolService.createTool(request, operator);
+
+        assertEquals(toolId, createdId);
+        assertEquals(resourceType, capturedTool[0].getResourceType());
+        assertEquals(expectedLevel, capturedTool[0].getLevel());
     }
 }

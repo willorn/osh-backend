@@ -40,9 +40,6 @@ public class ToolSaveRequest {
     @ApiModelProperty(value = "资源类型：FREE,CASH_ONLY,CASH_POINT,VIP,SMALL_CLASS,INTERNAL", example = "FREE")
     private String resourceType;
 
-    @ApiModelProperty(value = "资源等级", example = "1")
-    private Integer level;
-
     @ApiModelProperty(value = "标签名称列表，不存在的标签会自动创建", example = "[\"PDF工具\",\"图片工具\"]")
     private List<String> tags;
 
@@ -119,14 +116,6 @@ public class ToolSaveRequest {
 
     public void setResourceType(String resourceType) {
         this.resourceType = StringUtils.trimToNull(resourceType);
-    }
-
-    public Integer getLevel() {
-        return level;
-    }
-
-    public void setLevel(Integer level) {
-        this.level = level;
     }
 
     public List<String> getTags() {

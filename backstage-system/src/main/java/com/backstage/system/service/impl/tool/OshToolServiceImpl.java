@@ -1,6 +1,7 @@
 package com.backstage.system.service.impl.tool;
 
 import com.backstage.common.enums.ResourceCodePrefixEnum;
+import com.backstage.common.enums.ResourceTypeEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolPackage;
@@ -24,6 +25,7 @@ import com.backstage.system.service.tool.ResourceNoGenerator;
 import com.backstage.system.service.tool.ToolIndexDeleteMessage;
 import com.backstage.system.service.tool.ToolIndexEventType;
 import com.backstage.system.service.tool.ToolIndexMessage;
+import com.backstage.system.utils.ResourcePermissionUtil;
 import com.github.pagehelper.PageHelper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +53,12 @@ public class OshToolServiceImpl implements IOshToolService {
     private static final int RECOMMEND_TAG_LIMIT = 5;
     private static final int VOTE_TYPE_GOOD = 1;
     private static final int VOTE_TYPE_BAD = 3;
+    private static final int LEVEL_FREE = 1;
+    private static final int LEVEL_CASH_ONLY = 2;
+    private static final int LEVEL_CASH_POINT = 3;
+    private static final int LEVEL_VIP = 4;
+    private static final int LEVEL_SMALL_CLASS = 5;
+    private static final int LEVEL_INTERNAL = 6;
 
     @Autowired
     private OshToolMapper oshToolMapper;
@@ -307,6 +315,7 @@ public class OshToolServiceImpl implements IOshToolService {
     private OshTool buildTool(ToolSaveRequest request, String operator) {
         validateAccessTarget(request);
         OshTool tool = new OshTool();
+        String resourceType = StringUtils.defaultIfBlank(request.getResourceType(), DEFAULT_RESOURCE_TYPE);
         tool.setToolName(request.getToolName());
         tool.setDescription(request.getDescription());
         tool.setLogoUrl(null);
@@ -319,8 +328,8 @@ public class OshToolServiceImpl implements IOshToolService {
         tool.setPointCost(0);
         tool.setStatus(request.getId() == null ? 2 : request.getStatus());
         tool.setRemark(request.getRemark());
-        tool.setResourceType(request.getId() == null ? StringUtils.defaultIfBlank(request.getResourceType(), DEFAULT_RESOURCE_TYPE) : request.getResourceType());
-        tool.setLevel(request.getId() == null && request.getLevel() == null ? 1 : request.getLevel());
+        tool.setResourceType(resourceType);
+        tool.setLevel(resolveLevelByResourceType(resourceType));
         tool.setCreateBy(operator);
         tool.setUpdateBy(operator);
         return tool;
@@ -489,9 +498,7 @@ public class OshToolServiceImpl implements IOshToolService {
 
     private ToolUsagePermission buildToolUsagePermission(OshTool tool, Long userId, Integer userLevel) {
         ToolUsagePermission permission = new ToolUsagePermission();
-        int level = userLevel == null ? 0 : userLevel;
-        int requiredLevel = tool.getLevel() == null ? 0 : tool.getLevel();
-        if (level < requiredLevel) {
+        if (!hasToolPermission(tool.getId(), userLevel, tool.getLevel())) {
             permission.setUseAllowed(false);
             permission.setDeductAllowed(false);
             permission.setRemainingCount(0);
@@ -511,6 +518,36 @@ public class OshToolServiceImpl implements IOshToolService {
         permission.setDeductAllowed(value > 0);
         permission.setMessage(value > 0 ? "允许使用" : "工具使用次数不足");
         return permission;
+    }
+
+    private Integer resolveLevelByResourceType(String resourceType) {
+        String normalizedType = StringUtils.trimToEmpty(resourceType).toUpperCase();
+        switch (normalizedType) {
+            case DEFAULT_RESOURCE_TYPE:
+                return LEVEL_FREE;
+            case RESOURCE_TYPE_CASH_ONLY:
+                return LEVEL_CASH_ONLY;
+            case RESOURCE_TYPE_CASH_POINT:
+                return LEVEL_CASH_POINT;
+            case "VIP":
+                return LEVEL_VIP;
+            case "SMALL_CLASS":
+                return LEVEL_SMALL_CLASS;
+            case "INTERNAL":
+                return LEVEL_INTERNAL;
+            default:
+                throw new IllegalArgumentException("资源类型不支持: " + resourceType);
+        }
+    }
+
+    private boolean hasToolPermission(Long toolId, Integer userLevel, Integer requiredLevel) {
+        try {
+            return Boolean.TRUE.equals(ResourcePermissionUtil.hasPermission(ResourceTypeEnum.TOOL, toolId));
+        } catch (Exception ex) {
+            int level = userLevel == null ? 0 : userLevel;
+            int resourceLevel = requiredLevel == null ? 0 : requiredLevel;
+            return level >= resourceLevel;
+        }
     }
 
     private void fillToolPackages(List<OshTool> tools) {

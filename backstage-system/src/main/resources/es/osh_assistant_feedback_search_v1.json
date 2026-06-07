@@ -1,0 +1,89 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "analysis": {
+      "analyzer": {
+        "ik_max_word": {
+          "type": "custom",
+          "tokenizer": "ik_max_word"
+        },
+        "ik_smart": {
+          "type": "custom",
+          "tokenizer": "ik_smart"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "userId": {
+        "type": "keyword"
+      },
+      "categoryId": {
+        "type": "keyword"
+      },
+      "categoryCode": {
+        "type": "keyword"
+      },
+      "ticketNo": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+      "content": {
+        "type": "text",
+        "analyzer": "ik_max_word",
+        "search_analyzer": "ik_smart"
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "isPinned": {
+        "type": "integer"
+      },
+      "pinOrder": {
+        "type": "integer"
+      },
+      "commentCount": {
+        "type": "integer"
+      },
+      "viewCount": {
+        "type": "integer"
+      },
+      "likeCount": {
+        "type": "integer"
+      },
+      "favoriteCount": {
+        "type": "integer"
+      },
+      "hotScore": {
+        "type": "integer"
+      },
+      "tagIds": {
+        "type": "keyword"
+      },
+      "mineStatusPriority": {
+        "type": "integer"
+      },
+      "deleteFlag": {
+        "type": "integer"
+      },
+      "createTime": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "updateTime": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      }
+    }
+  }
+}

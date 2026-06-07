@@ -11,7 +11,6 @@ import com.backstage.system.domain.assistant.vo.AssistantAnswerVO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackTagVO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackVO;
 import com.backstage.system.domain.assistant.vo.AssistantInitVO;
-import com.backstage.system.service.assistant.IAssistantFeedbackCommentService;
 import com.backstage.system.service.assistant.IAssistantFeedbackService;
 import com.backstage.system.service.assistant.IAssistantFeedbackTagService;
 import com.backstage.system.service.assistant.IAssistantService;
@@ -23,21 +22,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/pc/assistant")
 public class AssistantController extends BaseController {
 
-    public AssistantController(IAssistantService assistantService, IAssistantFeedbackService assistantFeedbackService, IAssistantFeedbackCommentService assistantFeedbackCommentService, IAssistantFeedbackTagService assistantFeedbackTagService) {
+    public AssistantController(IAssistantService assistantService, IAssistantFeedbackService assistantFeedbackService, IAssistantFeedbackTagService assistantFeedbackTagService) {
         this.assistantService = assistantService;
         this.assistantFeedbackService = assistantFeedbackService;
-        this.assistantFeedbackCommentService = assistantFeedbackCommentService;
         this.assistantFeedbackTagService = assistantFeedbackTagService;
     }
 
-    private static final int VIP_LEVEL = 3;
-
     private final IAssistantService assistantService;
-
     private final IAssistantFeedbackService assistantFeedbackService;
-
-    private final IAssistantFeedbackCommentService assistantFeedbackCommentService;
-
     private final IAssistantFeedbackTagService assistantFeedbackTagService;
 
     @Anonymous
@@ -106,22 +98,6 @@ public class AssistantController extends BaseController {
             return R.fail(HttpStatus.UNAUTHORIZED, "请先登录后查看待确认工单");
         }
         return R.ok(assistantFeedbackService.countPendingConfirmTickets(userId));
-    }
-
-    @PostMapping("/feedback/{id}/comment")
-    public R<Long> createComment(@PathVariable("id") Long feedbackId,
-                                  @Validated @RequestBody AssistantFeedbackCommentDTO dto) {
-        Long userId = UserContextUtil.getCurrentUserIdSafely();
-        if (userId == null) {
-            return R.fail(HttpStatus.UNAUTHORIZED, "请先登录后再发表评论");
-        }
-
-        // 从路径参数设置反馈ID
-        dto.setFeedbackId(feedbackId);
-        dto.setIsAdminReply(Boolean.TRUE.equals(dto.getIsAdminReply()) && UserContextUtil.getCurrentLevelSafely() >= 4);
-
-        Long commentId = assistantFeedbackCommentService.createComment(dto, userId);
-        return R.ok(commentId, "评论成功");
     }
 
     @PostMapping("/feedback/{id}/confirm")

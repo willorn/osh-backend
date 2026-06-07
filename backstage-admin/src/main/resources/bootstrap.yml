@@ -10,11 +10,11 @@ spring:
       discovery:
         namespace: d4208eb8-261f-44a1-adf5-c12406fbd1a2
         # macOS 需要去掉 http:// ---> 43.242.200.25:8848
-        server-addr: 43.242.200.25:8848
+        server-addr: 43.242.200.25:58848
       config:
         namespace: d4208eb8-261f-44a1-adf5-c12406fbd1a2
         # macOS 需要去掉 http:// ---> 43.242.200.25:8848
-        server-addr: 43.242.200.25:8848
+        server-addr: 43.242.200.25:58848
         file-extension: yaml
         shared-configs:
           - data-id: osh-backend-mysql-dev.yaml
