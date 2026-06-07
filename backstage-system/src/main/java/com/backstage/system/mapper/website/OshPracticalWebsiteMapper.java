@@ -102,6 +102,12 @@ public interface OshPracticalWebsiteMapper  {
             "WHERE delete_flag = 0 AND status = 4")
     List<OshPracticalWebsite> selectAllWebsitesForRating();
 
+    /**
+     * 根据 URL 查询网站是否已存在（用于导入去重）
+     */
+    @Select("SELECT COUNT(1) FROM osh_practical_website WHERE url = #{url} AND delete_flag = 0")
+    int countByUrl(@Param("url") String url);
+
     void addCount(@Param("websiteId") Long websiteId, @Param("ratingType") Integer ratingType);
 
     void updateCount(@Param("websiteId") Long websiteId, @Param("oldRatingType") Integer oldRatingType, @Param("ratingType") Integer ratingType);

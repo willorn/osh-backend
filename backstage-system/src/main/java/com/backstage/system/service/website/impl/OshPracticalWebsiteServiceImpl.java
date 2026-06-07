@@ -477,6 +477,8 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
 
         int successCount = 0;
         List<WebsiteImportResultVO.FailDetail> failDetails = new ArrayList<>();
+        // Excel 内部去重：记录本次已处理过的 URL，防止同一文件内重复行
+        java.util.Set<String> processedUrls = new java.util.HashSet<>();
 
         for (int i = 0; i < dataList.size(); i++) {
             // 行号从 2 开始（第 1 行是表头）
@@ -490,12 +492,28 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
                 continue;
             }
 
+            String url = dto.getUrl().trim();
+
+            // 2. Excel 内部重复检查
+            if (processedUrls.contains(url)) {
+                failDetails.add(new WebsiteImportResultVO.FailDetail(rowNum, dto.getName(), "与文件内第" + (processedUrls.size()) + "行重复，已跳过"));
+                continue;
+            }
+
+            // 3. 数据库重复检查
+            if (oshPracticalWebsiteMapper.countByUrl(url) > 0) {
+                failDetails.add(new WebsiteImportResultVO.FailDetail(rowNum, dto.getName(), "该网站链接已存在，已跳过"));
+                continue;
+            }
+
+            processedUrls.add(url);
+
             try {
-                // 2. 构建实体
+                // 构建实体
                 OshPracticalWebsite website = new OshPracticalWebsite();
                 website.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.WEBSITE));
                 website.setName(dto.getName().trim());
-                website.setUrl(dto.getUrl().trim());
+                website.setUrl(url);
                 website.setDescription(dto.getDescription());
                 website.setLogoUrl(dto.getLogoUrl());
                 website.setStatus(status);
@@ -513,14 +531,14 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
                     website.setAuditTime(new Date());
                 }
 
-                // 3. 插入主表
+                // 插入主表
                 int insertResult = oshPracticalWebsiteMapper.insertWebsite(website);
                 if (insertResult <= 0) {
                     failDetails.add(new WebsiteImportResultVO.FailDetail(rowNum, dto.getName(), "数据库写入失败"));
                     continue;
                 }
 
-                // 4. 处理标签（可选）
+                // 处理标签（可选）
                 if (dto.getTags() != null && !dto.getTags().trim().isEmpty()) {
                     String[] tagArr = dto.getTags().split(",");
                     List<String> tagNames = new ArrayList<>();
@@ -535,7 +553,7 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
                     }
                 }
 
-                // 5. 管理员导入直接发布时，同步到 ES
+                // 管理员导入直接发布时，同步到 ES
                 if (status == 4) {
                     try {
                         OshPracticalWebsiteVO vo = oshPracticalWebsiteMapper.selectByIdAndStatus(website.getId(), 4);
