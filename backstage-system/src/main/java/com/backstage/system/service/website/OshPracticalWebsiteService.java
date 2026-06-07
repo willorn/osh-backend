@@ -5,6 +5,8 @@ import com.backstage.system.domain.dto.website.WebsiteAuditDTO;
 import com.backstage.system.domain.dto.website.WebsiteQueryDTO;
 import com.backstage.system.domain.dto.website.WebsiteSubmitDTO;
 import com.backstage.system.domain.vo.website.OshPracticalWebsiteVO;
+import com.backstage.system.domain.vo.website.WebsiteImportResultVO;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -74,4 +76,23 @@ public interface OshPracticalWebsiteService {
      * 批量更新所有网站的评分
      */
     void batchUpdateAllWebsiteRatingScores();
+
+    /**
+     * 批量导入网站（Excel）
+     * <p>
+     * 管理员导入：status=4，直接发布；普通用户导入：status=2，进入审核队列
+     *
+     * @param file     上传的 Excel 文件
+     * @param status   入库状态：4-直接发布，2-待审核
+     * @param operator 操作人用户名
+     * @return 导入结果（成功数、失败数、失败明细）
+     */
+    WebsiteImportResultVO batchImport(MultipartFile file, int status, String operator);
+
+    /**
+     * 生成导入模板并写入响应流
+     *
+     * @param response HttpServletResponse
+     */
+    void downloadImportTemplate(javax.servlet.http.HttpServletResponse response);
 }

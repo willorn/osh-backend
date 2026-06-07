@@ -1,5 +1,8 @@
 package com.backstage.system.service.website.impl;
 
+import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.context.AnalysisContext;
+import com.alibaba.excel.event.AnalysisEventListener;
 import com.backstage.common.annotation.DistributeLock;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.enums.ResourceCodePrefixEnum;
@@ -8,10 +11,12 @@ import com.backstage.common.utils.email.EmailUtil;
 import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.common.utils.redis.DistributedLockUtil;
 import com.backstage.system.domain.dto.website.WebsiteAuditDTO;
+import com.backstage.system.domain.dto.website.WebsiteImportDTO;
 import com.backstage.system.domain.dto.website.WebsiteQueryDTO;
 import com.backstage.system.domain.dto.website.WebsiteSubmitDTO;
 import com.backstage.system.domain.vo.website.EsPageResult;
 import com.backstage.system.domain.vo.website.OshPracticalWebsiteVO;
+import com.backstage.system.domain.vo.website.WebsiteImportResultVO;
 import com.backstage.system.domain.website.OshPracticalWebsite;
 import com.backstage.system.domain.website.WebsiteEsDoc;
 import com.backstage.system.mapper.website.OshPracticalWebsiteMapper;
@@ -31,7 +36,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -200,7 +210,7 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
         website.setUrl(url);
         website.setDescription(submitDto.getDescription());
         website.setLogoUrl(submitDto.getLogoUrl());
-        website.setStatus(0);  // 0=待审核状态
+        website.setStatus(2);  // 2=待审核，与统一审核模块状态对齐
         website.setClickCount(0); // 初始点击次数为 0
         website.setDeleteFlag(0);
         website.setCreateBy(UserContextUtil.getCurrentUser().getUsername());
@@ -252,10 +262,10 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
             throw new IllegalArgumentException("网站 ID 不能为空");
         }
         if (auditDto.getStatus() == null ||
-                (auditDto.getStatus() != 1 && auditDto.getStatus() != 2)) {
-            throw new IllegalArgumentException("审核状态必须是 1（通过）或 2（拒绝）");
+                (auditDto.getStatus() != 4 && auditDto.getStatus() != 6)) {
+            throw new IllegalArgumentException("审核状态必须是 4（通过）或 6（拒绝）");
         }
-        if (auditDto.getStatus() == 2 &&
+        if (auditDto.getStatus() == 6 &&
                 StringUtils.isEmpty(auditDto.getRejectReason())) {
             throw new IllegalArgumentException("拒绝时必须填写拒绝原因");
         }
@@ -269,7 +279,7 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
         website.setStatus(auditDto.getStatus());
         website.setAuditBy("admin");
         website.setAuditTime(new Date());
-        if (auditDto.getStatus() == 2) {
+        if (auditDto.getStatus() == 6) {
             // 如果拒绝，记录拒绝原因
             website.setRejectReason(auditDto.getRejectReason());
             boolean rejectResult = oshPracticalWebsiteMapper.updateStatusById(website);
@@ -326,7 +336,7 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
     @Override
     public TableDataInfo selectAuditList(Integer pageNum, Integer pageSize) {
         PageHelper.startPage(pageNum, pageSize);
-        // 查询待审核的网站（status = 0）
+        // 查询待审核的网站（status = 2）
         List<OshPracticalWebsite> list = oshPracticalWebsiteMapper.selectAuditList();
         PageInfo<OshPracticalWebsite> pageInfo = new PageInfo<>(list);
         return new TableDataInfo(pageInfo.getList(), pageInfo.getTotal());
@@ -423,6 +433,180 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
             log.info("批量更新评分完成，共更新 {} 条记录", successCount);
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    // ===================== 批量导入 =====================
+
+    /**
+     * 批量导入网站（Excel）
+     * 管理员：status=4 直接发布；普通用户：status=2 待审核
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WebsiteImportResultVO batchImport(MultipartFile file, int status, String operator) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请选择要导入的 Excel 文件");
+        }
+        // 单次限制 500 条，防止超时
+        final int MAX_ROWS = 500;
+
+        List<WebsiteImportDTO> dataList = new ArrayList<>();
+        try {
+            EasyExcel.read(file.getInputStream(), WebsiteImportDTO.class,
+                    new AnalysisEventListener<WebsiteImportDTO>() {
+                        @Override
+                        public void invoke(WebsiteImportDTO data, AnalysisContext context) {
+                            dataList.add(data);
+                        }
+                        @Override
+                        public void doAfterAllAnalysed(AnalysisContext context) {
+                        }
+                    }).sheet().headRowNumber(1).doRead();
+        } catch (IOException e) {
+            log.error("读取 Excel 文件失败", e);
+            throw new RuntimeException("Excel 文件解析失败，请确认文件格式正确");
+        }
+
+        if (dataList.isEmpty()) {
+            return new WebsiteImportResultVO(0, 0, Collections.emptyList());
+        }
+        if (dataList.size() > MAX_ROWS) {
+            throw new IllegalArgumentException("单次最多导入 " + MAX_ROWS + " 条，当前文件包含 " + dataList.size() + " 条");
+        }
+
+        int successCount = 0;
+        List<WebsiteImportResultVO.FailDetail> failDetails = new ArrayList<>();
+
+        for (int i = 0; i < dataList.size(); i++) {
+            // 行号从 2 开始（第 1 行是表头）
+            int rowNum = i + 2;
+            WebsiteImportDTO dto = dataList.get(i);
+
+            // 1. 基础校验
+            String validationError = validateImportRow(dto);
+            if (validationError != null) {
+                failDetails.add(new WebsiteImportResultVO.FailDetail(rowNum, dto.getName(), validationError));
+                continue;
+            }
+
+            try {
+                // 2. 构建实体
+                OshPracticalWebsite website = new OshPracticalWebsite();
+                website.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.WEBSITE));
+                website.setName(dto.getName().trim());
+                website.setUrl(dto.getUrl().trim());
+                website.setDescription(dto.getDescription());
+                website.setLogoUrl(dto.getLogoUrl());
+                website.setStatus(status);
+                website.setClickCount(0);
+                website.setGoodCount(0);
+                website.setMidCount(0);
+                website.setBadCount(0);
+                website.setCollectionCount(0);
+                website.setDeleteFlag(0);
+                website.setCreateBy(operator);
+                website.setCreateTime(new Date());
+                // 管理员直接发布时记录审核信息
+                if (status == 4) {
+                    website.setAuditBy(operator);
+                    website.setAuditTime(new Date());
+                }
+
+                // 3. 插入主表
+                int insertResult = oshPracticalWebsiteMapper.insertWebsite(website);
+                if (insertResult <= 0) {
+                    failDetails.add(new WebsiteImportResultVO.FailDetail(rowNum, dto.getName(), "数据库写入失败"));
+                    continue;
+                }
+
+                // 4. 处理标签（可选）
+                if (dto.getTags() != null && !dto.getTags().trim().isEmpty()) {
+                    String[] tagArr = dto.getTags().split(",");
+                    List<String> tagNames = new ArrayList<>();
+                    for (String tag : tagArr) {
+                        String trimmed = tag.trim();
+                        if (!trimmed.isEmpty()) {
+                            tagNames.add(trimmed);
+                        }
+                    }
+                    if (!tagNames.isEmpty()) {
+                        oshWebsiteTagService.bindWebsiteTags(website.getId(), tagNames, operator);
+                    }
+                }
+
+                // 5. 管理员导入直接发布时，同步到 ES
+                if (status == 4) {
+                    try {
+                        OshPracticalWebsiteVO vo = oshPracticalWebsiteMapper.selectByIdAndStatus(website.getId(), 4);
+                        if (vo != null) {
+                            websiteEsService.saveToEs(convertVoToEsDoc(vo));
+                        }
+                    } catch (Exception esEx) {
+                        log.warn("第 {} 行同步 ES 失败，不影响导入结果，websiteId={}", rowNum, website.getId(), esEx);
+                    }
+                }
+
+                successCount++;
+            } catch (Exception e) {
+                log.error("第 {} 行导入异常，name={}", rowNum, dto.getName(), e);
+                failDetails.add(new WebsiteImportResultVO.FailDetail(rowNum, dto.getName(), "系统异常：" + e.getMessage()));
+            }
+        }
+
+        return new WebsiteImportResultVO(successCount, failDetails.size(), failDetails);
+    }
+
+    /**
+     * 校验导入行，返回错误信息；通过则返回 null
+     */
+    private String validateImportRow(WebsiteImportDTO dto) {
+        if (dto.getName() == null || dto.getName().trim().isEmpty()) {
+            return "网站名称不能为空";
+        }
+        if (dto.getUrl() == null || dto.getUrl().trim().isEmpty()) {
+            return "网站链接不能为空";
+        }
+        String url = dto.getUrl().trim();
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return "网站链接格式不正确，请以 http:// 或 https:// 开头";
+        }
+        if (dto.getName().trim().length() > 100) {
+            return "网站名称不能超过 100 个字符";
+        }
+        if (url.length() > 500) {
+            return "网站链接不能超过 500 个字符";
+        }
+        return null;
+    }
+
+    /**
+     * 生成导入模板并写入响应流
+     */
+    @Override
+    public void downloadImportTemplate(HttpServletResponse response) {
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            String fileName = URLEncoder.encode("实用网站导入模板", "UTF-8").replaceAll("\\+", "%20");
+            response.setHeader("Content-Disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
+
+            // 写入带示例行的模板
+            List<WebsiteImportDTO> exampleList = new ArrayList<>();
+            WebsiteImportDTO example = new WebsiteImportDTO();
+            example.setName("示例网站");
+            example.setUrl("https://example.com");
+            example.setDescription("这是一个示例网站描述");
+            example.setLogoUrl("https://example.com/logo.png");
+            example.setTags("工具,效率");
+            exampleList.add(example);
+
+            EasyExcel.write(response.getOutputStream(), WebsiteImportDTO.class)
+                    .sheet("实用网站")
+                    .doWrite(exampleList);
+        } catch (IOException e) {
+            log.error("生成导入模板失败", e);
+            throw new RuntimeException("模板生成失败");
         }
     }
 

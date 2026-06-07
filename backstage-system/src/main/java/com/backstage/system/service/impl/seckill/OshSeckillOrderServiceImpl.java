@@ -62,6 +62,7 @@ public class OshSeckillOrderServiceImpl implements IOshSeckillOrderService {
     private static final String SECKILL_ACTIVITY_KEY   = SeckillCacheConstants.SECKILL_ACTIVITY_KEY;
     private static final String SECKILL_ITEM_KEY       = SeckillCacheConstants.SECKILL_ITEM_KEY;
     private static final String SECKILL_ORDER_KEY      = SeckillCacheConstants.SECKILL_ORDER_KEY;
+    private static final String SECKILL_SUBMIT_LOCK_KEY = SeckillCacheConstants.SECKILL_SUBMIT_LOCK_KEY;
 
     /** 秒杀尝试号使用雪花算法生成，见 generateSeckillNo() */
 
@@ -193,96 +194,109 @@ public class OshSeckillOrderServiceImpl implements IOshSeckillOrderService {
         String stockKey    = SECKILL_STOCK_KEY     + activityId + ":" + itemId;
         String boughtCntKey = SECKILL_BOUGHT_CNT_KEY + activityId + ":" + itemId + ":" + userId;
         String orderKey    = SECKILL_ORDER_KEY     + activityId + ":" + itemId + ":" + userId;
+        String submitLockKey = SECKILL_SUBMIT_LOCK_KEY + activityId + ":" + itemId + ":" + userId;
 
-        // 4.1 先检查流程状态 Key，防止用户重复点击
-        Object existingNo = redisTemplate.opsForValue().get(orderKey);
-        if (existingNo != null) {
-            throw new ServiceException("您已在秒杀流程中，请勿重复提交，单号：" + existingNo);
-        }
-
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setScriptText(SECKILL_LUA_SCRIPT);
-        script.setResultType(Long.class);
-
-        Long result = stringRedisTemplate.execute(
-                script,
-                Arrays.asList(stockKey, boughtCntKey),
-                String.valueOf(quantity),
-                String.valueOf(limitPerUser),
-                String.valueOf(SeckillCacheConstants.calcExpireSeconds(activity.getEndTime(), SeckillCacheConstants.BOUGHT_CNT_EXPIRE_BUFFER))
-        );
-
-        if (result == null || result == -1L) {
-            throw new ServiceException("手慢了，库存不足");
-        }
-        if (result == -2L) {
-            throw new ServiceException("超过限购数量，每人最多购买" + limitPerUser + "件");
-        }
-
-        // 5. Lua 成功后生成秒杀尝试号（seckillNo），代表"成功抢到资格的一次有效秒杀尝试"
-        // 格式：SK + yyyyMMddHHmmss + 6位序列号（进程内自增，配合时间戳保证唯一性）
-        String seckillNo = generateSeckillNo();
-
-        // 6. 写入未完成订单锁（orderKey），value 存 seckillNo
-        // 初始 TTL 设为 2 分钟，给 Kafka 消费者足够的建单处理窗口
-        // 消费者建单成功后会延长 TTL 到真实支付超时时间；消费者失败时会主动删除
-        long expireSeconds = (activity.getPayTimeoutMin() != null ? activity.getPayTimeoutMin() : 15) * 60L;
-        redisTemplate.opsForValue().set(orderKey, seckillNo, 2, TimeUnit.MINUTES);
-
-        // 7. 发送 Kafka 消息，由消费者异步完成：checkout() + decrStock() + insertOrder()
-        SeckillOrderMessage message = new SeckillOrderMessage();
-        message.setSeckillNo(seckillNo);
-        message.setActivityId(activityId);
-        message.setItemId(itemId);
-        message.setUserId(userId);
-        message.setGoodsId(item.getGoodsId());
-        message.setGoodsType(item.getGoodsType());
-        message.setGoodsTitle(item.getTitle());
-        message.setGoodsCover(item.getCover());
-        message.setOriginPrice(item.getOriginPrice());
-        message.setSeckillPrice(item.getSeckillPrice());
-        message.setQuantity(quantity);
-        message.setPayExpireTime(calcPayExpireTime(activity.getPayTimeoutMin()));
-        message.setStockKey(stockKey);
-        message.setBoughtCntKey(boughtCntKey);
-        message.setOrderKey(orderKey);
-        message.setExpireSeconds(expireSeconds);
-        try {
-            message.setClientIp(IpUtils.getIpAddr());
-        } catch (Exception e) {
-            message.setClientIp("unknown");
+        Boolean locked = Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(
+                submitLockKey,
+                "1",
+                SeckillCacheConstants.SECKILL_SUBMIT_LOCK_EXPIRE_SECONDS,
+                TimeUnit.SECONDS
+        ));
+        if (!locked) {
+            throw new ServiceException("请求过于频繁，请勿重复点击");
         }
         try {
-            KafkaMessageUtil.sendMessageSync(
-                    KafkaConstants.SECKILL_ORDER_CREATE_TOPIC,
-                    activityId + ":" + itemId + ":" + userId,
-                    JSON.toJSONString(message)
+            // 4.1 先检查流程状态 Key，防止用户重复点击
+            Object existingNo = redisTemplate.opsForValue().get(orderKey);
+            if (existingNo != null) {
+                throw new ServiceException("您已在秒杀流程中，请勿重复提交，单号：" + existingNo);
+            }
+
+            DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+            script.setScriptText(SECKILL_LUA_SCRIPT);
+            script.setResultType(Long.class);
+
+            Long result = stringRedisTemplate.execute(
+                    script,
+                    Arrays.asList(stockKey, boughtCntKey),
+                    String.valueOf(quantity),
+                    String.valueOf(limitPerUser),
+                    String.valueOf(SeckillCacheConstants.calcExpireSeconds(activity.getEndTime(), SeckillCacheConstants.BOUGHT_CNT_EXPIRE_BUFFER))
             );
-            logger.info("【秒杀】发送订单创建消息成功，userId={}, activityId={}, itemId={}, seckillNo={}", userId, activityId, itemId, seckillNo);
-        } catch (Exception e) {
-            // Kafka 发送失败，回滚 Redis
-            stringRedisTemplate.opsForValue().increment(stockKey, quantity);
-            stringRedisTemplate.opsForValue().increment(boughtCntKey, -quantity);
-            redisTemplate.delete(orderKey);
-            logger.error("【秒杀】Kafka 消息发送失败，回滚 Redis，userId={}, activityId={}, itemId={}", userId, activityId, itemId, e);
-            throw new ServiceException("秒杀失败，请重试");
-        }
 
-        // 8. 立即返回 seckillNo，前端通过轮询 getSeckillResult() 获取真实订单信息
-        // seckillNo 立即可用；orderNo 在消费者 checkout 成功后才有值
-        SeckillResultVO vo = new SeckillResultVO();
-        vo.setSeckillNo(seckillNo);
-        vo.setStatus(-1); // 处理中，前端继续轮询
-        vo.setGoodsId(item.getGoodsId());
-        vo.setGoodsType(item.getGoodsType());
-        vo.setGoodsTitle(item.getTitle());
-        vo.setGoodsCover(item.getCover());
-        vo.setOriginPrice(item.getOriginPrice());
-        vo.setSeckillPrice(item.getSeckillPrice());
-        vo.setTotalAmount(item.getSeckillPrice().multiply(BigDecimal.valueOf(quantity)));
-        vo.setQuantity(quantity);
-        vo.setPayExpireTime(calcPayExpireTime(activity.getPayTimeoutMin()));
-        return vo;
+            if (result == null || result == -1L) {
+                throw new ServiceException("手慢了，库存不足");
+            }
+            if (result == -2L) {
+                throw new ServiceException("超过限购数量，每人最多购买" + limitPerUser + "件");
+            }
+
+            // 5. Lua 成功后生成秒杀尝试号（seckillNo），代表"成功抢到资格的一次有效秒杀尝试"
+            String seckillNo = generateSeckillNo();
+
+            // 6. 写入未完成订单锁（orderKey），value 存 seckillNo
+            // 初始 TTL 设为 2 分钟，给 Kafka 消费者足够的建单处理窗口
+            // 消费者建单成功后会延长 TTL 到真实支付超时时间；消费者失败时会主动删除
+            long expireSeconds = (activity.getPayTimeoutMin() != null ? activity.getPayTimeoutMin() : 15) * 60L;
+            redisTemplate.opsForValue().set(orderKey, seckillNo, 2, TimeUnit.MINUTES);
+
+            // 7. 发送 Kafka 消息，由消费者异步完成：checkout() + decrStock() + insertOrder()
+            SeckillOrderMessage message = new SeckillOrderMessage();
+            message.setSeckillNo(seckillNo);
+            message.setActivityId(activityId);
+            message.setItemId(itemId);
+            message.setUserId(userId);
+            message.setGoodsId(item.getGoodsId());
+            message.setGoodsType(item.getGoodsType());
+            message.setGoodsTitle(item.getTitle());
+            message.setGoodsCover(item.getCover());
+            message.setOriginPrice(item.getOriginPrice());
+            message.setSeckillPrice(item.getSeckillPrice());
+            message.setQuantity(quantity);
+            message.setPayExpireTime(calcPayExpireTime(activity.getPayTimeoutMin()));
+            message.setStockKey(stockKey);
+            message.setBoughtCntKey(boughtCntKey);
+            message.setOrderKey(orderKey);
+            message.setExpireSeconds(expireSeconds);
+            try {
+                message.setClientIp(IpUtils.getIpAddr());
+            } catch (Exception e) {
+                message.setClientIp("unknown");
+            }
+            try {
+                KafkaMessageUtil.sendMessageSync(
+                        KafkaConstants.SECKILL_ORDER_CREATE_TOPIC,
+                        activityId + ":" + itemId + ":" + userId,
+                        JSON.toJSONString(message)
+                );
+                logger.info("【秒杀】发送订单创建消息成功，userId={}, activityId={}, itemId={}, seckillNo={}", userId, activityId, itemId, seckillNo);
+            } catch (Exception e) {
+                // Kafka 发送失败，回滚 Redis
+                stringRedisTemplate.opsForValue().increment(stockKey, quantity);
+                stringRedisTemplate.opsForValue().increment(boughtCntKey, -quantity);
+                redisTemplate.delete(orderKey);
+                logger.error("【秒杀】Kafka 消息发送失败，回滚 Redis，userId={}, activityId={}, itemId={}", userId, activityId, itemId, e);
+                throw new ServiceException("秒杀失败，请重试");
+            }
+
+            // 8. 立即返回 seckillNo，前端通过轮询 getSeckillResult() 获取真实订单信息
+            SeckillResultVO vo = new SeckillResultVO();
+            vo.setSeckillNo(seckillNo);
+            vo.setStatus(-1); // 处理中，前端继续轮询
+            vo.setNeedPay(true);
+            vo.setGoodsId(item.getGoodsId());
+            vo.setGoodsType(item.getGoodsType());
+            vo.setGoodsTitle(item.getTitle());
+            vo.setGoodsCover(item.getCover());
+            vo.setOriginPrice(item.getOriginPrice());
+            vo.setSeckillPrice(item.getSeckillPrice());
+            vo.setTotalAmount(item.getSeckillPrice().multiply(BigDecimal.valueOf(quantity)));
+            vo.setQuantity(quantity);
+            vo.setPayExpireTime(calcPayExpireTime(activity.getPayTimeoutMin()));
+            return vo;
+        } finally {
+            stringRedisTemplate.delete(submitLockKey);
+        }
     }
 
     /**
@@ -301,10 +315,16 @@ public class OshSeckillOrderServiceImpl implements IOshSeckillOrderService {
 
         if (cachedVal == null) {
             // orderKey 不存在：Redis Key 过期或从未参与
-            // 兜底查 DB，防止 Key 过期但订单实际存在（如待支付订单 TTL 设置异常）
+            // 兜底查 DB，防止：
+            // 1. Key 过期但待支付订单实际存在
+            // 2. 支付成功后 orderKey 已主动释放，前端继续轮询却误判为“无结果”
             OshSeckillOrder dbOrder = orderMapper.selectPendingOrderByItemUser(itemId, userId);
             if (dbOrder != null) {
                 return buildResultVOWithPayInfo(dbOrder);
+            }
+            OshSeckillOrder latestEffectiveOrder = orderMapper.selectLatestEffectiveOrderByItemUser(itemId, userId);
+            if (latestEffectiveOrder != null) {
+                return buildResultVOWithPayInfo(latestEffectiveOrder);
             }
             return null;
         }
@@ -328,6 +348,7 @@ public class OshSeckillOrderServiceImpl implements IOshSeckillOrderService {
      */
     private SeckillResultVO buildResultVOWithPayInfo(OshSeckillOrder order) {
         SeckillResultVO vo = toResultVO(order);
+        vo.setNeedPay(order.getTotalAmount() != null && order.getTotalAmount().compareTo(BigDecimal.ZERO) > 0);
         if (order.getStatus() == 0 && order.getOrderNo() != null) {
             try {
                 OshPayment payment = paymentMapper.selectByOrderNo(order.getOrderNo());
@@ -358,13 +379,17 @@ public class OshSeckillOrderServiceImpl implements IOshSeckillOrderService {
             throw new ServiceException("只有待支付的订单才能取消");
         }
 
-        // 更新订单状态为已取消
-        OshSeckillOrder update = new OshSeckillOrder();
-        update.setId(order.getId());
-        update.setStatus(2);
-        update.setCancelTime(new Date());
-        update.setCancelReason("user_cancel");
-        orderMapper.updateOrder(update);
+        int updated = orderMapper.updateOrderStatusWithCheck(
+                order.getId(),
+                0,
+                2,
+                null,
+                new Date(),
+                "user_cancel"
+        );
+        if (updated == 0) {
+            throw new ServiceException("订单状态已变更，请刷新后重试");
+        }
 
         // 同步取消统一订单（用 orderNo 调支付系统，不能用 seckillNo）
         try {
@@ -378,6 +403,7 @@ public class OshSeckillOrderServiceImpl implements IOshSeckillOrderService {
         String boughtCntKey = SECKILL_BOUGHT_CNT_KEY + order.getActivityId() + ":" + order.getItemId() + ":" + userId;
         String orderKey     = SECKILL_ORDER_KEY     + order.getActivityId() + ":" + order.getItemId() + ":" + userId;
         int qty = order.getQuantity() != null ? order.getQuantity() : 1;
+        itemMapper.incrStock(order.getItemId(), qty);
         stringRedisTemplate.opsForValue().increment(stockKey, qty);
         Long boughtAfter = stringRedisTemplate.opsForValue().increment(boughtCntKey, -qty);
         redisTemplate.delete(orderKey);

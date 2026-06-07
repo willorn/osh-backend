@@ -11,6 +11,7 @@ import com.backstage.system.domain.dto.website.WebsiteQueryDTO;
 import com.backstage.system.domain.dto.website.WebsiteRatingDTO;
 import com.backstage.system.domain.dto.website.WebsiteSubmitDTO;
 import com.backstage.system.domain.vo.website.OshPracticalWebsiteVO;
+import com.backstage.system.domain.vo.website.WebsiteImportResultVO;
 import com.backstage.system.service.website.IWebsiteAnnouncementService;
 import com.backstage.system.service.website.OshPracticalWebsiteService;
 import com.backstage.system.service.website.OshUserFavoriteWebsiteService;
@@ -21,7 +22,10 @@ import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,7 +220,7 @@ public class OshPracticalWebsiteController extends BaseController {
             if (auditResult) {
                 // 通过和拒绝都算操作成功
                 Integer status = auditDto.getStatus();
-                String msg = (status == 1) ? "审核通过" : "已拒绝";
+                String msg = (status == 4) ? "审核通过" : "已拒绝";
                 return R.ok(msg);
             } else {
                 return R.fail("审核操作失败，请稍后重试");
@@ -308,6 +312,60 @@ public class OshPracticalWebsiteController extends BaseController {
         } catch (Exception e) {
             e.printStackTrace();
             return R.fail("评价失败，请稍后重试");
+        }
+    }
+
+    // ===================== 批量导入 =====================
+
+    /**
+     * 下载导入模板（需登录，管理员和普通用户均可下载）
+     */
+    @ApiOperation("下载实用网站导入模板")
+    @GetMapping("/import/template")
+    @Anonymous
+    public void downloadImportTemplate(HttpServletResponse response) {
+        oshPracticalWebsiteService.downloadImportTemplate(response);
+    }
+
+    /**
+     * 普通用户批量导入网站（导入后进入审核队列，status=2）
+     */
+    @ApiOperation("普通用户批量导入网站（待审核）")
+    @PostMapping("/import")
+    @OshUserEvent(module = "实用网站", actionType = "批量导入", description = "普通用户批量导入网站")
+    @PreAuthorize("hasAuthority('website:import')")
+    public R<WebsiteImportResultVO> importWebsites(@RequestParam("file") MultipartFile file) {
+        try {
+            String operator = getCurrentUser().getUsername();
+            WebsiteImportResultVO result = oshPracticalWebsiteService.batchImport(file, 2, operator);
+            String msg = "导入完成：成功 " + result.getSuccessCount() + " 条，失败 " + result.getFailCount() + " 条";
+            return R.ok(result, msg);
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return R.fail("导入失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 管理员批量导入网站（直接发布，status=4）
+     */
+    @ApiOperation("管理员批量导入网站（直接发布）")
+    @PostMapping("/import/admin")
+    @OshUserEvent(module = "实用网站", actionType = "批量导入", description = "管理员批量导入网站并直接发布")
+    @PreAuthorize("hasAuthority('website:import:admin')")
+    public R<WebsiteImportResultVO> adminImportWebsites(@RequestParam("file") MultipartFile file) {
+        try {
+            String operator = getCurrentUser().getUsername();
+            WebsiteImportResultVO result = oshPracticalWebsiteService.batchImport(file, 4, operator);
+            String msg = "导入完成：成功 " + result.getSuccessCount() + " 条，失败 " + result.getFailCount() + " 条";
+            return R.ok(result, msg);
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return R.fail("导入失败，请稍后重试");
         }
     }
 }

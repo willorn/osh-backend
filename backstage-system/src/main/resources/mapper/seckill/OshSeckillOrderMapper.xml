@@ -62,6 +62,16 @@
         limit 1
     </select>
 
+    <!-- 查询该用户该 item 最近一笔有效秒杀订单（待支付/已支付），用于 orderKey 已释放后的兜底查询 -->
+    <select id="selectLatestEffectiveOrderByItemUser" resultMap="OshSeckillOrderResult">
+        <include refid="selectOrderVo"/>
+        where item_id = #{itemId}
+          and user_id = #{userId}
+          and status in (0, 1)
+        order by create_time desc
+        limit 1
+    </select>
+
     <!-- 管理端列表查询 -->
     <select id="selectOrderList" parameterType="com.backstage.system.domain.seckill.OshSeckillOrder"
             resultMap="OshSeckillOrderResult">
@@ -118,6 +128,19 @@
             update_time = CURRENT_TIMESTAMP,
         </trim>
         where id = #{id}
+    </update>
+
+    <update id="updateOrderStatusWithCheck">
+        update osh_seckill_order
+        <trim prefix="SET" suffixOverrides=",">
+            status = #{newStatus},
+            <if test="payTime != null">pay_time = #{payTime},</if>
+            <if test="cancelTime != null">cancel_time = #{cancelTime},</if>
+            <if test="cancelReason != null and cancelReason != ''">cancel_reason = #{cancelReason},</if>
+            update_time = CURRENT_TIMESTAMP,
+        </trim>
+        where id = #{id}
+          and status = #{oldStatus}
     </update>
 
 </mapper>

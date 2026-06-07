@@ -47,7 +47,7 @@ public interface OshPracticalWebsiteMapper  {
     @Select("SELECT * FROM osh_practical_website " +
             "WHERE id = #{websiteId} " +
             "AND delete_flag = 0 " +
-            "AND status = 0")
+            "AND status = 2")
     OshPracticalWebsite selectById(Long websiteId);
 
     /**
@@ -68,7 +68,7 @@ public interface OshPracticalWebsiteMapper  {
      * 查询待审核的网站列表
      * @return 待审核的网站列表
      */
-    @Select("SELECT * FROM osh_practical_website WHERE `delete_flag` = 0 AND `status` = 0")
+    @Select("SELECT * FROM osh_practical_website WHERE `delete_flag` = 0 AND `status` = 2")
     List<OshPracticalWebsite> selectAuditList();
 /**
      * 根据网站ID批量删除网站
@@ -87,10 +87,10 @@ public interface OshPracticalWebsiteMapper  {
      */
     @Select("SELECT id, good_count, mid_count, bad_count, click_count, collection_count, create_time " +
             "FROM osh_practical_website " +
-            "WHERE id = #{websiteId} AND delete_flag = 0 AND status = 1")
+            "WHERE id = #{websiteId} AND delete_flag = 0 AND status = 4")
     OshPracticalWebsite selectByIdForUpdate(Long websiteId);
-    
-    @Update("UPDATE osh_practical_website SET rating_score = #{ratingScore} WHERE id = #{websiteId} AND delete_flag = 0 AND status = 1")
+
+    @Update("UPDATE osh_practical_website SET rating_score = #{ratingScore} WHERE id = #{websiteId} AND delete_flag = 0 AND status = 4")
     int updateRatingScoreById(@Param("websiteId") Long websiteId, @Param("ratingScore") BigDecimal ratingScore);
 
     /**
@@ -99,7 +99,7 @@ public interface OshPracticalWebsiteMapper  {
      */
     @Select("SELECT id, good_count, mid_count, bad_count, click_count, collection_count, create_time " +
             "FROM osh_practical_website " +
-            "WHERE delete_flag = 0 AND status = 1")
+            "WHERE delete_flag = 0 AND status = 4")
     List<OshPracticalWebsite> selectAllWebsitesForRating();
 
     void addCount(@Param("websiteId") Long websiteId, @Param("ratingType") Integer ratingType);
@@ -120,10 +120,10 @@ public interface OshPracticalWebsiteMapper  {
             "</script>")
     List<OshPracticalWebsite> selectCountsByIds(@Param("ids") List<Long> ids);
 
-    @Update("UPDATE osh_practical_website SET collection_count = collection_count + 1 WHERE id = #{websiteId} AND delete_flag = 0 AND status = 1")
+    @Update("UPDATE osh_practical_website SET collection_count = collection_count + 1 WHERE id = #{websiteId} AND delete_flag = 0 AND status = 4")
     void addCollectionCount(Long websiteId);
 
-    @Update("UPDATE osh_practical_website SET collection_count = collection_count - 1 WHERE id = #{websiteId} AND delete_flag = 0 AND status = 1")
+    @Update("UPDATE osh_practical_website SET collection_count = collection_count - 1 WHERE id = #{websiteId} AND delete_flag = 0 AND status = 4")
     void reduceCollectionCount(Long websiteId);
 
     /**
