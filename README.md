@@ -44,6 +44,32 @@
 17. 在线构建器：拖动表单元素生成相应的HTML代码。
 18. 连接池监视：监视当前系统数据库连接池状态，可进行分析SQL找出系统性能瓶颈。
 
+## ZenTao MCP Token Guard
+
+When using ZenTao MCP (`mcpServers.zentao` in `MCP.json`), run token guard first. It checks whether token exists and is valid. If token is empty/expired, it prompts account/password, refreshes token, writes it back, and then you can continue MCP operations.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\\bin\\ensure_zentao_mcp_token.ps1 -ConfigPath .\\MCP.json
+```
+
+Force account/password login and refresh:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\\bin\\ensure_zentao_mcp_token.ps1 -ConfigPath .\\MCP.json -ForceLogin
+```
+
+Detailed skill doc:
+
+- `docs/skills/zentao-mcp-token-guard-skill.md`
+
+For Copilot auto workflow, project instruction is added in:
+
+- `.github/copilot-instructions.md`
+
+Auto trigger rule:
+
+- Any task that uses `mcpServers.zentao` must run token guard first, then continue MCP operations only after validation/refresh succeeds.
+
 ## 在线体验
 
 - admin/admin123
@@ -61,4 +87,3 @@
 
 字符集: utf8mb4
 排序规则: utf8mb4_0900_as_cs
-
