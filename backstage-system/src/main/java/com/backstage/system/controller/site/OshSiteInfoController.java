@@ -8,9 +8,10 @@ import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.enums.BusinessType;
 import com.backstage.common.threadlocal.ThreadLocalUtil;
 import com.backstage.common.utils.StringUtils;
-import com.backstage.system.domain.site.OshSiteInfo;
-import com.backstage.system.domain.site.OshSiteTag;
+import com.backstage.system.domain.course.OshCourse;
+import com.backstage.system.domain.site.*;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.service.IOshCourseService;
 import com.backstage.system.service.common.OssService;
 import com.backstage.system.service.site.IOshSiteInfoService;
 import com.backstage.system.service.site.IOshSiteTagsService;
@@ -53,6 +54,9 @@ public class OshSiteInfoController extends BaseController {
     @Autowired
     IOshUserService oshUserService;
 
+    @Autowired
+    IOshCourseService oshCourseService;
+
     /**
      * 查询网站列表
      */
@@ -75,6 +79,7 @@ public class OshSiteInfoController extends BaseController {
         for (OshSiteInfo oshSiteInfo : list) {
             oshSiteInfo.setTagList(siteTagMap.get(oshSiteInfo.getId()));
         }
+        oshSiteInfoService.setRelatedResources(list);
         return R.ok(getDataTable(list));
     }
 
@@ -279,5 +284,27 @@ public class OshSiteInfoController extends BaseController {
             log.error("停止演示服务失败", e);
             return R.fail("停止失败：" + e.getMessage());
         }
+    }
+
+    // ==================== 网站资源关联管理 ====================
+
+    @Anonymous
+    @ApiOperation("查询站点资源关联选项")
+    @GetMapping("/resources/options")
+    public R<List<SelectOption>> listResourceOptions() {
+        List<SelectOption> options = new ArrayList<>();
+        SelectOption course = new SelectOption();
+        course.setLabel(SiteResourceType.COURSE.getDescription());
+        course.setValue(SiteResourceType.COURSE.getType());
+        List<OshCourse> oshCourses = oshCourseService.selectCourseList();
+        course.setChildren(oshCourses.stream().map(oshCourse -> {
+            SelectOption option = new SelectOption();
+            option.setLabel(oshCourse.getTitle());
+            option.setValue(String.valueOf(oshCourse.getId()));
+            return option;
+        }).collect(Collectors.toList()));
+        options.add(course);
+
+        return R.ok(options);
     }
 }

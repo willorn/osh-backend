@@ -56,6 +56,9 @@ public class BookDetailVO implements Serializable
     /** 是否已购买 */
     private Boolean isbuy;
 
+    /** 是否已收藏 */
+    private Boolean isfava;
+
     public Long getId()
     {
         return id;
@@ -164,6 +167,14 @@ public class BookDetailVO implements Serializable
     public void setIsbuy(Boolean isbuy)
     {
         this.isbuy = isbuy;
+    }
+
+    public Boolean getIsfava() {
+        return isfava;
+    }
+
+    public void setIsfava(Boolean isfava) {
+        this.isfava = isfava;
     }
 
     public String gettPrice() {

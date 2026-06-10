@@ -104,3 +104,26 @@ CREATE TABLE `osh_site_maintainer`
   AUTO_INCREMENT = 1
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT ='网站维护人表';
+
+
+/**
+  网站资源关联表
+ */
+DROP TABLE IF EXISTS `osh_site_resource_relation`;
+CREATE TABLE `osh_site_resource_relation`
+(
+    `id`            bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `site_id`       bigint unsigned NOT NULL COMMENT '关联网站ID',
+    `resource_id`   bigint unsigned NOT NULL COMMENT '关联资源ID',
+    `resource_type` varchar(50)     NOT NULL COMMENT '关联资源类型',
+    `create_by`     bigint unsigned NOT NULL COMMENT '创建人ID/账号',
+    `create_time`   timestamp       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_by`     bigint unsigned          DEFAULT NULL COMMENT '更新人ID/账号',
+    `update_time`   timestamp       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `delete_flag`   tinyint         NOT NULL DEFAULT '0' COMMENT '是否删除：0=未删除，1=已删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_site_id` (`site_id`, `delete_flag`)
+) ENGINE = InnoDB
+  AUTO_INCREMENT = 1
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT ='网站资源关联表';

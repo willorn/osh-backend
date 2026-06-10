@@ -26,7 +26,7 @@ public class OrderCheckoutServiceImpl implements OrderCheckoutService {
      */
     @Override
     public OrderCheckoutRespVO checkout(OrderCheckoutReqVO reqVO) {
-        OrderCheckoutRespVO checkoutRespVO = orderService.checkout(reqVO);
+        OrderCheckoutRespVO checkoutRespVO = orderService.checkout(reqVO, Boolean.TRUE);
         OrderCheckoutRespVO respVO = new OrderCheckoutRespVO();
         BeanUtils.copyProperties(checkoutRespVO, respVO);
         return respVO;

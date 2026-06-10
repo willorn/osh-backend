@@ -41,6 +41,15 @@ public class BookListVO implements Serializable {
     /** 权限等级 */
     private Integer level;
 
+    /** 章节数 */
+    private Integer chapterCount;
+
+    /** 当前用户是否收藏（0-否，1-是） */
+    private Integer favorited;
+
+    /** 当前用户是否购买（0-否，1-是） */
+    private Integer purchased;
+
     private List<String> tagNameList;
 
     /** 购买人数 */
@@ -127,6 +136,30 @@ public class BookListVO implements Serializable {
 
     public void setLevel(Integer level) {
         this.level = level;
+    }
+
+    public Integer getChapterCount() {
+        return chapterCount;
+    }
+
+    public void setChapterCount(Integer chapterCount) {
+        this.chapterCount = chapterCount;
+    }
+
+    public Integer getFavorited() {
+        return favorited;
+    }
+
+    public void setFavorited(Integer favorited) {
+        this.favorited = favorited;
+    }
+
+    public Integer getPurchased() {
+        return purchased;
+    }
+
+    public void setPurchased(Integer purchased) {
+        this.purchased = purchased;
     }
 
     public String gettPrice() {

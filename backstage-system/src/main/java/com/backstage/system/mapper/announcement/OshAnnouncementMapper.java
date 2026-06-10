@@ -147,4 +147,31 @@ public interface OshAnnouncementMapper {
     int countWebsiteAnnouncementByResourceAndTitle(@Param("resourceId") Long resourceId,
                                                    @Param("title") String title,
                                                    @Param("channel") int channel);
+
+    // ==================== 首页公告/动态 ====================
+
+    /**
+     * 插入一条首页公告（channel=1）或动态（channel=2）
+     * status=4（直接发布），module='homepage'
+     */
+    @Insert("INSERT INTO osh_announcement " +
+            "(title, link, icon, color, status, channel, module, resource_type, " +
+            " sort, is_top, delete_flag, source, source_module, create_by, create_time, update_by, update_time) " +
+            "VALUES " +
+            "(#{title}, #{link}, #{icon}, #{color}, 4, #{channel}, 'homepage', 'system', " +
+            " #{sort}, 0, 0, 'admin', 'homepage', #{createBy}, NOW(), #{createBy}, NOW())")
+    int insertHomepageAnnouncement(@Param("title") String title,
+                                   @Param("link") String link,
+                                   @Param("icon") String icon,
+                                   @Param("color") String color,
+                                   @Param("channel") int channel,
+                                   @Param("sort") int sort,
+                                   @Param("createBy") String createBy);
+
+    /**
+     * 软删除首页公告
+     */
+    @Update("UPDATE osh_announcement SET delete_flag = 1, update_time = NOW() " +
+            "WHERE id = #{id} AND module = 'homepage' AND delete_flag = 0")
+    int deleteHomepageAnnouncementById(@Param("id") Long id);
 }

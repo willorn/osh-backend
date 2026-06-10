@@ -15,11 +15,13 @@ import com.backstage.system.domain.user.*;
 import com.backstage.system.domain.user.vo.OshUserLoginVO;
 import com.backstage.system.mapper.user.*;
 import com.backstage.system.mapper.user.OshUserInvitationMapper;
+import com.backstage.system.request.UserListRequest;
 import com.backstage.system.service.common.OssService;
 import com.backstage.system.service.user.IOshUserService;
 import com.backstage.system.utils.OssUtil;
 import com.backstage.system.utils.UserContextUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -636,5 +638,16 @@ public class OshUserServiceImpl implements IOshUserService {
         roleMap.put("roleCode", DEFAULT_ROLE_CODE);
         roleMap.put("level", DEFAULT_ROLE_LEVEL);
         return roleMap;
+    }
+
+    /**
+     * 查询用户列表
+     *
+     * @param req 用户
+     * @return 用户
+     */
+    @Override
+    public List<OshUser> selectUserList(UserListRequest req) {
+        return oshUserMapper.selectList(Wrappers.lambdaQuery());
     }
 }

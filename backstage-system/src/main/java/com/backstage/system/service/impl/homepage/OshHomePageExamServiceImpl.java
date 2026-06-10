@@ -50,7 +50,7 @@ public class OshHomePageExamServiceImpl implements IOshHomePageExamService {
         for (HotExamVO vo : exams) {
             List<String> tags = tagMap.getOrDefault(vo.getId(), Collections.emptyList());
             vo.setTags(tags.subList(0, Math.min(2, tags.size())));
-            vo.setDetailUrl(modulePathService.getDetailPath("exam", vo.getId()));
+            vo.setDetailUrl(modulePathService.getListPath("exam"));
             if (StringUtils.isNotEmpty(vo.getCover())) {
                 vo.setCover(ossService.getLimitedUrl(vo.getCover(), 1440));
             }

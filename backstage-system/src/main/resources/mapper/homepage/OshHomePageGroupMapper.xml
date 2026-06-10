@@ -7,24 +7,53 @@
         热门拼团查询：取当前有效的拼团活动，关联课程获取标题和封面
         排序：拼团价格 ASC（低价优先），再按创建时间 DESC
     -->
+    <!--
+        热门拼团查询：基于热度公式排序
+        热度公式：
+          0.50 × 参团填充率（current_num / group_max_num，反映活跃度）
+        + 0.30 × 手动权重归一化（sort_order / MAX(sort_order)）
+        + 0.20 × 时间新鲜度（30天内=1.2，90天内=1.0，180天内=0.8，否则=0.6）
+    -->
+    <!--
+        服务器拼团热门查询：直接查 osh_group_activity，不关联课程表
+        表结构：服务器拼团，封面/标题/价格均在 osh_group_activity 本表
+        热度公式：
+          0.50 × 参团填充率（current_num / group_max_num）
+        + 0.30 × 手动权重归一化（sort_order / MAX(sort_order)）
+        + 0.20 × 时间新鲜度
+    -->
     <select id="selectHotGroup" resultType="com.backstage.system.domain.homepage.vo.HotGroupVO">
         SELECT
-            ga.id           AS groupId,
-            ga.goods_id     AS goodsId,
+            ga.id               AS groupId,
             ga.type,
-            ga.p_num        AS pNum,
-            ga.max_num      AS maxNum,
-            ga.start_time   AS startTime,
-            ga.end_time     AS endTime,
-            CAST(ga.price AS DECIMAL(10,2)) AS groupPrice,
-            c.price         AS originPrice,
-            c.title,
-            c.cover
+            ga.title,
+            ga.cover,
+            ga.group_min_num    AS groupMinNum,
+            ga.group_max_num    AS groupMaxNum,
+            ga.group_min_num    AS pNum,
+            ga.group_max_num    AS maxNum,
+            ga.current_num      AS currentNum,
+            ga.start_time       AS startTime,
+            ga.server_end_time  AS endTime,
+            CAST(ga.base_price AS DECIMAL(10,2)) AS groupPrice,
+            CAST(ga.base_price AS DECIMAL(10,2)) AS originPrice,
+            ROUND(
+                0.50 * IFNULL(ga.current_num, 0) /
+                    NULLIF(GREATEST(IFNULL(ga.group_max_num, 0), 1), 0)
+              + 0.30 * IFNULL(ga.sort_order, 0) /
+                    NULLIF((SELECT MAX(IFNULL(x.sort_order, 0)) FROM osh_group_activity x
+                            WHERE x.status IN (1, 2) AND x.delete_flag = 0), 0)
+              + 0.20 * CASE
+                    WHEN TIMESTAMPDIFF(DAY, ga.start_time, NOW()) &lt;= 30  THEN 1.20
+                    WHEN TIMESTAMPDIFF(DAY, ga.start_time, NOW()) &lt;= 90  THEN 1.00
+                    WHEN TIMESTAMPDIFF(DAY, ga.start_time, NOW()) &lt;= 180 THEN 0.80
+                    ELSE 0.60
+                END
+            , 4) AS hotScore
         FROM osh_group_activity ga
-        LEFT JOIN osh_course c ON c.id = ga.goods_id AND c.delete_flag = 0
-        WHERE ga.end_time > NOW()
-          AND ga.start_time &lt;= NOW()
-        ORDER BY CAST(ga.price AS DECIMAL(10,2)) ASC, ga.id DESC
+        WHERE ga.status IN (1, 2)
+          AND ga.delete_flag = 0
+        ORDER BY hotScore DESC, ga.id DESC
         LIMIT #{limit}
     </select>
 

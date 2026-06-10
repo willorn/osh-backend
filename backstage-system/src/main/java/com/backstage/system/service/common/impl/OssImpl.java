@@ -4,6 +4,7 @@ import com.backstage.common.enums.UploadPathEnum;
 import com.backstage.common.utils.DateUtils;
 import com.backstage.common.utils.ServletUtils;
 import com.backstage.common.utils.ip.IpUtils;
+import com.backstage.system.constants.CourseUploadConstants;
 import com.backstage.system.domain.vo.common.OssOperationLogVo;
 import com.backstage.system.exception.UpLoadException;
 import com.backstage.system.mapper.common.OssMapper;
@@ -78,8 +79,8 @@ public class OssImpl implements OssService {
 
         }else if(UploadPathEnum.COURSE_VIDEO.equals(pathEnum)){
             customPath = UploadPathEnum.COURSE_VIDEO.getPath()+id+ym+"/";
-            if(file.getSize() > 1024 * 1024 * 200){
-                return "视频大小不能超过200MB";
+            if(file.getSize() > CourseUploadConstants.MAX_VIDEO_SIZE){
+                return CourseUploadConstants.VIDEO_SIZE_ERROR;
             }
         }else if(UploadPathEnum.COURSE_MATERIAL.equals(pathEnum)){
             customPath = UploadPathEnum.COURSE_MATERIAL.getPath()+id+ym+"/";

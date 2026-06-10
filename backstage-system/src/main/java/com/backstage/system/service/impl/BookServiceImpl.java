@@ -12,13 +12,10 @@ import com.backstage.system.domain.BookChapter;
 import com.backstage.system.domain.UserBookRelation;
 import com.backstage.system.domain.book.BookTagDO;
 import com.backstage.system.domain.vo.book.*;
-import com.backstage.system.constants.CourseQuestionConstants;
-import com.backstage.system.domain.fava.OshFava;
 import com.backstage.system.mapper.book.BookChapterMapper;
 import com.backstage.system.mapper.book.BookMapper;
 import com.backstage.system.mapper.book.UserBookRelationMapper;
 import com.backstage.system.mapper.book.BookTagDOMapper;
-import com.backstage.system.mapper.fava.OshFavaMapper;
 import com.backstage.system.domain.vo.pay.OrderCheckoutReqVO;
 import com.backstage.system.domain.vo.pay.OrderCheckoutRespVO;
 import com.backstage.system.domain.order.OshOrder;
@@ -70,14 +67,8 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
     @Resource
     private BookTagDOMapper bookTagDOMapper;
 
-    @Resource
-    private OshFavaMapper favaMapper;
-
     @Autowired
     private com.backstage.system.service.common.OssService ossService;
-
-    @Resource
-    private UserContextUtil userContextUtil;
 
     @Autowired
     private com.backstage.system.service.book.IBookEsService bookEsService;
@@ -165,7 +156,7 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
      */
     @Override
     public BookDetailVO selectBookDetail(Long id, Boolean forEdit) {
-        BookDetailAggregate aggregate = loadBookDetailAggregate(id, UserContextUtil.getCurrentUserId());
+        BookDetailAggregate aggregate = loadBookDetailAggregate(id, UserContextUtil.getCurrentUserIdSafely());
         return buildBookDetailVO(aggregate, forEdit);
     }
 
@@ -582,22 +573,10 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
         BookDO bookDO = getById(bookId);
         checkEntityNotNull(bookDO, "电子书不存在");
 
-        if (status == 1) {
-            int count = favaMapper.countFava(userId, bookId, CourseQuestionConstants.FAVORITE_TYPE_BOOK);
-            if (count == 0) {
-                OshFava fava = new OshFava();
-                fava.setUserId(userId);
-                fava.setGoodsId(bookId);
-                fava.setType(CourseQuestionConstants.FAVORITE_TYPE_BOOK);
-                favaMapper.insertFava(fava);
-            }
-        } else {
-            OshFava fava = new OshFava();
-            fava.setUserId(userId);
-            fava.setGoodsId(bookId);
-            fava.setType(CourseQuestionConstants.FAVORITE_TYPE_BOOK);
-            favaMapper.deleteFava(fava);
-        }
+        UserBookRelation relation = getOrCreateRelation(userId, bookId);
+        relation.setFavorited(status);
+        relation.setFavoriteTime(status == 1 ? LocalDateTime.now() : null);
+        userBookRelationMapper.updateById(relation);
     }
 
     @Override
@@ -614,7 +593,7 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
     }
 
     @Override
-    public OrderCheckoutRespVO purchaseBook(Long bookId, Long userId, String channel, Boolean usePoints) {
+    public OrderCheckoutRespVO purchaseBook(Long bookId, Long userId, String channel) {
         BookDO bookDO = getById(bookId);
         checkEntityNotNull(bookDO, "电子书不存在");
 
@@ -625,7 +604,7 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
         }
 
         // 构建订单结算参数，交给订单模块处理
-        return orderCheckoutService.checkout(buildBookCheckoutReqVO(bookDO, bookId, userId, channel, usePoints));
+        return orderCheckoutService.checkout(buildBookCheckoutReqVO(bookDO, bookId, userId, channel));
     }
 
     /**
@@ -635,14 +614,12 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
      * @param bookId 电子书ID
      * @param userId 用户ID
      * @param channel 支付渠道
-     * @param usePoints 是否使用积分抵扣
      * @return 订单结算参数
      */
     private OrderCheckoutReqVO buildBookCheckoutReqVO(BookDO bookDO,
                                                       Long bookId,
                                                       Long userId,
-                                                      String channel,
-                                                      Boolean usePoints) {
+                                                      String channel) {
         OrderCheckoutReqVO reqVO = new OrderCheckoutReqVO();
         reqVO.setUserId(userId);
         reqVO.setProductType(ProductTypeEnum.BOOK.getCode());
@@ -652,7 +629,6 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
         reqVO.setPayableAmount(bookDO.getPrice());
         reqVO.setDiscountAmount(java.math.BigDecimal.ZERO);
         reqVO.setChannel(channel);
-        reqVO.setUsePoints(usePoints);
         return reqVO;
     }
 
@@ -696,17 +672,16 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
         }
 
         BookRelationStatusVO vo = new BookRelationStatusVO();
-        boolean favorited = favaMapper.countFava(userId, bookId, CourseQuestionConstants.FAVORITE_TYPE_BOOK) > 0;
-        vo.setFavorited(favorited ? 1 : 0);
-
         UserBookRelation relation = userBookRelationMapper.selectByUserIdAndBookId(userId, bookId);
         if (relation == null)
         {
+            vo.setFavorited(0);
             vo.setFollowed(0);
             vo.setPurchased(0);
             return vo;
         }
 
+        vo.setFavorited(Optional.ofNullable(relation.getFavorited()).orElse(0));
         vo.setFollowed(Optional.ofNullable(relation.getFollowed()).orElse(0));
         vo.setPurchased(Optional.ofNullable(relation.getPurchased()).orElse(0));
         return vo;
@@ -747,6 +722,7 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
         vo.setBookDetails(aggregate.getChapters());
         vo.setTags(aggregate.getTags());
         vo.setIsbuy(aggregate.getRelationStatus().getPurchased() == 1);
+        vo.setIsfava(aggregate.getRelationStatus().getFavorited() == 1);
         return vo;
     }
 

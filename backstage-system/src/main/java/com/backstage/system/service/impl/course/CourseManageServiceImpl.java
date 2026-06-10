@@ -272,7 +272,7 @@ public class CourseManageServiceImpl implements ICourseManageService {
      * @return 视频信息（名称、URL、大小、类型）
      */
     @Override
-    public Map<String, Object> uploadVideo(MultipartFile file, String videoName) {
+    public Map<String, Object> uploadVideo(MultipartFile file, String videoName, Long sectionId) {
         // 1. 校验文件类型（仅允许视频格式）
         String fileName = file.getOriginalFilename();
         String extension = "";
@@ -289,22 +289,17 @@ public class CourseManageServiceImpl implements ICourseManageService {
             throw new ServiceException(CourseUploadConstants.VIDEO_SIZE_ERROR);
         }
 
-        // 3. 调用文件上传接口
+        // 3. 重新上传：先删 OSS 旧视频，避免堆积无用文件
+        if (sectionId != null) {
+            deleteSectionVideoFromOss(sectionId);
+        }
+
+        // 4. 直传 OSS（与资料上传一致，跳过 osh_oss_operation_log 写库，减少上传耗时）
         String videoUrl;
         String relativePath;
         try {
-            // 获取相对路径
-            relativePath = ossService.upload(file, UploadPathEnum.COURSE_VIDEO, "videos");
-
-            // 检查上传结果是否包含错误信息
-            if (relativePath == null || CourseUploadConstants.isUploadError(relativePath)) {
-                throw new ServiceException(relativePath);
-            }
-
-
-            // 生成临时访问URL（有效期6小时 = 360分钟）
+            relativePath = uploadCourseVideoToOss(file);
             videoUrl = ossService.getLimitedUrl(relativePath, 360);
-
             log.info("课时视频上传 - 相对路径: {}, 临时访问URL: {}", relativePath, videoUrl);
         } catch (ServiceException e) {
             throw e;
@@ -312,16 +307,16 @@ public class CourseManageServiceImpl implements ICourseManageService {
             throw new ServiceException("上传视频失败：" + e.getMessage());
         }
 
-        // 4. 构建返回信息
+        // 5. 构建返回信息
         Map<String, Object> videoInfo = new HashMap<>();
         videoInfo.put("videoName", StringUtils.defaultIfEmpty(videoName, fileName));
-        videoInfo.put("url", videoUrl);                   // 临时访问URL（前端显示用）
-        videoInfo.put("relativePath", relativePath);      // 相对路径（数据库存储用）
+        videoInfo.put("url", videoUrl);
+        videoInfo.put("relativePath", relativePath);
         videoInfo.put("size", file.getSize());
         videoInfo.put("type", extension);
 
-        log.info("视频上传成功：name={}, 临时URL={}, 相对路径={}, size={}, type={}",
-                videoInfo.get("videoName"), videoUrl, relativePath, file.getSize(), extension);
+        log.info("视频上传成功：name={}, sectionId={}, 相对路径={}, size={}",
+                videoInfo.get("videoName"), sectionId, relativePath, file.getSize());
         return videoInfo;
     }
 
@@ -380,6 +375,56 @@ public class CourseManageServiceImpl implements ICourseManageService {
             throw e;
         } catch (Exception e) {
             throw new ServiceException("上传资料失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 课程视频直传 OSS（路径规则与 OssService 保持一致，但不写 osh_oss_operation_log）。
+     */
+    private String uploadCourseVideoToOss(MultipartFile file) throws Exception {
+        String ym = DateUtils.getDate().substring(0, 7).replace("-", "");
+        String customPath = UploadPathEnum.COURSE_VIDEO.getPath() + "videos/" + ym + "/";
+        String objectKey = customPath + UUID.randomUUID() + "_" + file.getOriginalFilename();
+
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(file.getSize());
+        metadata.setContentType(file.getContentType());
+
+        AmazonS3Client s3 = ossUtil.createS3Client();
+        PutObjectRequest request = new PutObjectRequest(
+                ossUtil.getOssProperties().getBucketName(),
+                objectKey,
+                file.getInputStream(),
+                metadata
+        );
+        s3.putObject(request);
+        return objectKey;
+    }
+
+    /**
+     * 重新上传前删除小节关联的旧视频（仅删 OSS 对象，DB 由 save 接口更新）。
+     */
+    private void deleteSectionVideoFromOss(Long sectionId) {
+        if (sectionId == null) {
+            return;
+        }
+        List<OshCourseSection> sections = sectionMapper.selectSectionsByIds(Collections.singletonList(sectionId));
+        if (sections == null || sections.isEmpty()) {
+            return;
+        }
+        String relativePath = sections.get(0).getMediaUrl();
+        if (StringUtils.isEmpty(relativePath)
+                || relativePath.contains("pending")
+                || relativePath.startsWith("http://")
+                || relativePath.startsWith("https://")) {
+            return;
+        }
+        String objectKey = relativePath.startsWith("/") ? relativePath.substring(1) : relativePath;
+        try {
+            boolean deleted = ossUtil.deleteFile(objectKey);
+            log.info("重新上传删除旧视频: sectionId={}, key={}, deleted={}", sectionId, objectKey, deleted);
+        } catch (Exception e) {
+            log.warn("重新上传删除旧视频失败: sectionId={}, key={}, error={}", sectionId, objectKey, e.getMessage());
         }
     }
 

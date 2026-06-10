@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.backstage.system.mapper.member.OshMemberOrderMapper">
+
+    <resultMap id="OshMemberOrderResult" type="com.backstage.system.domain.member.OshMemberOrder">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="planId" column="plan_id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="memberType" column="member_type"/>
+        <result property="planNameSnapshot" column="plan_name_snapshot"/>
+        <result property="purchaseQuantity" column="purchase_quantity"/>
+        <result property="durationMonths" column="duration_months"/>
+        <result property="originalAmount" column="original_amount"/>
+        <result property="payAmount" column="pay_amount"/>
+        <result property="payStatus" column="pay_status"/>
+        <result property="grantStatus" column="grant_status"/>
+        <result property="grantMessage" column="grant_message"/>
+        <result property="startTime" column="start_time"/>
+        <result property="expireTime" column="expire_time"/>
+        <result property="payTime" column="pay_time"/>
+        <result property="grantTime" column="grant_time"/>
+        <result property="createTime" column="create_time"/>
+        <result property="createBy" column="create_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="deleteFlag" column="delete_flag"/>
+    </resultMap>
+
+    <select id="selectByOrderNoForUpdate" resultMap="OshMemberOrderResult">
+        select id, user_id, plan_id, order_no, member_type, plan_name_snapshot, purchase_quantity, duration_months,
+               original_amount, pay_amount, pay_status, grant_status, grant_message, start_time, expire_time,
+               pay_time, grant_time, create_time, create_by, update_time, update_by, delete_flag
+        from osh_member_order
+        where order_no = #{orderNo}
+          and delete_flag = 0
+        limit 1
+        for update
+    </select>
+
+    <select id="selectByOrderNoAndUserId" resultMap="OshMemberOrderResult">
+        select id, user_id, plan_id, order_no, member_type, plan_name_snapshot, purchase_quantity, duration_months,
+               original_amount, pay_amount, pay_status, grant_status, grant_message, start_time, expire_time,
+               pay_time, grant_time, create_time, create_by, update_time, update_by, delete_flag
+        from osh_member_order
+        where order_no = #{orderNo}
+          and user_id = #{userId}
+          and delete_flag = 0
+        limit 1
+    </select>
+
+    <select id="selectMemberOrders" resultType="com.backstage.system.domain.member.vo.MemberOrderVO">
+        select order_no as orderNo,
+               plan_name_snapshot as planName,
+               member_type as memberType,
+               purchase_quantity as purchaseQuantity,
+               duration_months as durationMonths,
+               original_amount as originalAmount,
+               pay_amount as payAmount,
+               pay_status as payStatus,
+               grant_status as grantStatus,
+               date_format(start_time, '%Y-%m-%d %H:%i:%s') as startTime,
+               date_format(expire_time, '%Y-%m-%d %H:%i:%s') as expireTime,
+               date_format(create_time, '%Y-%m-%d %H:%i:%s') as createTime
+        from osh_member_order
+        where user_id = #{userId}
+          and delete_flag = 0
+        order by create_time desc
+    </select>
+
+    <select id="selectMemberStatus" resultType="com.backstage.system.domain.member.vo.MemberStatusVO">
+        select r.role_code as memberType,
+               r.role_name as memberName,
+               r.id as roleId,
+               date_format(ur.expire_time, '%Y-%m-%d %H:%i:%s') as expireTime,
+               case when ur.expire_time is not null and ur.expire_time > now() then 1 else 0 end as active,
+               case when ur.expire_time is not null and ur.expire_time > now()
+                    then timestampdiff(day, now(), ur.expire_time)
+                    else 0 end as remainingDays
+        from osh_role r
+        left join osh_user_role ur
+          on ur.role_id = r.id
+         and ur.user_id = #{userId}
+         and ur.delete_flag = 0
+        where r.role_code = #{roleCode}
+          and r.delete_flag = 0
+          and r.status = 1
+        limit 1
+    </select>
+
+    <select id="selectRoleIdByCode" resultType="java.lang.Integer">
+        select id
+        from osh_role
+        where role_code = #{roleCode}
+          and delete_flag = 0
+          and status = 1
+        limit 1
+    </select>
+
+    <select id="selectRoleExpireForUpdate" resultType="java.time.LocalDateTime">
+        select expire_time
+        from osh_user_role
+        where user_id = #{userId}
+          and role_id = #{roleId}
+          and delete_flag = 0
+        limit 1
+        for update
+    </select>
+
+    <insert id="upsertUserRole">
+        insert into osh_user_role (user_id, role_id, expire_time, create_time, create_by, update_time, update_by, delete_flag)
+        values (#{userId}, #{roleId}, #{expireTime}, now(), #{operatorId}, now(), #{operatorId}, 0)
+        on duplicate key update delete_flag = 0,
+                                expire_time = #{expireTime},
+                                update_time = now(),
+                                update_by = #{operatorId}
+    </insert>
+
+    <update id="updatePaid">
+        update osh_member_order
+        set pay_status = 1,
+            pay_time = #{payTime},
+            update_time = now()
+        where order_no = #{orderNo}
+          and delete_flag = 0
+    </update>
+
+    <update id="updateGrantSuccess">
+        update osh_member_order
+        set grant_status = 1,
+            grant_message = null,
+            start_time = #{startTime},
+            expire_time = #{expireTime},
+            grant_time = #{grantTime},
+            update_time = now()
+        where id = #{id}
+          and grant_status != 1
+    </update>
+
+    <update id="updateGrantFailed">
+        update osh_member_order
+        set grant_status = 2,
+            grant_message = #{grantMessage},
+            update_time = now()
+        where id = #{id}
+    </update>
+</mapper>

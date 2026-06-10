@@ -305,8 +305,9 @@ public class CourseManageController extends BaseController {
     @PostMapping("/video/upload")
     public R<Map<String, Object>> uploadVideo(
             @ApiParam("视频文件") @RequestParam("file") MultipartFile file,
-            @ApiParam("视频名称") @RequestParam(value = "videoName", required = false) String videoName) {
-        Map<String, Object> videoInfo = courseManageService.uploadVideo(file, videoName);
+            @ApiParam("视频名称") @RequestParam(value = "videoName", required = false) String videoName,
+            @ApiParam("小节 ID（重新上传时传，用于删除旧视频）") @RequestParam(value = "sectionId", required = false) Long sectionId) {
+        Map<String, Object> videoInfo = courseManageService.uploadVideo(file, videoName, sectionId);
         return R.ok(videoInfo);
     }
 

@@ -15,6 +15,8 @@ public interface IInfoGapEsService {
 
     int deleteAllInfoGapsFromEs();
 
+    int initSearchIndex();
+
     void syncInfoGapToEs(Long infoGapId);
 
     void deleteInfoGapFromEs(Long infoGapId);

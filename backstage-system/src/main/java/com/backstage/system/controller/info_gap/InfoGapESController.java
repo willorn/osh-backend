@@ -85,6 +85,11 @@ public class InfoGapESController {
     /**
      * 全量删除信息差 ES 索引中的数据
      */
+    @PostMapping("/esIndex/init")
+    public R<Integer> initSearchIndex() {
+        return R.ok(infoGapEsService.initSearchIndex(), "ok");
+    }
+
     @PostMapping("/esDelete/all")
     public R<Integer> deleteAllInfoGapsFromEs() {
         return R.ok(infoGapEsService.deleteAllInfoGapsFromEs(), "ok");

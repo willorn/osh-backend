@@ -16,6 +16,7 @@ public class OshBookEsDocument {
     private BigDecimal price;
     private BigDecimal originalPrice;
     private Integer subCount;
+    private Integer chapterCount;
     private Integer level;
     private String status;
     private Integer deleteFlag;
@@ -86,6 +87,14 @@ public class OshBookEsDocument {
 
     public void setSubCount(Integer subCount) {
         this.subCount = subCount;
+    }
+
+    public Integer getChapterCount() {
+        return chapterCount;
+    }
+
+    public void setChapterCount(Integer chapterCount) {
+        this.chapterCount = chapterCount;
     }
 
     public Integer getLevel() {

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.backstage.system.mapper.member.OshMemberBenefitMapper">
+
+    <select id="selectEnabledByPlanIds" resultType="com.backstage.system.domain.member.OshMemberBenefit">
+        select id, plan_id, benefit_title, benefit_description, icon, sort, status,
+               create_time, create_by, update_time, update_by, delete_flag
+        from osh_member_benefit
+        where delete_flag = 0
+          and status = 1
+          and plan_id in
+        <foreach item="item" collection="planIds" separator="," open="(" close=")">
+            #{item}
+        </foreach>
+        order by plan_id asc, sort asc, id asc
+    </select>
+
+    <select id="selectByPlanIds" resultType="com.backstage.system.domain.member.OshMemberBenefit">
+        select id, plan_id, benefit_title, benefit_description, icon, sort, status,
+               create_time, create_by, update_time, update_by, delete_flag
+        from osh_member_benefit
+        where delete_flag = 0
+          and plan_id in
+        <foreach item="item" collection="planIds" separator="," open="(" close=")">
+            #{item}
+        </foreach>
+        order by plan_id asc, sort asc, id asc
+    </select>
+
+    <update id="softDeleteByPlanId">
+        update osh_member_benefit
+        set delete_flag = 1,
+            update_time = now(),
+            update_by = #{operatorId}
+        where plan_id = #{planId}
+          and delete_flag = 0
+    </update>
+</mapper>

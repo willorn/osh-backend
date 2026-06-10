@@ -22,7 +22,7 @@ public final class FrontPathConstants {
     public static final String COURSE_DETAIL = "/course_detail/";
 
     /** 电子书详情页前缀 */
-    public static final String BOOK_DETAIL = "/book/detail/";
+    public static final String BOOK_DETAIL = "/detail/book/";
 
     /** 试卷详情页前缀 */
     public static final String EXAM_DETAIL = "/paper_test/";
@@ -74,7 +74,7 @@ public final class FrontPathConstants {
     public static final String FEEDBACK_LIST = "/feedback/list";
 
     /** 拼团列表页 */
-    public static final String GROUP_LIST = "/list/group/1";
+    public static final String GROUP_LIST = "/group";
 
     /** 信息差列表页 */
     public static final String INFO_GAP_LIST = "/info_gap/1";
@@ -111,8 +111,8 @@ public final class FrontPathConstants {
     private static Map<String, String> buildDetailPathMap() {
         Map<String, String> map = new HashMap<>();
         map.put("course",         "/course_detail/");
-        map.put("book",           "/book/detail/");
-        map.put("exam",           "/paper_test/");
+        map.put("book",           "/detail/book/");
+        map.put("exam",           "/paper/");
         map.put("feedback",       "/feedback/detail/");
         map.put("group",          "/course_detail/");
         map.put("info_gap",       "/info_gap/detail/");
@@ -133,7 +133,7 @@ public final class FrontPathConstants {
         map.put("book",         "/list/book/1");
         map.put("exam",         "/paper/1");
         map.put("feedback",     "/feedback/list");
-        map.put("group",        "/list/group/1");
+        map.put("group",        "/group");
         map.put("info_gap",     "/info_gap/1");
         map.put("openproject",  "/openproject/list");
         map.put("qa",           "/question_answer/1");

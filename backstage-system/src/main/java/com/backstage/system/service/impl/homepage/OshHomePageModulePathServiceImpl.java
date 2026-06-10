@@ -21,6 +21,7 @@ public class OshHomePageModulePathServiceImpl implements IOshHomePageModulePathS
     public String getDetailPath(String module, Object id) {
         String prefix = FrontPathConstants.DETAIL_PATH_MAP.getOrDefault(module, "/");
         return prefix + id;
+
     }
 
     @Override

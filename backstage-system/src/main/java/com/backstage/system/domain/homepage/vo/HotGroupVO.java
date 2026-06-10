@@ -40,11 +40,26 @@ public class HotGroupVO {
     @ApiModelProperty("拼团人数上限")
     private Integer maxNum;
 
+    @ApiModelProperty("拼团最低成团人数（group_min_num）")
+    private Integer groupMinNum;
+
+    @ApiModelProperty("拼团人数上限（group_max_num）")
+    private Integer groupMaxNum;
+
     @ApiModelProperty("拼团开始时间")
     private String startTime;
 
     @ApiModelProperty("拼团结束时间")
     private String endTime;
+
+    @ApiModelProperty("商品描述")
+    private String description;
+
+    @ApiModelProperty("当前参团人数")
+    private Integer currentNum;
+
+    @ApiModelProperty("热度分值")
+    private java.math.BigDecimal hotScore;
 
     @ApiModelProperty("详情页跳转路径")
     private String detailUrl;
@@ -78,6 +93,12 @@ public class HotGroupVO {
     public Integer getMaxNum() { return maxNum; }
     public void setMaxNum(Integer maxNum) { this.maxNum = maxNum; }
 
+    public Integer getGroupMinNum() { return groupMinNum; }
+    public void setGroupMinNum(Integer groupMinNum) { this.groupMinNum = groupMinNum; }
+
+    public Integer getGroupMaxNum() { return groupMaxNum; }
+    public void setGroupMaxNum(Integer groupMaxNum) { this.groupMaxNum = groupMaxNum; }
+
     public String getStartTime() { return startTime; }
     public void setStartTime(String startTime) { this.startTime = startTime; }
 
@@ -86,4 +107,13 @@ public class HotGroupVO {
 
     public String getDetailUrl() { return detailUrl; }
     public void setDetailUrl(String detailUrl) { this.detailUrl = detailUrl; }
+
+    public java.math.BigDecimal getHotScore() { return hotScore; }
+    public void setHotScore(java.math.BigDecimal hotScore) { this.hotScore = hotScore; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public Integer getCurrentNum() { return currentNum; }
+    public void setCurrentNum(Integer currentNum) { this.currentNum = currentNum; }
 }

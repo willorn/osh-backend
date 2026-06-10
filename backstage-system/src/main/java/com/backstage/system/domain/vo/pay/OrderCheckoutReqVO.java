@@ -41,8 +41,8 @@ public class OrderCheckoutReqVO {
 
     private String channel;
 
-    /** 是否使用积分抵扣 */
-    private Boolean usePoints;
+    /** 是否使用积分抵扣，保留用于兼容已接入支付接口的业务模块 */
+    private Boolean usePoints = Boolean.TRUE;
 
     /** 客户端 IP，由调用方传入；Kafka 消费者等非 HTTP 场景传固定标识 */
     private String clientIp;
@@ -136,10 +136,20 @@ public class OrderCheckoutReqVO {
         this.channel = channel;
     }
 
+    /**
+     * 获取调用方传入的积分抵扣标识。
+     *
+     * @return 是否使用积分抵扣
+     */
     public Boolean getUsePoints() {
         return usePoints;
     }
 
+    /**
+     * 设置调用方传入的积分抵扣标识。
+     *
+     * @param usePoints 是否使用积分抵扣
+     */
     public void setUsePoints(Boolean usePoints) {
         this.usePoints = usePoints;
     }

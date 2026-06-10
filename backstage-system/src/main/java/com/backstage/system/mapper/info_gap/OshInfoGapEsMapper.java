@@ -35,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -42,7 +43,10 @@ import java.util.Optional;
 @Component
 public class OshInfoGapEsMapper {
 
-    private static final String INFO_GAP_SEARCH_INDEX = "osh_infogap_index";
+    private static final String INFO_GAP_SEARCH_INDEX = "osh_infogap_search_index";
+    private static final int RERANK_MULTIPLIER = 20;
+    private static final int MIN_RERANK_WINDOW = 200;
+    private static final int MAX_RERANK_WINDOW = 1000;
 
     @Autowired
     private RestHighLevelClient restHighLevelClient;
@@ -60,7 +64,8 @@ public class OshInfoGapEsMapper {
         }
 
         SearchRequest searchRequest = new SearchRequest(INFO_GAP_SEARCH_INDEX);
-        searchRequest.source(buildSearchSource(request, pageNum, pageSize));
+        int fetchSize = resolveRerankWindow(pageNum, pageSize);
+        searchRequest.source(buildSearchSource(request, 1, fetchSize));
 
         SearchResponse searchResponse;
         try {
@@ -76,10 +81,7 @@ public class OshInfoGapEsMapper {
             throw new IllegalStateException("search info gaps from es timed out");
         }
 
-        List<Long> ids = new ArrayList<>();
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            ids.add(Long.valueOf(searchHit.getId()));
-        }
+        List<Long> ids = buildRerankedIds(searchResponse.getHits().getHits(), request.getKeyword(), pageNum, pageSize);
 
         return new InfoGapEsSearchResult(ids, searchResponse.getHits().getTotalHits().value, pageNum, pageSize);
     }
@@ -93,7 +95,8 @@ public class OshInfoGapEsMapper {
         }
 
         SearchRequest searchRequest = new SearchRequest(INFO_GAP_SEARCH_INDEX);
-        searchRequest.source(buildSearchSource(request, pageNum, pageSize));
+        int fetchSize = resolveRerankWindow(pageNum, pageSize);
+        searchRequest.source(buildSearchSource(request, 1, fetchSize));
 
         SearchResponse searchResponse;
         try {
@@ -109,10 +112,7 @@ public class OshInfoGapEsMapper {
             throw new IllegalStateException("search info gaps from es timed out");
         }
 
-        List<Long> ids = new ArrayList<>();
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            ids.add(Long.valueOf(searchHit.getId()));
-        }
+        List<Long> ids = buildRerankedIds(searchResponse.getHits().getHits(), request.getKeyword(), pageNum, pageSize);
 
         return new InfoGapEsSearchResult(ids, searchResponse.getHits().getTotalHits().value, pageNum, pageSize);
     }
@@ -169,6 +169,10 @@ public class OshInfoGapEsMapper {
         return root.path("deleted").asInt(0);
     }
 
+    public boolean indexExists() throws Exception {
+        return restHighLevelClient.indices().exists(new GetIndexRequest(INFO_GAP_SEARCH_INDEX), RequestOptions.DEFAULT);
+    }
+
     private SearchSourceBuilder buildSearchSource(InfoGapESSearchReqDTO request, int pageNum, int pageSize) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .from((pageNum - 1) * pageSize)
@@ -218,14 +222,117 @@ public class OshInfoGapEsMapper {
     }
 
     private QueryBuilder buildKeywordQuery(String keyword) {
-        return QueryBuilders.multiMatchQuery(keyword)
-                .field("title", 8.0f)
-                .field("tagNamesText", 4.0f)
-                .field("category", 4.0f)
-                .field("content", 3.0f)
-                .field("searchText", 1.0f)
-                .field("no", 8.0f)
-                .type(MultiMatchQueryBuilder.Type.BEST_FIELDS);
+        String trimmedKeyword = keyword == null ? null : keyword.trim();
+        BoolQueryBuilder shouldQuery = QueryBuilders.boolQuery();
+        shouldQuery.should(QueryBuilders.matchQuery("title", trimmedKeyword).boost(20.0f));
+        shouldQuery.should(QueryBuilders.matchQuery("content", trimmedKeyword).boost(18.0f));
+        shouldQuery.should(QueryBuilders.matchQuery("tagNamesText", trimmedKeyword).boost(3.0f));
+        shouldQuery.should(QueryBuilders.matchQuery("category", trimmedKeyword).boost(1.0f));
+        shouldQuery.minimumShouldMatch(1);
+        return shouldQuery;
+    }
+
+    private int resolveRerankWindow(int pageNum, int pageSize) {
+        int base = Math.max(1, pageNum) * Math.max(1, pageSize) * RERANK_MULTIPLIER;
+        base = Math.max(base, MIN_RERANK_WINDOW);
+        return Math.min(base, MAX_RERANK_WINDOW);
+    }
+
+    private List<Long> buildRerankedIds(SearchHit[] hits, String keyword, int pageNum, int pageSize) {
+        if (hits == null || hits.length == 0) {
+            return Collections.emptyList();
+        }
+        String normalizedKeyword = normalizeKeyword(keyword);
+        List<ScoredHit> rankedHits = new ArrayList<>(hits.length);
+        for (SearchHit hit : hits) {
+            long frequencyScore = calculateFrequencyScore(hit, normalizedKeyword);
+            String updateTime = extractField(hit, "updateTime");
+            rankedHits.add(new ScoredHit(Long.valueOf(hit.getId()), frequencyScore, hit.getScore(), updateTime));
+        }
+        rankedHits.sort(Comparator
+                .comparingLong(ScoredHit::getFrequencyScore).reversed()
+                .thenComparing(ScoredHit::getEsScore, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(ScoredHit::getUpdateTime, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        int fromIndex = Math.max(0, (pageNum - 1) * pageSize);
+        if (fromIndex >= rankedHits.size()) {
+            return Collections.emptyList();
+        }
+        int toIndex = Math.min(rankedHits.size(), fromIndex + pageSize);
+        List<Long> ids = new ArrayList<>(toIndex - fromIndex);
+        for (int i = fromIndex; i < toIndex; i++) {
+            ids.add(rankedHits.get(i).getId());
+        }
+        return ids;
+    }
+
+    private long calculateFrequencyScore(SearchHit hit, String keyword) {
+        if (StringUtils.isEmpty(keyword)) {
+            return 0L;
+        }
+        long total = 0L;
+        total += countOccurrences(extractField(hit, "title"), keyword) * 100L;
+        total += countOccurrences(extractField(hit, "content"), keyword) * 80L;
+        total += countOccurrences(extractField(hit, "tagNamesText"), keyword) * 20L;
+        total += countOccurrences(extractField(hit, "category"), keyword) * 10L;
+        return total;
+    }
+
+    private String extractField(SearchHit hit, String fieldName) {
+        Object value = hit.getSourceAsMap() == null ? null : hit.getSourceAsMap().get(fieldName);
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        return keyword == null ? "" : keyword.trim().toLowerCase();
+    }
+
+    private int countOccurrences(String text, String keyword) {
+        if (StringUtils.isEmpty(text) || StringUtils.isEmpty(keyword)) {
+            return 0;
+        }
+        String source = text.toLowerCase();
+        int count = 0;
+        int fromIndex = 0;
+        while (true) {
+            int matchIndex = source.indexOf(keyword, fromIndex);
+            if (matchIndex < 0) {
+                break;
+            }
+            count++;
+            fromIndex = matchIndex + keyword.length();
+        }
+        return count;
+    }
+
+    private static class ScoredHit {
+        private final Long id;
+        private final long frequencyScore;
+        private final Float esScore;
+        private final String updateTime;
+
+        private ScoredHit(Long id, long frequencyScore, Float esScore, String updateTime) {
+            this.id = id;
+            this.frequencyScore = frequencyScore;
+            this.esScore = esScore;
+            this.updateTime = updateTime;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public long getFrequencyScore() {
+            return frequencyScore;
+        }
+
+        public Float getEsScore() {
+            return esScore;
+        }
+
+        public String getUpdateTime() {
+            return updateTime;
+        }
     }
 
     public static class InfoGapEsSearchResult {

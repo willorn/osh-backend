@@ -17,15 +17,9 @@ public class BookRelationReqVO implements Serializable {
     /** 支付渠道 */
     private String channel;
 
-    /** 是否使用积分抵扣 */
-    private Boolean usePoints;
-
     public Long getBookId() { return bookId; }
     public void setBookId(Long bookId) { this.bookId = bookId; }
 
     public String getChannel() { return channel; }
     public void setChannel(String channel) { this.channel = channel; }
-
-    public Boolean getUsePoints() { return usePoints; }
-    public void setUsePoints(Boolean usePoints) { this.usePoints = usePoints; }
 }

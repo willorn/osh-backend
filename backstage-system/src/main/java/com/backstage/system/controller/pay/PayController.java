@@ -9,6 +9,7 @@ import com.backstage.system.domain.order.OrderPaymentInfo;
 import com.backstage.system.domain.order.OrderStatusResult;
 import com.backstage.system.service.order.OrderCheckoutService;
 import com.backstage.system.service.order.OrderService;
+import com.backstage.system.utils.UserContextUtil;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -57,9 +58,8 @@ public class PayController {
      * @return 订单支付状态mmi
      */
     @GetMapping("/status")
-    @PreAuthorize("hasAuthority('pay:status')")
     public R<OrderStatusResult> status(@RequestParam String orderNo) {
-        return R.ok(orderService.getOrderStatus(orderNo));
+        return R.ok(orderService.getOrderStatusForUser(orderNo, UserContextUtil.getCurrentUserIdSafely()));
     }
 
     /**
@@ -70,9 +70,8 @@ public class PayController {
      */
 
     @PostMapping("/cancel")
-    @PreAuthorize("hasAuthority('pay:cancel')")
     public R<Void> cancel(@RequestParam String orderNo) {
-        orderService.cancelPaymentByOrderNo(orderNo);
+        orderService.cancelPaymentByOrderNoForUser(orderNo, UserContextUtil.getCurrentUserIdSafely());
         return R.ok();
     }
 }

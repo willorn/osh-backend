@@ -187,6 +187,7 @@ public class BookEsMapper {
         vo.setPrice(document.getPrice() != null ? document.getPrice().toPlainString() : "0");
         vo.setTPrice(document.getOriginalPrice() != null ? document.getOriginalPrice().toPlainString() : "0");
         vo.setSubCount(document.getSubCount());
+        vo.setChapterCount(document.getChapterCount());
         vo.setLevel(document.getLevel());
         vo.setTagNameList(document.getTagNames());
         vo.setPurchaseCount(0);

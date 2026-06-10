@@ -57,7 +57,7 @@ public class UserBookRelationController {
     public R<OrderCheckoutRespVO> purchase(@Valid @RequestBody BookRelationReqVO reqVO) {
         Long userId = ThreadLocalUtil.getCurrentUserId();
         OrderCheckoutRespVO result = bookService.purchaseBook(
-                reqVO.getBookId(), userId, reqVO.getChannel(), reqVO.getUsePoints());
+                reqVO.getBookId(), userId, reqVO.getChannel());
         return R.ok(result);
     }
 

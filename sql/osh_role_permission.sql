@@ -2,7 +2,7 @@ CREATE TABLE `osh_role` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT '角色ID',
   `role_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs NOT NULL COMMENT '角色名称',
   `role_code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs NOT NULL COMMENT '角色编码',
-  `level` tinyint DEFAULT '0' COMMENT '角色等级：0-普通用户，1-小班用户,2-普通开发者,3-vip用户/普通管理员,4-核心开发者,5-创始人',
+  `level` tinyint DEFAULT '0' COMMENT '角色等级：1-普通用户,2-普通开发者/VIP用户,3-小班用户,4-普通管理员,5-核心开发者,6-创始人',
   `description` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_as_cs DEFAULT NULL COMMENT '角色描述',
   `status` tinyint DEFAULT '1' COMMENT '状态：1-启用，0-禁用',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

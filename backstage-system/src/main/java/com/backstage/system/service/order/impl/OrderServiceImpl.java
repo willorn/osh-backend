@@ -138,7 +138,7 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
      * @return 订单结算结果
      */
     @Override
-    public OrderCheckoutRespVO checkout(OrderCheckoutReqVO reqVO) {
+    public OrderCheckoutRespVO checkout(OrderCheckoutReqVO reqVO, Boolean enablePointDeduction) {
 
         String clientIp = reqVO.getClientIp();
         if (clientIp == null || clientIp.isEmpty()) {
@@ -160,7 +160,7 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
 
         // 创建本地待支付订单和支付流水，必要时在同一事务内扣减积分
         CheckoutCreateContext checkoutContext = createPendingOrderAndPayment(
-                reqVO, orderNo, paymentNo, originalPayableAmount, clientIp, channelCode);
+                reqVO, enablePointDeduction, orderNo, paymentNo, originalPayableAmount, clientIp, channelCode);
         BigDecimal amount = checkoutContext.getCashPayAmount();
         OshPayment payment = checkoutContext.getPayment();
         PointDeduction pointDeduction = checkoutContext.getPointDeduction();
@@ -216,6 +216,18 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
         return toStatusResult(order, payment);
     }
 
+    @Override
+    public OrderStatusResult getOrderStatusForUser(String orderNo, Long userId) {
+        OshOrder order = requireUserOrder(orderNo, userId);
+        OshPayment payment = paymentMapper.selectByOrderNo(orderNo);
+        if (Objects.nonNull(payment) && Objects.nonNull(payment.getStatus()) && payment.getStatus() == PAYMENT_PENDING) {
+            tryRefreshFromPlatform(payment);
+            order = orderMapper.selectByOrderNo(orderNo);
+            payment = paymentMapper.selectByOrderNo(orderNo);
+        }
+        return toStatusResult(order, payment);
+    }
+
     /**
      * 根据支付流水号查询订单和支付状态。
      *
@@ -263,6 +275,12 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
     public void cancelPaymentByOrderNo(String orderNo) {
         OshPayment payment = paymentMapper.selectByOrderNo(orderNo);
         cancelPendingPayment(payment);
+    }
+
+    @Override
+    public void cancelPaymentByOrderNoForUser(String orderNo, Long userId) {
+        requireUserOrder(orderNo, userId);
+        cancelPaymentByOrderNo(orderNo);
     }
 
     /**
@@ -384,6 +402,7 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
      * @param payment 待写入支付流水
      */
     private CheckoutCreateContext createPendingOrderAndPayment(OrderCheckoutReqVO reqVO,
+                                                               Boolean enablePointDeduction,
                                                                String orderNo,
                                                                String paymentNo,
                                                                BigDecimal originalPayableAmount,
@@ -391,7 +410,7 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
                                                                int channelCode) {
         CheckoutCreateContext context = new CheckoutCreateContext();
         executeInTransaction(() -> {
-            PointDeduction pointDeduction = deductOrderPointsIfNeeded(reqVO, originalPayableAmount, orderNo);
+            PointDeduction pointDeduction = deductOrderPointsIfNeeded(reqVO, enablePointDeduction, originalPayableAmount, orderNo);
             BigDecimal cashPayAmount = originalPayableAmount.subtract(pointDeduction.getDeductAmount());
             cashPayAmount = money(cashPayAmount);
 
@@ -411,8 +430,11 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
     /**
      * 按订单金额扣减积分，返回本次抵扣快照。
      */
-    private PointDeduction deductOrderPointsIfNeeded(OrderCheckoutReqVO reqVO, BigDecimal originalPayableAmount, String orderNo) {
-        if (!Boolean.TRUE.equals(reqVO.getUsePoints()) || isFreeAmount(originalPayableAmount)) {
+    private PointDeduction deductOrderPointsIfNeeded(OrderCheckoutReqVO reqVO,
+                                                     Boolean enablePointDeduction,
+                                                     BigDecimal originalPayableAmount,
+                                                     String orderNo) {
+        if (!Boolean.TRUE.equals(enablePointDeduction) || isFreeAmount(originalPayableAmount)) {
             return PointDeduction.none(originalPayableAmount);
         }
 
@@ -818,6 +840,20 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
             result.setPayStatus(Objects.nonNull(order) && Objects.nonNull(order.getStatus()) && order.getStatus() == ORDER_PAID);
         }
         return result;
+    }
+
+    private OshOrder requireUserOrder(String orderNo, Long userId) {
+        if (userId == null) {
+            throw new ServiceException("请先登录");
+        }
+        OshOrder order = orderMapper.selectByOrderNo(orderNo);
+        if (Objects.isNull(order)) {
+            throw new ServiceException("订单不存在");
+        }
+        if (!Objects.equals(order.getUserId(), userId)) {
+            throw new ServiceException("无权操作该订单");
+        }
+        return order;
     }
 
     /**
