@@ -102,7 +102,7 @@ public class SeckillPaidHandler implements OrderPaidHandler {
 
     /**
      * 根据 userId 查询用户，构建脱敏用户名
-     * 昵称优先，昵称为空则用登录名，取前2位 + **
+     * 当前实现使用登录名，取前2位 + **
      */
     private String buildMaskedUsername(Long userId) {
         if (userId == null) {

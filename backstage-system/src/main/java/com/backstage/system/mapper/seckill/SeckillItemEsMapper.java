@@ -30,7 +30,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,9 +43,6 @@ public class SeckillItemEsMapper {
 
     private static final String SECKILL_ITEM_SEARCH_INDEX = "osh_seckill_item_search";
 
-    /** activityStatus=2 表示进行中 */
-    private static final int ACTIVITY_STATUS_ONGOING = 2;
-
     @Autowired
     private RestHighLevelClient restHighLevelClient;
 
@@ -58,7 +54,7 @@ public class SeckillItemEsMapper {
 
     /**
      * 搜索秒杀商品明细
-     * 固定过滤：deleteFlag=0、endTime > now（方式A，过滤已结束活动）
+     * 固定过滤：startTime <= now、endTime > now、deleteFlag=0
      *
      * @param keyword     商品名称关键词（可为 null）
      * @param goodsType   商品类型过滤（可为 null）

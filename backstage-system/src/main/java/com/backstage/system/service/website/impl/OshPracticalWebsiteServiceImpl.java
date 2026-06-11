@@ -29,7 +29,6 @@ import com.backstage.system.utils.WebsiteRatingCalculatorUtil;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
-//import com.sun.org.apache.bcel.internal.generic.NEW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,32 +47,40 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * @author 24333
- * @description 针对表【osh_practical_website(实用网站表)】的数据库操作Service实现
- * @createDate 2026-03-26 19:22:13
+ * 实用网站 Service 实现
  */
 @Service
 public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteService {
     private static final Logger log = LoggerFactory.getLogger(OshPracticalWebsiteServiceImpl.class);
+
     @Autowired
     private OshPracticalWebsiteMapper oshPracticalWebsiteMapper;
+
     @Autowired
     private OshWebsiteTagRelMapper oshWebsiteTagRelMapper;
+
     @Autowired
     private OshWebsiteTagService oshWebsiteTagService;
+
     @Autowired
     private OshWebsiteUserRatingMapper oshWebsiteUserRatingMapper;
+
     @Autowired
     private EmailUtil emailUtil;
+
     @Autowired
     private DistributedLockUtil distributedLockUtil;
+
     @Autowired
     private WebsiteEsService websiteEsService;
+
     /**
      * 查询网站列表
      *
@@ -478,7 +485,7 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
         int successCount = 0;
         List<WebsiteImportResultVO.FailDetail> failDetails = new ArrayList<>();
         // Excel 内部去重：记录本次已处理过的 URL，防止同一文件内重复行
-        java.util.Set<String> processedUrls = new java.util.HashSet<>();
+        Set<String> processedUrls = new HashSet<>();
 
         for (int i = 0; i < dataList.size(); i++) {
             // 行号从 2 开始（第 1 行是表头）

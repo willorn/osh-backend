@@ -6,6 +6,7 @@ import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.exception.ServiceException;
+import com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO;
 import com.backstage.system.domain.dto.website.WebsiteAuditDTO;
 import com.backstage.system.domain.dto.website.WebsiteQueryDTO;
 import com.backstage.system.domain.dto.website.WebsiteRatingDTO;
@@ -60,7 +61,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @Anonymous
     @ApiOperation("查询实用网站公告栏")
     @GetMapping("/notices")
-    public R<java.util.List<com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO>> getNotices(
+    public R<List<AnnouncementMarqueeVO>> getNotices(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         return R.ok(websiteAnnouncementService.getWebsiteNotices(limit));
     }
@@ -71,7 +72,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @Anonymous
     @ApiOperation("查询实用网站动态栏")
     @GetMapping("/dynamics")
-    public R<java.util.List<com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO>> getDynamics(
+    public R<List<AnnouncementMarqueeVO>> getDynamics(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         return R.ok(websiteAnnouncementService.getWebsiteDynamics(limit));
     }
@@ -83,7 +84,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @Anonymous
     @ApiOperation("查询网站标签列表")
     @GetMapping("/tags")
-    public R<java.util.List<java.util.Map<String, Object>>> getTags(
+    public R<List<Map<String, Object>>> getTags(
             @RequestParam(required = false) String keyword) {
         return R.ok(oshWebsiteTagService.searchTags(keyword));
     }
@@ -123,7 +124,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @PostMapping("/submit")
     @OshUserEvent(module = "实用网站", actionType = "提交", description = "提交网站")
     @PreAuthorize("hasAuthority('website:submit')")
-    public R submit(@RequestBody WebsiteSubmitDTO submitDto) {
+    public R<String> submit(@RequestBody WebsiteSubmitDTO submitDto) {
         try {
             int result = oshPracticalWebsiteService.submitWebsite(submitDto);
             if (result > 0) {
@@ -191,13 +192,13 @@ public class OshPracticalWebsiteController extends BaseController {
     @ApiOperation("查询用户的收藏网站列表")
     @GetMapping("/Favorites")
     @PreAuthorize("hasAuthority('website:favorite:list')")
-    public R<java.util.Map<String, Object>> getMyFavoriteList(
+    public R<Map<String, Object>> getMyFavoriteList(
             @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
             @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
         try {
             TableDataInfo result = oshUserFavoriteWebsiteService.selectUserFavoriteList(pageNum, pageSize);
             // 手动组装，避免 TableDataInfo 自带的 code/msg 字段污染响应结构
-            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            Map<String, Object> data = new LinkedHashMap<>();
             data.put("total", result.getTotal());
             data.put("rows", result.getRows());
             return R.ok(data);

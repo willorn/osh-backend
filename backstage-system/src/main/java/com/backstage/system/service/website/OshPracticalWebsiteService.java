@@ -11,10 +11,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 /**
-* @author 24333
-* @description 针对表【osh_practical_website(实用网站表)】的数据库操作Service
-* @createDate 2026-03-26 19:22:13
-*/
+ * 实用网站 Service 接口
+ */
 public interface OshPracticalWebsiteService {
 
     /**
@@ -41,6 +39,7 @@ public interface OshPracticalWebsiteService {
      * @return 影响行数
      */
     int submitWebsite(WebsiteSubmitDTO submitDto);
+
     /**
      * 管理员审核网站
      *
@@ -48,6 +47,7 @@ public interface OshPracticalWebsiteService {
      * @return 是否审核成功
      */
     Boolean auditWebsite(WebsiteAuditDTO auditDto);
+
     /**
      * 查询待审核的网站列表
      *
@@ -56,6 +56,7 @@ public interface OshPracticalWebsiteService {
      * @return 待审核的网站列表
      */
     TableDataInfo selectAuditList(Integer pageNum, Integer pageSize);
+
     /**
      * 批量删除网站
      *

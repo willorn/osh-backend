@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 实用网站 ES Service
@@ -175,7 +176,7 @@ public class WebsiteEsService {
                 Arrays.stream(vo.getTags().split(","))
                       .map(String::trim)
                       .filter(s -> !s.isEmpty())
-                      .collect(java.util.stream.Collectors.toList())
+                      .collect(Collectors.toList())
             );
         }
         return doc;
