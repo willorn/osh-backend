@@ -35,6 +35,7 @@ import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -93,7 +94,6 @@ public class OshToolController extends BaseController {
     @PostMapping("/esSearch")
     @OshUserLevel(value = 1)
     @OshUserEvent(module = "工具模块", actionType = "搜索", resourceType = ResourceType.TOOL_TYPE, description = "ES搜索工具")
-    @PreAuthorize("hasAuthority('tool:list')")
     public R<PageResponse<OshTool>> esToolSearch(@RequestBody ToolSearchRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         Long userId = currentOshUser == null ? null : currentOshUser.getId();
@@ -106,7 +106,6 @@ public class OshToolController extends BaseController {
     @ApiOperation("全量同步工具到ES")
     @PostMapping("/esSync/all")
     @OshUserEvent(module = "工具模块", actionType = "更新资产", resourceType = ResourceType.TOOL_TYPE, description = "同步工具到ES")
-//    @PreAuthorize("hasAuthority('tool:es:sync')")
     @Anonymous
     public R<Integer> syncAllToolsToEs() {
         return R.ok(oshToolEsService.syncAllToolsToEs(), "ok");
@@ -115,7 +114,7 @@ public class OshToolController extends BaseController {
     @ApiOperation("批量补全工具编号")
     @PostMapping("/fill/no")
     @OshUserEvent(module = "工具模块", actionType = "更新资产", resourceType = ResourceType.TOOL_TYPE, description = "补全工具编号")
-//    @PreAuthorize("hasAuthority('tool:update')")
+    @OshUserLevel(value = 5)
     public R<Integer> fillMissingToolNo() {
         return R.ok(oshToolService.fillMissingToolNo(), "ok");
     }
@@ -201,7 +200,6 @@ public class OshToolController extends BaseController {
     @PostMapping("/save")
     @OshUserLevel(value = 5)
     @OshUserEvent(module = "工具模块", actionType = "新增", resourceType = ResourceType.TOOL_TYPE, resourceNameExpression = "#p0.toolName", description = "新增或修改工具")
-    @PreAuthorize("hasAuthority('tool:create')")
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> save(@Validated @RequestBody ToolSaveRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -226,7 +224,6 @@ public class OshToolController extends BaseController {
     @PostMapping("/update")
     @OshUserLevel(value = 5)
     @OshUserEvent(module = "工具模块", actionType = "修改", resourceType = ResourceType.TOOL_TYPE, resourceNameExpression = "#p0.toolName", description = "修改工具")
-    @PreAuthorize("hasAuthority('tool:update')")
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> update(@Validated @RequestBody ToolSaveRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -246,7 +243,6 @@ public class OshToolController extends BaseController {
     @ApiOperation("批量删除工具")
     @PostMapping("/delete")
     @OshUserEvent(module = "工具模块", actionType = "删除", resourceType = ResourceType.TOOL_TYPE, description = "批量删除工具")
-    @PreAuthorize("hasAuthority('tool:delete')")
     @OshUserLevel(value = 5)
     @DistributeLock(scene = "tool:delete", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<String> deleteTools(@Validated @RequestBody ToolDeleteRequest request) {
@@ -265,7 +261,6 @@ public class OshToolController extends BaseController {
     @ApiOperation("收藏工具")
     @PostMapping("/collection/add")
     @OshUserEvent(module = "工具模块", actionType = "收藏", resourceType = ResourceType.TOOL_TYPE, description = "收藏工具")
-    @PreAuthorize("hasAuthority('tool:collection:add')")
     @OshUserLevel(value = 1)
     public R<String> collectTool(@Validated @RequestBody ToolCollectionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -280,7 +275,6 @@ public class OshToolController extends BaseController {
     @PostMapping("/collection/remove")
     @OshUserLevel(value = 1)
     @OshUserEvent(module = "工具模块", actionType = "取消收藏", resourceType = ResourceType.TOOL_TYPE, description = "取消收藏工具")
-    @PreAuthorize("hasAuthority('tool:collection:remove')")
     public R<String> removeToolCollection(@Validated @RequestBody ToolCollectionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -294,7 +288,6 @@ public class OshToolController extends BaseController {
     @PostMapping("/use/consume")
     @OshUserLevel(value = 1)
     @OshUserEvent(module = "工具模块", actionType = "使用", resourceType = ResourceType.TOOL_TYPE, description = "使用工具")
-    @PreAuthorize("hasAuthority('tool:use:consume')")
     public R<Integer> consumeToolUsage(@Validated @RequestBody ToolUsageConsumeRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
