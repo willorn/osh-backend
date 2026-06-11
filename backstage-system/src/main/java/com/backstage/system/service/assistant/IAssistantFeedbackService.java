@@ -4,7 +4,6 @@ import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.system.domain.assistant.AssistantFeedback;
 import com.backstage.system.domain.assistant.dto.AssistantFeedbackCreateDTO;
 import com.backstage.system.domain.assistant.dto.AssistantFeedbackPageDTO;
-import com.backstage.system.domain.assistant.dto.AssistantTicketQueryDTO;
 import com.backstage.system.domain.assistant.dto.AssistantTicketStatusUpdateDTO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackDetailVO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackProcessRecordVO;
@@ -48,14 +47,6 @@ public interface IAssistantFeedbackService extends IService<AssistantFeedback> {
     TableDataInfo getMyFeedback(Long userId);
 
     /**
-     * 查询工单列表（分页）
-     *
-     * @param queryDTO 查询条件
-     * @return 分页结果
-     */
-    TableDataInfo listTickets(AssistantTicketQueryDTO queryDTO);
-
-    /**
      * 更新工单状态
      *
      * @param ticketId  工单 ID
@@ -64,15 +55,6 @@ public interface IAssistantFeedbackService extends IService<AssistantFeedback> {
      * @return 更新后的工单信息
      */
     AssistantFeedbackVO updateTicketStatus(Long ticketId, Long handlerId, AssistantTicketStatusUpdateDTO dto);
-
-    /**
-     * 追加处理备注（不改变状态，仅写一条处理进展记录）。
-     *
-     * @param feedbackId 反馈 ID
-     * @param handlerId  操作人 ID
-     * @param remark     备注内容
-     */
-    void appendProcessingRemark(Long feedbackId, Long handlerId, String remark);
 
     /**
      * 提交人确认工单结果。
@@ -137,49 +119,4 @@ public interface IAssistantFeedbackService extends IService<AssistantFeedback> {
      */
     List<AssistantFeedbackProcessRecordVO> listFeedbackProcessRecords(Long feedbackId);
 
-    /**
-     * 置顶反馈（最多 3 个）
-     *
-     * @param feedbackId 反馈 ID
-     * @param pinOrder   置顶排序（1-3）
-     * @return 是否成功
-     */
-    boolean pinFeedback(Long feedbackId, Integer pinOrder);
-
-    /**
-     * 取消置顶
-     *
-     * @param feedbackId 反馈 ID
-     * @return 是否成功
-     */
-    boolean unpinFeedback(Long feedbackId);
-
-    /**
-     * 增加评论数量
-     *
-     * @param feedbackId 反馈 ID
-     */
-    void incrementCommentCount(Long feedbackId);
-
-    /**
-     * 减少评论数量
-     *
-     * @param feedbackId 反馈 ID
-     */
-    void decrementCommentCount(Long feedbackId);
-
-    /**
-     * 增加浏览次数
-     *
-     * @param feedbackId 反馈 ID
-     */
-    void incrementViewCount(Long feedbackId);
-
-    /**
-     * 逻辑删除反馈
-     *
-     * @param feedbackId 反馈 ID
-     * @return 是否成功
-     */
-    boolean deleteFeedback(Long feedbackId);
 }

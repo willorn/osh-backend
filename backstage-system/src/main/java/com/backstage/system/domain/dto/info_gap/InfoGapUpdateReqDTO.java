@@ -1,8 +1,11 @@
 package com.backstage.system.domain.dto.info_gap;
 
+import com.backstage.common.annotation.OshResourceId;
+
 import java.util.List;
 
 public class InfoGapUpdateReqDTO {
+    @OshResourceId
     private Long id;
     private String title;
     private String content;

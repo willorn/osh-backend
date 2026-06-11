@@ -23,6 +23,9 @@ public class BookListReqVO {
     @ApiModelProperty(value = "当前用户权限等级（后端自动设置）", hidden = true)
     private Integer userLevel;
 
+    @ApiModelProperty(value = "当前用户ID（后端自动设置）", hidden = true)
+    private Long userId;
+
     /**
      * 标签名列表
      */
@@ -58,6 +61,14 @@ public class BookListReqVO {
 
     public void setUserLevel(Integer userLevel) {
         this.userLevel = userLevel;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
     }
 
     public List<String> getTagNameList() {

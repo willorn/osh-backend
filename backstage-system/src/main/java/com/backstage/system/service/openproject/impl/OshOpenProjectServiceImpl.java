@@ -10,10 +10,12 @@ import com.backstage.system.domain.openproject.dto.OpenProjectResourceDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectSubmitDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectVO;
 import com.backstage.system.domain.websocket.WsNotifyMessage;
+import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.mapper.openproject.OshOpenProjectMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectResourceRelMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectTagMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectTagRelMapper;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.openproject.IOshOpenProjectFavoriteService;
 import com.backstage.system.service.openproject.IOshOpenProjectService;
 import com.backstage.system.service.websocket.WebSocketNotifyService;
@@ -64,6 +66,9 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
 
     @Autowired
     private WebSocketNotifyService webSocketNotifyService;
+
+    @Autowired
+    private ContributionService contributionService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -259,6 +264,7 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         project.setIsArchived((byte) 0);
         project.setDeleted(false);
         projectMapper.insert(project);
+        contributionService.recordContribution(ContributionResourceType.OPEN_PROJECT.getCode(), project.getId(), projectName);
 
         // 保存资源关联（课程、电子书、工具等）
         List<OpenProjectResourceDTO> resources = limitList(dto.getResources(), MAX_RESOURCE_COUNT);

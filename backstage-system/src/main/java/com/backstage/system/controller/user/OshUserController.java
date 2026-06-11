@@ -2,7 +2,6 @@ package com.backstage.system.controller.user;
 
 import com.backstage.common.annotation.Anonymous;
 import com.backstage.common.annotation.OshUserEvent;
-import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.user.OshUser;
@@ -10,7 +9,6 @@ import com.backstage.system.domain.user.dto.*;
 import com.backstage.system.domain.user.vo.OshUserLoginVO;
 import com.backstage.system.request.UserListRequest;
 import com.backstage.system.service.user.IOshUserService;
-import com.backstage.system.utils.UserContextUtil;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,7 +39,7 @@ public class OshUserController extends BaseController {
 
     @ApiOperation("账号登录")
     @PostMapping("/login")
-    @OshUserEvent(module = "用户模块", actionType = "登录", description = "用户登录")
+    @OshUserEvent(module = "用户模块", actionType = "登录", description = "用户登录", recordAnonymous = true, successOnly = true)
     @Anonymous
     public R<OshUserLoginVO> login(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
@@ -168,5 +166,13 @@ public class OshUserController extends BaseController {
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
             @RequestBody UserAssetDTO userAssetDTO) {
         return userService.updateAsset(userAssetDTO.getChangeType(), userAssetDTO.getChangeSource(), userAssetDTO.getChangeAmount(), userAssetDTO.getRemark());
+    }
+
+    /**
+     * 查询用户列表
+     */
+    @GetMapping("/all")
+    public R<List<OshUser>> list(UserListRequest req) {
+        return R.ok(userService.selectUserList(req));
     }
 }

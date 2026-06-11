@@ -103,6 +103,8 @@ public class UserOrderController {
                 return "group";
             case SECKILL:
                 return "flashsale";
+            case MEMBER:
+                return "member";
             default:
                 return "default";
         }

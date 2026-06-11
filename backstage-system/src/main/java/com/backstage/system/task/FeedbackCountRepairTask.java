@@ -8,8 +8,6 @@ import com.backstage.system.util.FeedbackHotScoreCalculator;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.util.List;
 
 /**
@@ -28,7 +26,6 @@ import java.util.List;
  *
  * @author backstage
  */
-@Component
 public class FeedbackCountRepairTask {
 
     private static final Logger log = LoggerFactory.getLogger(FeedbackCountRepairTask.class);

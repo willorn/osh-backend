@@ -2,6 +2,9 @@ package com.backstage.system.controller.tool;
 
 import com.backstage.common.annotation.Anonymous;
 import com.backstage.common.annotation.DistributeLock;
+import com.backstage.common.annotation.OshResourceId;
+import com.backstage.common.annotation.OshUserEvent;
+import com.backstage.common.constant.ResourceType;
 import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
@@ -12,6 +15,7 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
 import com.backstage.system.request.tool.ToolCollectionRequest;
 import com.backstage.system.request.tool.ToolDeleteRequest;
@@ -20,6 +24,7 @@ import com.backstage.system.request.tool.ToolSaveRequest;
 import com.backstage.system.request.tool.ToolSearchRequest;
 import com.backstage.system.request.tool.ToolUsageConsumeRequest;
 import com.backstage.system.request.tool.ToolVoteRequest;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.tool.IOshToolCollectionService;
 import com.backstage.system.service.tool.IOshToolEsService;
 import com.backstage.system.service.tool.IOshToolService;
@@ -56,8 +61,12 @@ public class OshToolController extends BaseController {
     @Autowired
     private SearchEsProperties searchEsProperties;
 
+    @Autowired
+    private ContributionService contributionService;
+
     @ApiOperation("工具搜索")
     @PostMapping("/search")
+    @OshUserEvent(module = "工具模块", actionType = "搜索", resourceType = ResourceType.TOOL_TYPE, description = "搜索工具", recordAnonymous = true)
     @Anonymous
     public R<PageResponse<OshTool>> search(@RequestBody ToolSearchRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -83,6 +92,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("ES工具搜索")
     @PostMapping("/esSearch")
     @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "搜索", resourceType = ResourceType.TOOL_TYPE, description = "ES搜索工具")
+    @PreAuthorize("hasAuthority('tool:list')")
     public R<PageResponse<OshTool>> esToolSearch(@RequestBody ToolSearchRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         Long userId = currentOshUser == null ? null : currentOshUser.getId();
@@ -94,6 +105,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("全量同步工具到ES")
     @PostMapping("/esSync/all")
+    @OshUserEvent(module = "工具模块", actionType = "更新资产", resourceType = ResourceType.TOOL_TYPE, description = "同步工具到ES")
 //    @PreAuthorize("hasAuthority('tool:es:sync')")
     @Anonymous
     public R<Integer> syncAllToolsToEs() {
@@ -102,6 +114,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("批量补全工具编号")
     @PostMapping("/fill/no")
+    @OshUserEvent(module = "工具模块", actionType = "更新资产", resourceType = ResourceType.TOOL_TYPE, description = "补全工具编号")
 //    @PreAuthorize("hasAuthority('tool:update')")
     public R<Integer> fillMissingToolNo() {
         return R.ok(oshToolService.fillMissingToolNo(), "ok");
@@ -130,6 +143,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("工具推荐列表")
     @PostMapping("/recommend")
+    @OshUserEvent(module = "工具模块", actionType = "查询", resourceType = ResourceType.TOOL_TYPE, description = "查询推荐工具", recordAnonymous = true)
     @Anonymous
     public R<PageResponse<OshTool>> recommend(@RequestBody ToolRecommendRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -145,6 +159,7 @@ public class OshToolController extends BaseController {
     @ApiOperation("工具标签选项")
     @ApiImplicitParam(name = "keyword", value = "标签关键词，支持模糊查询", example = "PDF", dataType = "String", paramType = "query")
     @GetMapping("/tags")
+    @OshUserEvent(module = "工具模块", actionType = "查询", resourceType = ResourceType.TOOL_TYPE, description = "查询工具标签", recordAnonymous = true)
     @Anonymous
     public R<List<OshToolTag>> listTags(@RequestParam(value = "keyword", required = false) String keyword) {
         return R.ok(oshToolService.listAvailableTags(keyword));
@@ -152,6 +167,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("工具推荐标签")
     @GetMapping("/tags/recommend")
+    @OshUserEvent(module = "工具模块", actionType = "查询", resourceType = ResourceType.TOOL_TYPE, description = "查询工具推荐标签", recordAnonymous = true)
     @Anonymous
     public R<List<OshToolTag>> listRecommendTags() {
         return R.ok(oshToolService.listRecommendTags(5));
@@ -159,8 +175,9 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("工具详情")
     @GetMapping("/detail/{id}")
+    @OshUserEvent(module = "工具模块", actionType = "查询", resourceType = ResourceType.TOOL_TYPE, description = "查询工具详情", recordAnonymous = true)
     @Anonymous
-    public R<OshTool> getToolDetail(@NotNull @PathVariable("id") Long id) {
+    public R<OshTool> getToolDetail(@OshResourceId @NotNull @PathVariable("id") Long id) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         Long userId = currentOshUser == null ? null : currentOshUser.getId();
         OshTool tool = oshToolService.getToolDetail(id, userId);
@@ -169,8 +186,9 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("记录工具浏览次数")
     @PostMapping("/view/{id}")
+    @OshUserEvent(module = "工具模块", actionType = "浏览", resourceType = ResourceType.TOOL_TYPE, description = "浏览工具", recordAnonymous = true)
     @Anonymous
-    public R<String> recordToolView(@NotNull @PathVariable("id") Long id) {
+    public R<String> recordToolView(@OshResourceId @NotNull @PathVariable("id") Long id) {
         try {
             oshToolService.recordToolView(id);
             return R.ok("记录成功");
@@ -182,6 +200,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("新增/修改工具")
     @PostMapping("/save")
     @OshUserLevel(value = 5)
+    @OshUserEvent(module = "工具模块", actionType = "新增", resourceType = ResourceType.TOOL_TYPE, resourceNameExpression = "#p0.toolName", description = "新增或修改工具")
+    @PreAuthorize("hasAuthority('tool:create')")
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> save(@Validated @RequestBody ToolSaveRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -189,9 +209,13 @@ public class OshToolController extends BaseController {
             return R.fail("请先登录");
         }
         try {
-            Long toolId = request.getId() == null
+            boolean creating = request.getId() == null;
+            Long toolId = creating
                     ? oshToolService.createTool(request, currentOshUser)
                     : oshToolService.updateTool(request, currentOshUser);
+            if (creating) {
+                contributionService.recordContribution(ContributionResourceType.TOOL.getCode(), toolId, request.getToolName());
+            }
             return R.ok(toolId);
         } catch (IllegalArgumentException ex) {
             return R.fail(ex.getMessage());
@@ -201,6 +225,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("修改工具")
     @PostMapping("/update")
     @OshUserLevel(value = 5)
+    @OshUserEvent(module = "工具模块", actionType = "修改", resourceType = ResourceType.TOOL_TYPE, resourceNameExpression = "#p0.toolName", description = "修改工具")
+    @PreAuthorize("hasAuthority('tool:update')")
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> update(@Validated @RequestBody ToolSaveRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -219,6 +245,8 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("批量删除工具")
     @PostMapping("/delete")
+    @OshUserEvent(module = "工具模块", actionType = "删除", resourceType = ResourceType.TOOL_TYPE, description = "批量删除工具")
+    @PreAuthorize("hasAuthority('tool:delete')")
     @OshUserLevel(value = 5)
     @DistributeLock(scene = "tool:delete", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<String> deleteTools(@Validated @RequestBody ToolDeleteRequest request) {
@@ -236,6 +264,8 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("收藏工具")
     @PostMapping("/collection/add")
+    @OshUserEvent(module = "工具模块", actionType = "收藏", resourceType = ResourceType.TOOL_TYPE, description = "收藏工具")
+    @PreAuthorize("hasAuthority('tool:collection:add')")
     @OshUserLevel(value = 1)
     public R<String> collectTool(@Validated @RequestBody ToolCollectionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -249,6 +279,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("取消收藏工具")
     @PostMapping("/collection/remove")
     @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "取消收藏", resourceType = ResourceType.TOOL_TYPE, description = "取消收藏工具")
+    @PreAuthorize("hasAuthority('tool:collection:remove')")
     public R<String> removeToolCollection(@Validated @RequestBody ToolCollectionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -261,6 +293,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("扣减工具使用次数")
     @PostMapping("/use/consume")
     @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "使用", resourceType = ResourceType.TOOL_TYPE, description = "使用工具")
+    @PreAuthorize("hasAuthority('tool:use:consume')")
     public R<Integer> consumeToolUsage(@Validated @RequestBody ToolUsageConsumeRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -282,6 +316,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("校验工具使用与扣费权限")
     @PostMapping("/use/check")
     @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "查询", resourceType = ResourceType.TOOL_TYPE, description = "校验工具使用权限")
+    @PreAuthorize("hasAuthority('tool:use:consume')")
     public R<ToolUsagePermission> checkToolUsagePermission(@Validated @RequestBody ToolUsageConsumeRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -300,6 +336,8 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("点赞工具")
     @PostMapping("/vote/good")
+    @OshUserEvent(module = "工具模块", actionType = "点赞", resourceType = ResourceType.TOOL_TYPE, description = "点赞工具")
+    @PreAuthorize("hasAuthority('tool:vote:good')")
     @OshUserLevel(value = 1)
     public R<Integer> voteGoodTool(@Validated @RequestBody ToolVoteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -317,6 +355,8 @@ public class OshToolController extends BaseController {
     @ApiOperation("差评工具")
     @PostMapping("/vote/bad")
     @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "评价", resourceType = ResourceType.TOOL_TYPE, description = "差评工具")
+    @PreAuthorize("hasAuthority('tool:vote:bad')")
     public R<Integer> voteBadTool(@Validated @RequestBody ToolVoteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {

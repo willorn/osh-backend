@@ -2,6 +2,7 @@ package com.backstage.system.service.site;
 
 import com.backstage.system.domain.site.OshSiteInfo;
 import com.backstage.system.domain.site.OshSiteMaintainer;
+import com.backstage.system.domain.site.OshSiteResourceRelation;
 import com.backstage.system.domain.user.OshUser;
 import com.backstage.system.service.site.impl.DemoSiteConfig;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -30,6 +31,8 @@ public interface IOshSiteInfoService extends IService<OshSiteInfo> {
     boolean saveSiteInfo(OshSiteInfo siteInfo);
 
     boolean updateSiteInfo(OshSiteInfo siteInfo);
+
+    void setRelatedResources(Collection<OshSiteInfo> oshSiteInfos);
 
     List<OshSiteInfo> listSites(OshSiteInfo siteInfo);
 
@@ -94,4 +97,54 @@ public interface IOshSiteInfoService extends IService<OshSiteInfo> {
      * @return 停止结果（stopped, exitCode, output）
      */
     Map<String, Object> stopDemo(DemoSiteConfig config);
+
+    // ==================== 网站资源关联管理 ====================
+
+    /**
+     * 查询网站的资源关联列表
+     *
+     * @param siteId 网站ID
+     * @return 资源关联列表
+     */
+    List<OshSiteResourceRelation> listSiteResources(Long siteId);
+
+    /**
+     * 新增网站资源关联
+     *
+     * @param relation 资源关联信息
+     * @return 是否成功
+     */
+    boolean addSiteResource(OshSiteResourceRelation relation);
+
+    /**
+     * 批量新增网站资源关联
+     *
+     * @param relations 资源关联列表
+     * @return 是否成功
+     */
+    boolean batchAddSiteResources(List<OshSiteResourceRelation> relations);
+
+    /**
+     * 删除网站资源关联
+     *
+     * @param id 关联ID
+     * @return 是否成功
+     */
+    boolean removeSiteResource(Long id);
+
+    /**
+     * 批量删除网站资源关联
+     *
+     * @param ids 关联ID列表
+     * @return 是否成功
+     */
+    boolean batchRemoveSiteResources(List<Long> ids);
+
+    /**
+     * 删除网站的所有资源关联
+     *
+     * @param siteId 网站ID
+     * @return 是否成功
+     */
+    boolean removeSiteResourcesBySiteId(Long siteId);
 }

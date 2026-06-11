@@ -27,8 +27,12 @@ public class OshHomePageGroupServiceImpl implements IOshHomePageGroupService {
     public List<HotGroupVO> getHotGroup(int limit) {
         List<HotGroupVO> list = homePageGroupMapper.selectHotGroup(limit);
         for (HotGroupVO vo : list) {
-            // 拼团商品跳转到课程详情页（group 模块 key 映射到 /detail/course/）
-            vo.setDetailUrl(modulePathService.getDetailPath("group", vo.getGoodsId()));
+            // 拼团卡片跳转到拼团详情页 /group/work/{groupId}
+            if (vo.getGroupId() != null) {
+                vo.setDetailUrl("/group/work/" + vo.getGroupId());
+            } else {
+                vo.setDetailUrl(modulePathService.getListPath("group"));
+            }
         }
         return list;
     }

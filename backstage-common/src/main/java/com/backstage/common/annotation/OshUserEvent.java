@@ -26,10 +26,48 @@ public @interface OshUserEvent {
     String actionType() default "";
 
     String resourceType() default "";
+
+    /**
+     * SpEL expression used to resolve resource type from method args or result.
+     * Useful for generic endpoints, for example: #p0.resourceType.
+     */
+    String resourceTypeExpression() default "";
+
+    /**
+     * SpEL expression used to resolve resource id from method args or result.
+     * Examples: #args[0].id, #p0.id, #result.data.
+     */
+    String resourceIdExpression() default "";
+
+    /**
+     * SpEL expression used to resolve readable resource name.
+     */
+    String resourceNameExpression() default "";
+
+    /**
+     * SpEL expression used to decide whether the event should be recorded.
+     * Empty means always record. Examples: #result.data['paid'] == true
+     */
+    String recordConditionExpression() default "";
     /**
      * 操作描述
      */
     String description() default "";
+
+    /**
+     * Whether anonymous requests should also be recorded.
+     */
+    boolean recordAnonymous() default false;
+
+    /**
+     * Whether only successful executions should be sent.
+     */
+    boolean successOnly() default false;
+
+    /**
+     * Whether this action can be used as a contribution source.
+     */
+    boolean contribution() default false;
 
     /**
      * Kafka topic

@@ -2,12 +2,16 @@ package com.backstage.system.service.impl.book;
 
 import com.backstage.common.utils.StringUtils;
 import com.backstage.system.controller.book.BookListReqVO;
+import com.backstage.system.domain.BookChapter;
+import com.backstage.system.domain.UserBookRelation;
 import com.backstage.system.domain.book.BookDO;
 import com.backstage.system.domain.book.es.OshBookEsDocument;
 import com.backstage.system.domain.vo.book.BookListVO;
 import com.backstage.system.mapper.book.BookEsMapper;
+import com.backstage.system.mapper.book.BookChapterMapper;
 import com.backstage.system.mapper.book.BookMapper;
 import com.backstage.system.mapper.book.BookTagDOMapper;
+import com.backstage.system.mapper.book.UserBookRelationMapper;
 import com.backstage.system.service.book.IBookEsService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -18,7 +22,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class BookEsServiceImpl implements IBookEsService {
@@ -32,7 +40,13 @@ public class BookEsServiceImpl implements IBookEsService {
     private BookMapper bookMapper;
 
     @Autowired
+    private BookChapterMapper bookChapterMapper;
+
+    @Autowired
     private BookTagDOMapper bookTagDOMapper;
+
+    @Autowired
+    private UserBookRelationMapper userBookRelationMapper;
 
     @Autowired
     private com.backstage.system.service.common.OssService ossService;
@@ -59,10 +73,43 @@ public class BookEsServiceImpl implements IBookEsService {
                 vo.setCover(ossService.getLimitedUrl(vo.getCover(), 30));
             }
         }
+        fillUserRelationStates(rows, request == null ? null : request.getUserId());
 
         Page<BookListVO> page = new Page<>(esResult.getPageNum(), esResult.getPageSize(), esResult.getTotal());
         page.setRecords(rows);
         return page;
+    }
+
+    /**
+     * 为 ES 搜索结果补充当前用户的收藏与购买状态。
+     *
+     * @param rows 电子书列表
+     * @param userId 当前用户ID
+     */
+    private void fillUserRelationStates(List<BookListVO> rows, Long userId) {
+        if (userId == null) {
+            rows.forEach(row -> {
+                row.setFavorited(0);
+                row.setPurchased(0);
+            });
+            return;
+        }
+
+        List<Long> bookIds = rows.stream().map(BookListVO::getId).collect(Collectors.toList());
+        List<UserBookRelation> relations = userBookRelationMapper.selectList(
+                new LambdaQueryWrapper<UserBookRelation>()
+                        .eq(UserBookRelation::getUserId, userId)
+                        .in(UserBookRelation::getBookId, bookIds)
+        );
+        Map<Long, UserBookRelation> relationMap = new HashMap<>();
+        for (UserBookRelation relation : relations) {
+            relationMap.put(relation.getBookId(), relation);
+        }
+        for (BookListVO row : rows) {
+            UserBookRelation relation = relationMap.get(row.getId());
+            row.setFavorited(relation == null ? 0 : Optional.ofNullable(relation.getFavorited()).orElse(0));
+            row.setPurchased(relation == null ? 0 : Optional.ofNullable(relation.getPurchased()).orElse(0));
+        }
     }
 
     @Override
@@ -117,6 +164,9 @@ public class BookEsServiceImpl implements IBookEsService {
         document.setPrice(bookDO.getPrice() != null ? bookDO.getPrice() : java.math.BigDecimal.ZERO);
         document.setOriginalPrice(bookDO.getOriginalPrice() != null ? bookDO.getOriginalPrice() : java.math.BigDecimal.ZERO);
         document.setSubCount(bookDO.getSubCount());
+        document.setChapterCount(Math.toIntExact(bookChapterMapper.selectCount(
+                new LambdaQueryWrapper<BookChapter>().eq(BookChapter::getBookId, bookDO.getId())
+        )));
         document.setLevel(bookDO.getLevel());
         document.setStatus(bookDO.getStatus());
         document.setDeleteFlag(0);

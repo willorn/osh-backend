@@ -46,4 +46,6 @@ public interface IOshUserService {
     R<String> deleteUser();
 
     R<String> updateAsset(Integer changeType, Integer changeSource, Long changeAmount, String remark);
+
+    List<OshUser> selectUserList(UserListRequest req);
 }

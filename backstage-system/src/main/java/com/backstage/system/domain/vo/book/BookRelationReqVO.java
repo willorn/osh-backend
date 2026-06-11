@@ -1,5 +1,7 @@
 package com.backstage.system.domain.vo.book;
 
+import com.backstage.common.annotation.OshResourceId;
+
 import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 
@@ -12,20 +14,15 @@ public class BookRelationReqVO implements Serializable {
 
     /** 电子书ID */
     @NotNull(message = "电子书ID不能为空")
+    @OshResourceId
     private Long bookId;
 
     /** 支付渠道 */
     private String channel;
-
-    /** 是否使用积分抵扣 */
-    private Boolean usePoints;
 
     public Long getBookId() { return bookId; }
     public void setBookId(Long bookId) { this.bookId = bookId; }
 
     public String getChannel() { return channel; }
     public void setChannel(String channel) { this.channel = channel; }
-
-    public Boolean getUsePoints() { return usePoints; }
-    public void setUsePoints(Boolean usePoints) { this.usePoints = usePoints; }
 }

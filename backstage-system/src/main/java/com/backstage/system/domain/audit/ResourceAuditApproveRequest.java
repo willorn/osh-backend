@@ -1,5 +1,6 @@
 package com.backstage.system.domain.audit;
 
+import com.backstage.common.annotation.OshResourceId;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
@@ -15,6 +16,7 @@ public class ResourceAuditApproveRequest {
 
     @ApiModelProperty(value = "资源ID", required = true, example = "10001")
     @NotNull(message = "资源ID不能为空")
+    @OshResourceId
     private Long resourceId;
 
     @ApiModelProperty(value = "审核后资源状态：4-已发布，6-已下架", example = "4")

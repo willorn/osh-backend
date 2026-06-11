@@ -17,7 +17,9 @@ public enum ProductTypeEnum {
 
     TOOL(5, "tool","工具"),
 
-    GROUP(6, "group", "拼团");
+    GROUP(6, "group", "拼团"),
+
+    MEMBER(7, "member", "会员");
     ;
 
     private final int code;

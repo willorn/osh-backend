@@ -3,12 +3,13 @@ package com.backstage.system.service.site.impl;
 import com.alibaba.fastjson2.JSON;
 import com.backstage.common.async.AsyncExecutorNames;
 import com.backstage.common.enums.SiteTypeEnum;
-import com.backstage.system.domain.site.OshSiteInfo;
-import com.backstage.system.domain.site.OshSiteMaintainer;
-import com.backstage.system.domain.site.OshSiteUsage;
+import com.backstage.system.domain.course.OshCourse;
+import com.backstage.system.domain.site.*;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.mapper.course.OshCourseMapper;
 import com.backstage.system.mapper.site.OshSiteInfoMapper;
 import com.backstage.system.mapper.site.OshSiteMaintainerMapper;
+import com.backstage.system.mapper.site.OshSiteResourceRelationMapper;
 import com.backstage.system.mapper.user.OshUserMapper;
 import com.backstage.system.service.site.IOshSiteInfoService;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
@@ -60,6 +62,9 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
     private OshSiteMaintainerMapper oshSiteMaintainerMapper;
 
     @Autowired
+    private OshSiteResourceRelationMapper oshSiteResourceRelationMapper;
+
+    @Autowired
     private OshUserMapper userMapper;
 
     @Value(value = "${backstage.site.test.maxConnectionTimeout:5000}")
@@ -77,6 +82,12 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
     @Autowired
     @Qualifier(value = AsyncExecutorNames.DEFAULT)
     ThreadPoolTaskExecutor executor;
+
+    @Autowired
+    private OshCourseMapper oshCourseMapper;
+
+    @Value("${innerSite.jumpingUrl.course:}")
+    private String courseJumpingBaseUrl;
 
     /**
      * 新增网站使用记录
@@ -97,7 +108,25 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
     @Transactional(rollbackFor = Exception.class)
     public boolean saveSiteInfo(OshSiteInfo siteInfo) {
         save(siteInfo);
+        batchAddSiteResources(siteInfo);
         return saveMaintainers(siteInfo.getId(), siteInfo.getMaintainerUserIds());
+    }
+
+    private void batchAddSiteResources(OshSiteInfo siteInfo) {
+        List<OshSiteResourceRelation> relatedResources = createRelatedResources(siteInfo);
+        batchAddSiteResources(relatedResources);
+    }
+
+    private List<OshSiteResourceRelation> createRelatedResources(OshSiteInfo siteInfo) {
+        List<List<String>> relatedResources = siteInfo.getRelatedResources();
+        return relatedResources.stream().map(relatedResource -> {
+            OshSiteResourceRelation relation = new OshSiteResourceRelation();
+            relation.setSiteId(siteInfo.getId());
+            relation.setResourceType(SiteResourceType.fromType(relatedResource.get(0)).getType());
+            relation.setResourceId(Long.valueOf(relatedResource.get(1)));
+            relation.setDeleted(false);
+            return relation;
+        }).collect(Collectors.toList());
     }
 
     @Override
@@ -105,8 +134,17 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
     public boolean updateSiteInfo(OshSiteInfo siteInfo) {
         updateById(siteInfo);
         removeAllMaintainers(siteInfo.getId());
+        updateRelatedResource(siteInfo);
         saveMaintainers(siteInfo.getId(), siteInfo.getMaintainerUserIds());
         return true;
+    }
+
+    private void updateRelatedResource(OshSiteInfo siteInfo) {
+        oshSiteResourceRelationMapper.update(Wrappers.lambdaUpdate(OshSiteResourceRelation.class)
+                .set(OshSiteResourceRelation::getDeleteFlag, 1)
+                .eq(OshSiteResourceRelation::getDeleteFlag, 0)
+                .eq(OshSiteResourceRelation::getSiteId, siteInfo.getId()));
+        batchAddSiteResources(createRelatedResources(siteInfo));
     }
 
     private void removeAllMaintainers(Long siteId) {
@@ -126,6 +164,44 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
             maintainers.add(maintainer);
         }
         return Db.saveBatch(maintainers);
+    }
+
+    @Override
+    public void setRelatedResources(Collection<OshSiteInfo> oshSiteInfos) {
+        Map<Long, OshSiteInfo> siteGroup = oshSiteInfos.stream()
+                .collect(Collectors.toMap(OshSiteInfo::getId, Function.identity()));
+
+        List<OshSiteResourceRelation> resourceRelations = oshSiteResourceRelationMapper.selectList(Wrappers.<OshSiteResourceRelation>lambdaQuery()
+                .in(OshSiteResourceRelation::getSiteId, siteGroup.keySet())
+                .eq(OshSiteResourceRelation::getDeleteFlag, 0));
+
+        Map<Long, List<OshSiteResourceRelation>> groupBySiteId = resourceRelations.stream()
+                .collect(Collectors.groupingBy(OshSiteResourceRelation::getSiteId));
+
+        Map<Long, OshCourse> courseMap = oshCourseMapper.selectCourseList()
+                .stream()
+                .collect(Collectors.toMap(OshCourse::getId, Function.identity()));
+
+        for (Map.Entry<Long, List<OshSiteResourceRelation>> entry : groupBySiteId.entrySet()) {
+            List<List<String>> relatedResources = new ArrayList<>();
+            for (OshSiteResourceRelation resourceRelation : resourceRelations) {
+                SiteResourceType resourceType = SiteResourceType.fromType(resourceRelation.getResourceType());
+                if (resourceType == SiteResourceType.COURSE) {
+                    resourceRelation.setJumpingUrl(String.format(courseJumpingBaseUrl, resourceRelation.getResourceId()));
+                    OshCourse oshCourse = courseMap.get(resourceRelation.getResourceId());
+                    if (oshCourse != null) {
+                        resourceRelation.setResourceName(oshCourse.getTitle());
+                    }
+                }
+                relatedResources.add(Arrays.asList(resourceRelation.getResourceType(),
+                        String.valueOf(resourceRelation.getResourceId())));
+            }
+            OshSiteInfo siteInfo = siteGroup.get(entry.getKey());
+            if (siteInfo != null) {
+                siteInfo.setResources(entry.getValue());
+                siteInfo.setRelatedResources(relatedResources);
+            }
+        }
     }
 
     @Override
@@ -420,11 +496,11 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
             throw new IllegalArgumentException("SSH配置不完整，请检查后端服务器IP、用户名");
         }
         if (cfg.getAuthMethod() == RemoteShellExecutor.AuthMethod.PRIVATE_KEY
-                && (cfg.getPrivateKey() == null || cfg.getPrivateKey().isEmpty())) {
+            && (cfg.getPrivateKey() == null || cfg.getPrivateKey().isEmpty())) {
             throw new IllegalArgumentException("登录方式为私钥，但私钥未配置");
         }
         if (cfg.getAuthMethod() == RemoteShellExecutor.AuthMethod.PASSWORD
-                && (cfg.getBackendPassword() == null || cfg.getBackendPassword().isEmpty())) {
+            && (cfg.getBackendPassword() == null || cfg.getBackendPassword().isEmpty())) {
             throw new IllegalArgumentException("登录方式为密码，但密码未配置");
         }
         return cfg;
@@ -540,6 +616,61 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
             LOG.warn("Demo stop script exited with non-zero code: {}, siteId: {}", stopResult.getExitCode(), cfg.getSiteId());
         }
         return result;
+    }
+
+    // ==================== 网站资源关联管理 ====================
+
+    @Override
+    public List<OshSiteResourceRelation> listSiteResources(Long siteId) {
+        return oshSiteResourceRelationMapper.selectList(Wrappers.<OshSiteResourceRelation>lambdaQuery()
+                .eq(OshSiteResourceRelation::getSiteId, siteId)
+                .eq(OshSiteResourceRelation::getDeleteFlag, 0)
+                .orderByDesc(OshSiteResourceRelation::getCreateTime));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean addSiteResource(OshSiteResourceRelation relation) {
+        return oshSiteResourceRelationMapper.insert(relation) > 0;
+    }
+
+    @Override
+    public boolean batchAddSiteResources(List<OshSiteResourceRelation> relations) {
+        return Db.saveBatch(relations);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean removeSiteResource(Long id) {
+        OshSiteResourceRelation relation = oshSiteResourceRelationMapper.selectById(id);
+        if (relation == null) {
+            throw new IllegalArgumentException("资源关联不存在");
+        }
+        relation.setDeleted(true);
+        return oshSiteResourceRelationMapper.updateById(relation) > 0;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean batchRemoveSiteResources(List<Long> ids) {
+        if (CollectionUtils.isEmpty(ids)) {
+            return false;
+        }
+        List<OshSiteResourceRelation> relations = oshSiteResourceRelationMapper.selectBatchIds(ids);
+        for (OshSiteResourceRelation relation : relations) {
+            relation.setDeleted(true);
+        }
+        return Db.updateBatchById(relations);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean removeSiteResourcesBySiteId(Long siteId) {
+        int count = oshSiteResourceRelationMapper.update(Wrappers.<OshSiteResourceRelation>lambdaUpdate()
+                .set(OshSiteResourceRelation::getDeleteFlag, 1)
+                .eq(OshSiteResourceRelation::getSiteId, siteId)
+                .eq(OshSiteResourceRelation::getDeleteFlag, 0));
+        return count > 0;
     }
 
 }

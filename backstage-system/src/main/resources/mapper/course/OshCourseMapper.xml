@@ -853,7 +853,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="resourceType != null">#{resourceType},</if>
             <if test="servicePeriod != null">#{servicePeriod},</if>
             <if test="level != null">#{level},</if>
-            2,
+            #{status},
             <if test="examId != null">#{examId},</if>
             <if test="createBy != null and createBy != ''">#{createBy},</if>
             <if test="updateBy != null and updateBy != ''">#{updateBy},</if>

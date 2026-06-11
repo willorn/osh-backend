@@ -115,6 +115,17 @@ public class OshSiteInfo extends OSHBaseEntity implements Serializable {
     @TableField(exist = false)
     private List<String> maintainerUserIds;
 
+    /**
+     * 相关资源（多个资源用逗号分隔）
+     * 1: 资源类型 {@link SiteResourceType#getType()}
+     * 2: 资源主键id
+     */
+    @TableField(exist = false)
+    private List<List<String>> relatedResources;
+
+    @TableField(exist = false)
+    private List<OshSiteResourceRelation> resources;
+
     public List<String> getMaintainerUserIds() {
         return maintainerUserIds;
     }
@@ -233,5 +244,21 @@ public class OshSiteInfo extends OSHBaseEntity implements Serializable {
 
     public void setLastCheckStatusName(String lastCheckStatusName) {
         this.lastCheckStatusName = lastCheckStatusName;
+    }
+
+    public List<List<String>> getRelatedResources() {
+        return relatedResources;
+    }
+
+    public void setRelatedResources(List<List<String>> relatedResources) {
+        this.relatedResources = relatedResources;
+    }
+
+    public List<OshSiteResourceRelation> getResources() {
+        return resources;
+    }
+
+    public void setResources(List<OshSiteResourceRelation> resources) {
+        this.resources = resources;
     }
 }

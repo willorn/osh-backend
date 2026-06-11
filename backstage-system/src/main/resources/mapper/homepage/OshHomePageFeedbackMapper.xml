@@ -8,24 +8,102 @@
         直接使用 assistant_feedback 表中冗余的 hot_score 字段排序
         关联 assistant_feedback_category 获取分类名称
     -->
+    <!--
+        热门用户反馈查询（基于多维热度公式实时计算排序）
+        热度公式：
+          0.35 × 点赞分       — 点赞是最直接的认可，权重最高
+          0.25 × 收藏分       — 收藏表示持续关注，高价值信号
+          0.20 × 阅读分       — 浏览量反映传播广度
+          0.10 × 评论分       — 互动深度
+          0.10 × 状态加成     — 已处理 > 处理中 > 待处理，鼓励展示有结果的反馈
+          × 时间衰减系数      — 30天内新鲜度加成，超过1年衰减至0.55
+        所有分值先取对数再全局归一化，避免极端值主导排名
+    -->
     <select id="selectHotFeedback" resultType="com.backstage.system.domain.homepage.vo.HotFeedbackVO">
         SELECT
-            f.id,
-            f.title,
-            LEFT(f.content, 100)    AS summary,
-            IFNULL(c.name, '其它')  AS category,
-            f.status,
-            f.like_count            AS likeCount,
-            f.comment_count         AS commentCount,
-            f.view_count            AS viewCount,
-            f.hot_score             AS hotScore
-        FROM assistant_feedback f
-        LEFT JOIN assistant_feedback_category c ON c.id = f.category_id
-        WHERE f.delete_flag = 0
-          AND f.status != 'CLOSED'
-        ORDER BY
-            f.hot_score DESC,
-            f.create_time DESC
+            s.id,
+            s.title,
+            s.summary,
+            s.category,
+            s.categoryIcon,
+            s.status,
+            s.username,
+            s.likeCount,
+            s.commentCount,
+            s.viewCount,
+            s.collectCount,
+            s.hotScore,
+            s.createTime,
+            (
+                SELECT t.name
+                FROM assistant_feedback_tag ft
+                JOIN assistant_feedback_category t ON t.id = ft.tag_id
+                WHERE ft.feedback_id = s.id
+                LIMIT 1
+            ) AS tagName
+        FROM (
+            SELECT
+                f.id,
+                f.title,
+                LEFT(f.content, 100)       AS summary,
+                IFNULL(c.name, '其它')      AS category,
+                IFNULL(c.icon, '📝')        AS categoryIcon,
+                f.status,
+                u.username,
+                IFNULL(f.like_count, 0)    AS likeCount,
+                IFNULL(f.comment_count, 0) AS commentCount,
+                IFNULL(f.view_count, 0)    AS viewCount,
+                IFNULL(f.collect_count, 0) AS collectCount,
+                f.create_time              AS createTime,
+                ROUND(
+                    (
+                        -- 0.35 × 点赞分（对数归一化）
+                        0.35 * IFNULL(LN(1 + IFNULL(f.like_count, 0)) /
+                                NULLIF((SELECT MAX(LN(1 + IFNULL(x.like_count, 0)))
+                                        FROM assistant_feedback x
+                                        WHERE x.delete_flag = 0 AND x.status != 'CLOSED'), 0), 0)
+                        -- 0.25 × 收藏分（对数归一化）
+                      + 0.25 * IFNULL(LN(1 + IFNULL(f.collect_count, 0)) /
+                                NULLIF((SELECT MAX(LN(1 + IFNULL(x.collect_count, 0)))
+                                        FROM assistant_feedback x
+                                        WHERE x.delete_flag = 0 AND x.status != 'CLOSED'), 0), 0)
+                        -- 0.20 × 阅读分（对数归一化）
+                      + 0.20 * IFNULL(LN(1 + IFNULL(f.view_count, 0)) /
+                                NULLIF((SELECT MAX(LN(1 + IFNULL(x.view_count, 0)))
+                                        FROM assistant_feedback x
+                                        WHERE x.delete_flag = 0 AND x.status != 'CLOSED'), 0), 0)
+                        -- 0.10 × 评论分（对数归一化）
+                      + 0.10 * IFNULL(LN(1 + IFNULL(f.comment_count, 0)) /
+                                NULLIF((SELECT MAX(LN(1 + IFNULL(x.comment_count, 0)))
+                                        FROM assistant_feedback x
+                                        WHERE x.delete_flag = 0 AND x.status != 'CLOSED'), 0), 0)
+                        -- 0.10 × 状态加成（已处理最高 1.0，处理中 0.6，待处理 0.2，其余 0.4）
+                      + 0.10 * CASE f.status
+                                    WHEN 'RESOLVED'        THEN 1.0
+                                    WHEN 'PENDING_CONFIRM' THEN 0.8
+                                    WHEN 'PROCESSING'      THEN 0.6
+                                    WHEN 'TRIAGED'         THEN 0.4
+                                    WHEN 'PENDING'         THEN 0.2
+                                    ELSE 0.1
+                               END
+                    )
+                    -- 时间衰减系数
+                    * CASE
+                        WHEN TIMESTAMPDIFF(DAY, f.create_time, NOW()) &lt;= 7   THEN 1.30
+                        WHEN TIMESTAMPDIFF(DAY, f.create_time, NOW()) &lt;= 30  THEN 1.15
+                        WHEN TIMESTAMPDIFF(DAY, f.create_time, NOW()) &lt;= 90  THEN 1.00
+                        WHEN TIMESTAMPDIFF(DAY, f.create_time, NOW()) &lt;= 180 THEN 0.85
+                        WHEN TIMESTAMPDIFF(DAY, f.create_time, NOW()) &lt;= 365 THEN 0.70
+                        ELSE 0.55
+                      END
+                , 4) AS hotScore
+            FROM assistant_feedback f
+            LEFT JOIN assistant_feedback_category c ON c.id = f.category_id
+            LEFT JOIN osh_user u ON u.id = f.user_id
+            WHERE f.delete_flag = 0
+              AND f.status != 'CLOSED'
+        ) s
+        ORDER BY s.hotScore DESC, s.createTime DESC
         LIMIT #{limit}
     </select>
 

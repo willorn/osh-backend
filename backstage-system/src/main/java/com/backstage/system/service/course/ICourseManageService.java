@@ -393,9 +393,10 @@ public interface ICourseManageService {
      *
      * @param file 视频文件
      * @param videoName 视频名称
+     * @param sectionId 小节 ID（重新上传时传入，用于删除 OSS 旧视频）
      * @return 视频信息（名称、URL、大小、类型）
      */
-    Map<String, Object> uploadVideo(MultipartFile file, String videoName);
+    Map<String, Object> uploadVideo(MultipartFile file, String videoName, Long sectionId);
     
     /**
      * 上传课时资料

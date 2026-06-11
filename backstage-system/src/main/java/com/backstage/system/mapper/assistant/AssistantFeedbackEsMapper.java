@@ -76,6 +76,10 @@ public class AssistantFeedbackEsMapper {
      */
     public static final String FEEDBACK_INDEX_V1 = "osh_assistant_feedback_search_v1";
     /**
+     * 重建时新物理索引名前缀
+     */
+    private static final String FEEDBACK_INDEX_PREFIX = FEEDBACK_INDEX_V1 + "_";
+    /**
      * mapping 资源文件路径
      */
     private static final String MAPPING_RESOURCE = "es/osh_assistant_feedback_search_v1.json";
@@ -83,6 +87,7 @@ public class AssistantFeedbackEsMapper {
     private static final String QUERY_MODE_MINE = "mine";
     private static final String DEFAULT_SORT_TYPE = "hot";
     private static final String SORT_TYPE_RELATED = "related";
+    private static final DateTimeFormatter INDEX_SUFFIX_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final RestHighLevelClient restHighLevelClient;
     private final ObjectMapper objectMapper;
@@ -156,20 +161,38 @@ public class AssistantFeedbackEsMapper {
     }
 
     public void upsertFeedback(AssistantFeedbackEsDocument document) throws Exception {
+        upsertFeedbackToIndex(document, FEEDBACK_READ_ALIAS);
+    }
+
+    public void upsertFeedbackToIndex(AssistantFeedbackEsDocument document, String indexName) throws Exception {
         if (document == null || document.getId() == null) {
             return;
         }
-        IndexRequest indexRequest = new IndexRequest(FEEDBACK_READ_ALIAS)
+        IndexRequest indexRequest = new IndexRequest(indexName)
                 .id(String.valueOf(document.getId()))
                 .source(writeDocument(document), XContentType.JSON);
         restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
     }
 
     public void deleteFeedback(Long feedbackId) throws Exception {
-        if (feedbackId == null || !aliasExists()) {
+        deleteFeedbackFromIndex(feedbackId, FEEDBACK_READ_ALIAS, true);
+    }
+
+    public void deleteFeedbackFromIndex(Long feedbackId, String indexName) throws Exception {
+        deleteFeedbackFromIndex(feedbackId, indexName, false);
+    }
+
+    private void deleteFeedbackFromIndex(Long feedbackId, String indexName, boolean aliasMode) throws Exception {
+        if (feedbackId == null || StrUtil.isBlank(indexName)) {
             return;
         }
-        DeleteRequest deleteRequest = new DeleteRequest(FEEDBACK_READ_ALIAS, String.valueOf(feedbackId));
+        if (aliasMode && !aliasExists()) {
+            return;
+        }
+        if (!aliasMode && !indexExists(indexName)) {
+            return;
+        }
+        DeleteRequest deleteRequest = new DeleteRequest(indexName, String.valueOf(feedbackId));
         restHighLevelClient.delete(deleteRequest, RequestOptions.DEFAULT);
     }
 
@@ -198,71 +221,47 @@ public class AssistantFeedbackEsMapper {
         return root.path("deleted").asInt(0);
     }
 
-    /**
-     * 零停机重建索引（零停机别名切换标准流程）：
-     * <ol>
-     *   <li>根据 mapping 文件创建新物理索引（{@code v1}、{@code v2}...）</li>
-     *   <li>全量写入数据到新索引</li>
-     *   <li>原子切换读别名：从旧索引指向新索引</li>
-     *   <li>删除旧索引（如存在）</li>
-     * </ol>
-     *
-     * <p>整个过程中读别名始终可用，业务无感知。
-     * mapping 升级时，新建版本文件（如 {@code v2.json}），更新 {@link #FEEDBACK_INDEX_V1} 和
-     * {@link #MAPPING_RESOURCE} 常量后调用此方法即可，无需停服。
-     * </p>
-     *
-     * @param indexDefinitionJson 新索引的 mapping + settings JSON（来自 resources/es/ 下的版本文件）
-     */
-    public void rebuildIndex(String indexDefinitionJson) throws Exception {
-        // 1. 找出当前别名指向的旧物理索引名（可能为空，首次建索引时无旧索引）
-        String oldIndexName = resolveCurrentPhysicalIndex();
-
-        // 2. 若新物理索引已存在（重试场景），先删掉再重建，保证幂等
-        if (restHighLevelClient.indices().exists(new GetIndexRequest(FEEDBACK_INDEX_V1), RequestOptions.DEFAULT)) {
-            restHighLevelClient.indices().delete(
-                    new org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest(FEEDBACK_INDEX_V1),
-                    RequestOptions.DEFAULT);
+    public void createPhysicalIndex(String targetIndexName, String indexDefinitionJson) throws Exception {
+        if (StrUtil.isBlank(targetIndexName)) {
+            throw new IllegalArgumentException("targetIndexName must not be blank");
         }
-
-        // 3. 创建新物理索引
-        CreateIndexRequest createRequest = new CreateIndexRequest(FEEDBACK_INDEX_V1);
+        if (indexExists(targetIndexName)) {
+            throw new IllegalStateException("feedback physical index already exists: " + targetIndexName);
+        }
+        CreateIndexRequest createRequest = new CreateIndexRequest(targetIndexName);
         createRequest.source(indexDefinitionJson, XContentType.JSON);
         restHighLevelClient.indices().create(createRequest, RequestOptions.DEFAULT);
-
-        // 4. 注意：此时不切别名，先由上层写入全量数据，数据就绪后再由 switchAlias 切换
     }
 
-    /**
-     * 将读别名原子切换到 {@link #FEEDBACK_INDEX_V1}，同时移除旧索引上的别名绑定。
-     * 切换完成后删除旧物理索引（如存在且不是当前目标索引）。
-     *
-     * @param oldIndexName 旧物理索引名，为 null 表示首次建索引
-     */
-    public void switchAliasAndDropOldIndex(String oldIndexName) throws Exception {
+    public void switchAlias(String oldIndexName, String targetIndexName) throws Exception {
         String addAliasJson;
-        if (oldIndexName != null && !oldIndexName.equals(FEEDBACK_INDEX_V1)) {
+        if (StrUtil.isBlank(targetIndexName)) {
+            throw new IllegalArgumentException("targetIndexName must not be blank");
+        }
+        if (StrUtil.isNotBlank(oldIndexName) && !oldIndexName.equals(targetIndexName)) {
             // 原子操作：从旧索引移除别名 + 给新索引加别名
             addAliasJson = String.format(
                     "{\"actions\":[{\"remove\":{\"index\":\"%s\",\"alias\":\"%s\"}}," +
                             "{\"add\":{\"index\":\"%s\",\"alias\":\"%s\"}}]}",
-                    oldIndexName, FEEDBACK_READ_ALIAS, FEEDBACK_INDEX_V1, FEEDBACK_READ_ALIAS);
+                    oldIndexName, FEEDBACK_READ_ALIAS, targetIndexName, FEEDBACK_READ_ALIAS);
         } else {
             // 首次建索引，直接添加别名
             addAliasJson = String.format(
                     "{\"actions\":[{\"add\":{\"index\":\"%s\",\"alias\":\"%s\"}}]}",
-                    FEEDBACK_INDEX_V1, FEEDBACK_READ_ALIAS);
+                    targetIndexName, FEEDBACK_READ_ALIAS);
         }
         Request aliasRequest = new Request("POST", "/_aliases");
         aliasRequest.setJsonEntity(addAliasJson);
         restHighLevelClient.getLowLevelClient().performRequest(aliasRequest);
+    }
 
-        // 别名切换完成后删除旧物理索引
-        if (oldIndexName != null && !oldIndexName.equals(FEEDBACK_INDEX_V1)) {
-            restHighLevelClient.indices().delete(
-                    new org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest(oldIndexName),
-                    RequestOptions.DEFAULT);
+    public void deletePhysicalIndex(String indexName) throws Exception {
+        if (StrUtil.isBlank(indexName) || !indexExists(indexName)) {
+            return;
         }
+        restHighLevelClient.indices().delete(
+                new org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest(indexName),
+                RequestOptions.DEFAULT);
     }
 
     /**
@@ -281,6 +280,17 @@ public class AssistantFeedbackEsMapper {
             // 别名不存在时 ES 返回 404
             return null;
         }
+    }
+
+    public boolean indexExists(String indexName) throws Exception {
+        if (StrUtil.isBlank(indexName)) {
+            return false;
+        }
+        return restHighLevelClient.indices().exists(new GetIndexRequest(indexName), RequestOptions.DEFAULT);
+    }
+
+    public String buildNextPhysicalIndexName() {
+        return FEEDBACK_INDEX_PREFIX + LocalDateTime.now().format(INDEX_SUFFIX_FORMATTER);
     }
 
     private SearchSourceBuilder buildSearchSource(AssistantFeedbackPageDTO dto,

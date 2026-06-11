@@ -1,5 +1,7 @@
 package com.backstage.system.domain.dto.website;
 
+import com.backstage.common.annotation.OshResourceId;
+
 /**
  * @author xuanqing
  * @create 2026-04-02 18:41
@@ -17,6 +19,7 @@ public class WebsiteAuditDTO implements Serializable {
     /**
      * 网站 ID
      */
+    @OshResourceId
     private Long websiteId;
 
     /**

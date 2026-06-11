@@ -13,16 +13,32 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="tPrice" column="original_price" />
         <result property="subCount" column="sub_count" />
         <result property="level" column="level" />
+        <result property="chapterCount" column="chapter_count" />
+        <result property="favorited" column="favorited" />
+        <result property="purchased" column="purchased" />
     </resultMap>
 
     <select id="getBookPageList" parameterType="BookDO" resultType="com.backstage.system.domain.vo.book.BookListVO">
         SELECT
             book.id, book.title, book.cover, book.description, book.price, book.original_price, book.sub_count, book.level,
+            IFNULL(chapter_stats.chapter_count, 0) AS chapter_count,
+            IFNULL(current_relation.favorited, 0) AS favorited,
+            IFNULL(current_relation.purchased, 0) AS purchased,
             GROUP_CONCAT(DISTINCT tag.tag_name) AS tag_names,
             IFNULL(ubr.purchase_count, 0) AS purchaseCount
         FROM
             osh_book book
             LEFT JOIN osh_book_tag tag ON book.id = tag.book_id AND tag.del_flag = '0'
+            LEFT JOIN (
+                SELECT book_id, COUNT(*) AS chapter_count
+                FROM osh_book_chapter
+                WHERE del_flag = '0'
+                GROUP BY book_id
+            ) chapter_stats ON book.id = chapter_stats.book_id
+            LEFT JOIN osh_user_book_relation current_relation
+                ON book.id = current_relation.book_id
+                AND current_relation.user_id = #{reqVO.userId}
+                AND current_relation.deleted = 0
             LEFT JOIN (
                 SELECT book_id, COUNT(*) AS purchase_count
                 FROM osh_user_book_relation
@@ -61,12 +77,21 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         b.original_price AS tPrice,
         b.sub_count AS subCount,
         b.level AS level,
+        IFNULL(chapter_stats.chapter_count, 0) AS chapterCount,
+        0 AS favorited,
+        0 AS purchased,
         GROUP_CONCAT(bt.tag_name) AS tagNames
         FROM osh_book b
 
         LEFT JOIN osh_book_tag bt
         ON b.id = bt.book_id
         AND bt.del_flag = 0
+        LEFT JOIN (
+            SELECT book_id, COUNT(*) AS chapter_count
+            FROM osh_book_chapter
+            WHERE del_flag = '0'
+            GROUP BY book_id
+        ) chapter_stats ON b.id = chapter_stats.book_id
 
         WHERE b.price = 0
         AND b.del_flag = 0

@@ -1,11 +1,15 @@
 package com.backstage.system.controller.book;
 
-import com.backstage.common.annotation.OshUserEvent;
 import com.backstage.common.annotation.Anonymous;
+import com.backstage.common.annotation.OshResourceId;
+import com.backstage.common.annotation.OshUserEvent;
+import com.backstage.common.constant.ResourceType;
 import com.backstage.common.core.domain.R;
 import com.backstage.common.response.PageResponse;
 import com.backstage.system.config.properties.SearchEsProperties;
 import com.backstage.system.domain.vo.book.*;
+import com.backstage.system.enums.behavior.ContributionResourceType;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.book.IBookEsService;
 import com.backstage.system.service.book.IBookService;
 import com.backstage.system.utils.UserContextUtil;
@@ -42,15 +46,19 @@ public class BookController {
     @Autowired
     private SearchEsProperties searchEsProperties;
 
+    @Resource
+    private ContributionService contributionService;
+
     /**
      * 电子书列表
      */
     @ApiOperation(value = "电子书列表")
-    @OshUserEvent(module = "电子书模块", actionType = "查询", description = "查询电子书列表")
+    @OshUserEvent(module = "电子书模块", actionType = "查询", resourceType = ResourceType.BOOK_TYPE, description = "查询电子书列表")
     @PreAuthorize("hasAuthority('book:list')")
     @PostMapping("/page")
     public R<Page<BookListVO>> list(@RequestBody BookListReqVO reqVO) {
         reqVO.setUserLevel(UserContextUtil.getCurrentLevel());
+        reqVO.setUserId(UserContextUtil.getCurrentUserIdSafely());
         if (searchEsProperties.isEnabled()) {
             try {
                 log.info("使用es查询电子书");
@@ -65,8 +73,10 @@ public class BookController {
 
     @ApiOperation(value = "电子书搜索")
     @PostMapping("/search")
+    @OshUserEvent(module = "电子书模块", actionType = "搜索", resourceType = ResourceType.BOOK_TYPE, description = "搜索电子书", recordAnonymous = true)
     @Anonymous
     public R<PageResponse<BookListVO>> search(@RequestBody BookListReqVO reqVO) {
+        reqVO.setUserId(UserContextUtil.getCurrentUserIdSafely());
         Page<BookListVO> pageResult = bookService.getBookPageList(reqVO);
         int pageNum = reqVO.getPageNum() == null ? 1 : reqVO.getPageNum().intValue();
         int pageSize = reqVO.getPageSize() == null ? 12 : reqVO.getPageSize().intValue();
@@ -77,10 +87,10 @@ public class BookController {
      * 查看电子书详情
      */
     @ApiOperation(value = "电子书详情")
-//    @OshUserEvent(module = "电子书模块", actionType = "查询", description = "查询电子书详情")
+    @OshUserEvent(module = "电子书模块", actionType = "浏览", resourceType = ResourceType.BOOK_TYPE, description = "浏览电子书详情", recordAnonymous = true)
     @Anonymous
     @GetMapping("/getById")
-    public R<BookDetailVO> getById(@RequestParam Long id, @RequestParam(required = false, defaultValue = "false") Boolean forEdit) {
+    public R<BookDetailVO> getById(@OshResourceId @RequestParam Long id, @RequestParam(required = false, defaultValue = "false") Boolean forEdit) {
         BookDetailVO detail = bookService.selectBookDetail(id, forEdit);
         return R.ok(detail);
     }
@@ -89,10 +99,10 @@ public class BookController {
      * 查看电子书章节内容
      */
     @ApiOperation(value = "章节内容详情")
-    @OshUserEvent(module = "电子书模块", actionType = "查询", description = "查询章节内容")
+    @OshUserEvent(module = "电子书模块", actionType = "学习", resourceType = ResourceType.BOOK_TYPE, description = "查询章节内容")
     @PreAuthorize("hasAuthority('book:chapter:detail')")
     @GetMapping("/detail")
-    public R<BookChapterContentVO> detail(@RequestParam Long book_id, @RequestParam Long id) {
+    public R<BookChapterContentVO> detail(@OshResourceId @RequestParam Long book_id, @RequestParam Long id) {
         BookChapterContentVO content = bookService.selectBookChapterContent(book_id, id);
         return R.ok(content);
     }
@@ -101,10 +111,10 @@ public class BookController {
      * 查看电子书章节菜单
      */
     @ApiOperation(value = "章节菜单")
-    @OshUserEvent(module = "电子书模块", actionType = "查询", description = "查询章节菜单")
+    @OshUserEvent(module = "电子书模块", actionType = "查询", resourceType = ResourceType.BOOK_TYPE, description = "查询章节菜单", recordAnonymous = true)
     @Anonymous
     @GetMapping("/menus")
-    public R<BookMenuVO> menus(@RequestParam Long id) {
+    public R<BookMenuVO> menus(@OshResourceId @RequestParam Long id) {
         BookMenuVO menu = bookService.selectBookMenu(id);
         return R.ok(menu);
     }
@@ -114,18 +124,20 @@ public class BookController {
      * 新增电子书
      */
     @ApiOperation(value = "新增电子书")
-    @OshUserEvent(module = "电子书模块", actionType = "新增", description = "创建电子书")
+    @OshUserEvent(module = "电子书模块", actionType = "新增", resourceType = ResourceType.BOOK_TYPE, resourceNameExpression = "#p0.title", description = "创建电子书")
     @PreAuthorize("hasAuthority('book:create')")
     @PostMapping("/create")
     public R<Long> create(@Valid @RequestBody BookSaveReqVO reqVO) {
-        return R.ok(bookService.createBook(reqVO), "创建成功");
+        Long bookId = bookService.createBook(reqVO);
+        contributionService.recordContribution(ContributionResourceType.BOOK.getCode(), bookId, reqVO.getTitle());
+        return R.ok(bookId, "创建成功");
     }
 
     /**
      * 修改电子书
      */
     @ApiOperation(value = "修改电子书")
-    @OshUserEvent(module = "电子书模块", actionType = "修改", description = "更新电子书")
+    @OshUserEvent(module = "电子书模块", actionType = "修改", resourceType = ResourceType.BOOK_TYPE, resourceNameExpression = "#p0.title", description = "更新电子书")
     @PreAuthorize("hasAuthority('book:update')")
     @PostMapping("/update")
     public R<String> update(@Valid @RequestBody BookSaveReqVO reqVO) {
@@ -141,10 +153,10 @@ public class BookController {
      * 删除电子书
      */
     @ApiOperation(value = "删除电子书")
-    @OshUserEvent(module = "电子书模块", actionType = "删除", description = "删除电子书")
+    @OshUserEvent(module = "电子书模块", actionType = "删除", resourceType = ResourceType.BOOK_TYPE, description = "删除电子书")
     @PreAuthorize("hasAuthority('book:delete')")
     @DeleteMapping("/delete")
-    public R<String> delete(@RequestParam("id") Long id)
+    public R<String> delete(@OshResourceId @RequestParam("id") Long id)
     {
         bookService.deleteBook(id);
         return R.ok("删除成功");
@@ -154,7 +166,7 @@ public class BookController {
      * 查询所有电子书标签列表
      */
     @ApiOperation(value = "标签列表")
-    @OshUserEvent(module = "电子书模块", actionType = "查询", description = "查询标签列表")
+    @OshUserEvent(module = "电子书模块", actionType = "查询", resourceType = ResourceType.BOOK_TYPE, description = "查询标签列表", recordAnonymous = true)
     @Anonymous
     @GetMapping("/getTagList")
     public R<List<String>> getTagList() {
@@ -165,7 +177,7 @@ public class BookController {
      * 新增电子书章节
      */
     @ApiOperation(value = "新增章节")
-    @OshUserEvent(module = "电子书模块", actionType = "新增", description = "创建章节")
+    @OshUserEvent(module = "电子书模块", actionType = "新增", resourceType = ResourceType.BOOK_TYPE, description = "创建章节")
     @PreAuthorize("hasAuthority('book:chapter:create')")
     @PostMapping("/chapter/create")
     public R<String> createBookChapter(@RequestBody BookChapterSaveUpdateVO reqVO) {
@@ -180,7 +192,7 @@ public class BookController {
      * 修改电子书章节
      */
     @ApiOperation(value = "修改章节")
-    @OshUserEvent(module = "电子书模块", actionType = "修改", description = "更新章节")
+    @OshUserEvent(module = "电子书模块", actionType = "修改", resourceType = ResourceType.BOOK_TYPE, description = "更新章节")
     @PreAuthorize("hasAuthority('book:chapter:update')")
     @PostMapping("/chapter/update")
     public R<String> updateBookChapter(@RequestBody BookChapterSaveUpdateVO reqVO) {
@@ -198,7 +210,7 @@ public class BookController {
      * 筛选电子书列表
      */
     @ApiOperation(value = "筛选电子书")
-    @OshUserEvent(module = "电子书模块", actionType = "查询", description = "筛选电子书")
+    @OshUserEvent(module = "电子书模块", actionType = "查询", resourceType = ResourceType.BOOK_TYPE, description = "筛选电子书")
     @PreAuthorize("hasAuthority('book:filter')")
     @GetMapping("/getFilterBookList")
     public R<Page<BookListVO>> getFilterBookList(@RequestParam String filter) {
@@ -208,6 +220,7 @@ public class BookController {
 
     @ApiOperation(value = "全量同步电子书到ES")
     @PostMapping("/esSync/all")
+    @OshUserEvent(module = "电子书模块", actionType = "更新资产", resourceType = ResourceType.BOOK_TYPE, description = "同步电子书到ES")
     public R<Integer> syncAllBooksToEs() {
         return R.ok(bookEsService.syncAllBooksToEs(), "ok");
     }

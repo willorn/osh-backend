@@ -40,6 +40,20 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             update_time = now()
     </insert>
 
+    <select id="selectByOrderNoAndUserId" resultType="map">
+        select id,
+               user_id as userId,
+               course_id as courseId,
+               order_no as orderNo,
+               pay_status as payStatus,
+               pay_price as payPrice
+        from osh_course_buy
+        where order_no = #{orderNo}
+          and user_id = #{userId}
+          and delete_flag = 0
+        limit 1
+    </select>
+
     <update id="markPaidByOrderNoAndUserId">
         update osh_course_buy
         set pay_status = 'paid',

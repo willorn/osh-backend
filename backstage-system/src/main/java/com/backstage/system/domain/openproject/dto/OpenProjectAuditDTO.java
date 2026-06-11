@@ -1,8 +1,11 @@
 package com.backstage.system.domain.openproject.dto;
 
+import com.backstage.common.annotation.OshResourceId;
+
 public class OpenProjectAuditDTO {
 
     /** 项目 ID */
+    @OshResourceId
     private Long id;
 
     /** 审核结果：1-通过，2-拒绝 */

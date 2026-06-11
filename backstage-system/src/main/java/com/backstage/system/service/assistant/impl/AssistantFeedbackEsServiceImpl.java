@@ -2,6 +2,7 @@ package com.backstage.system.service.assistant.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.backstage.common.annotation.DistributeLock;
+import com.backstage.common.core.redis.RedisCache;
 import com.backstage.common.response.PageResponse;
 import com.backstage.system.domain.assistant.AssistantFeedback;
 import com.backstage.system.domain.assistant.AssistantFeedbackCategory;
@@ -26,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,20 +37,25 @@ public class AssistantFeedbackEsServiceImpl implements IAssistantFeedbackEsServi
     private static final int PAGE_SIZE = 200;
     private static final String QUERY_MODE_MINE = "mine";
     private static final String QUERY_MODE_FAVORITE = "favorite";
+    private static final String REBUILD_TARGET_INDEX_CACHE_KEY = "assistant:feedback:es:rebuild:target-index";
+    private static final int REBUILD_TARGET_INDEX_CACHE_MINUTES = 30;
 
     private final AssistantFeedbackEsMapper assistantFeedbackEsMapper;
     private final AssistantFeedbackMapper assistantFeedbackMapper;
     private final IAssistantFeedbackCategoryService categoryService;
     private final IAssistantFeedbackTagService feedbackTagService;
+    private final RedisCache redisCache;
 
     public AssistantFeedbackEsServiceImpl(AssistantFeedbackEsMapper assistantFeedbackEsMapper,
                                           AssistantFeedbackMapper assistantFeedbackMapper,
                                           IAssistantFeedbackCategoryService categoryService,
-                                          IAssistantFeedbackTagService feedbackTagService) {
+                                          IAssistantFeedbackTagService feedbackTagService,
+                                          RedisCache redisCache) {
         this.assistantFeedbackEsMapper = assistantFeedbackEsMapper;
         this.assistantFeedbackMapper = assistantFeedbackMapper;
         this.categoryService = categoryService;
         this.feedbackTagService = feedbackTagService;
+        this.redisCache = redisCache;
     }
 
     @Override
@@ -89,7 +96,7 @@ public class AssistantFeedbackEsServiceImpl implements IAssistantFeedbackEsServi
         try {
             Map<Long, AssistantFeedbackCategory> categoryMap = buildCategoryMap(Collections.singleton(feedback.getCategoryId()));
             Map<Long, List<AssistantFeedbackTagVO>> tagMap = feedbackTagService.mapFeedbackTags(Collections.singleton(feedbackId));
-            assistantFeedbackEsMapper.upsertFeedback(buildDocument(feedback, categoryMap, tagMap));
+            upsertFeedbackWithRebuildMirror(buildDocument(feedback, categoryMap, tagMap));
         } catch (Exception exception) {
             throw new IllegalStateException("upsert feedback to es failed", exception);
         }
@@ -101,7 +108,7 @@ public class AssistantFeedbackEsServiceImpl implements IAssistantFeedbackEsServi
             return;
         }
         try {
-            assistantFeedbackEsMapper.deleteFeedback(feedbackId);
+            deleteFeedbackWithRebuildMirror(feedbackId);
         } catch (Exception exception) {
             throw new IllegalStateException("delete feedback from es failed", exception);
         }
@@ -134,30 +141,41 @@ public class AssistantFeedbackEsServiceImpl implements IAssistantFeedbackEsServi
     )
     @Override
     public int rebuildIndex() {
+        String oldIndexName = null;
+        String targetIndexName = null;
+        boolean aliasSwitched = false;
         try {
+            // 1. 解析当前在线索引，创建下一代物理索引，并标记本次重建目标。
             log.info("[feedback-es] start rebuild index with zero-downtime alias switch");
-            // 1. 加载 mapping 文件（Configuration as Code，版本升级只需换文件）
             String indexDefinitionJson = AssistantFeedbackEsMapper.loadMappingJson();
-
-            // 2. 记录当前别名指向的旧物理索引，用于后续原子切换
-            String oldIndexName = assistantFeedbackEsMapper.resolveCurrentPhysicalIndex();
+            oldIndexName = assistantFeedbackEsMapper.resolveCurrentPhysicalIndex();
             log.info("[feedback-es] current physical index: {}", oldIndexName == null ? "none" : oldIndexName);
+            targetIndexName = assistantFeedbackEsMapper.buildNextPhysicalIndexName();
+            if (targetIndexName.equals(oldIndexName)) {
+                throw new IllegalStateException("feedback rebuild target index conflicts with current online index");
+            }
+            assistantFeedbackEsMapper.createPhysicalIndex(targetIndexName, indexDefinitionJson);
+            markRebuildTargetIndex(targetIndexName);
+            log.info("[feedback-es] new physical index created: {}", targetIndexName);
 
-            // 3. 创建新物理索引（此时别名仍指向旧索引，读服务不中断）
-            assistantFeedbackEsMapper.rebuildIndex(indexDefinitionJson);
-            log.info("[feedback-es] new physical index created");
-
-            // 4. 全量写入数据到新物理索引（直接指定物理索引名，绕开别名，避免写到旧索引）
-            int total = syncAllFeedbacksFromMysql(AssistantFeedbackEsMapper.FEEDBACK_INDEX_V1);
+            // 2. 从 MySQL 全量同步反馈数据到新索引，确保切换前数据完整。
+            int total = syncAllFeedbacksFromMysql(targetIndexName);
             log.info("[feedback-es] data synced to new index, total: {}", total);
 
-            // 5. 原子切换别名 + 删除旧索引（零停机：切换瞬间完成，业务无感知）
-            assistantFeedbackEsMapper.switchAliasAndDropOldIndex(oldIndexName);
-            log.info("[feedback-es] alias switched, old index dropped, rebuild completed");
+            // 3. 将读写别名切换到新索引，旧索引暂时保留，便于回滚与排查。
+            assistantFeedbackEsMapper.switchAlias(oldIndexName, targetIndexName);
+            aliasSwitched = true;
+            log.info("[feedback-es] alias switched to {}, old index retained: {}", targetIndexName,
+                    oldIndexName == null ? "none" : oldIndexName);
             return total;
         } catch (Exception exception) {
+            if (!aliasSwitched) {
+                cleanupFailedRebuildTarget(oldIndexName, targetIndexName);
+            }
             log.error("[feedback-es] rebuild index failed", exception);
             throw new IllegalStateException("rebuild feedback es index failed", exception);
+        } finally {
+            clearRebuildTargetIndex();
         }
     }
 
@@ -272,5 +290,46 @@ public class AssistantFeedbackEsServiceImpl implements IAssistantFeedbackEsServi
             return "all";
         }
         return queryMode.trim().toLowerCase();
+    }
+
+    private void upsertFeedbackWithRebuildMirror(AssistantFeedbackEsDocument document) throws Exception {
+        assistantFeedbackEsMapper.upsertFeedback(document);
+        String rebuildTargetIndex = getRebuildTargetIndex();
+        if (StrUtil.isNotBlank(rebuildTargetIndex)) {
+            assistantFeedbackEsMapper.upsertFeedbackToIndex(document, rebuildTargetIndex);
+        }
+    }
+
+    private void deleteFeedbackWithRebuildMirror(Long feedbackId) throws Exception {
+        assistantFeedbackEsMapper.deleteFeedback(feedbackId);
+        String rebuildTargetIndex = getRebuildTargetIndex();
+        if (StrUtil.isNotBlank(rebuildTargetIndex)) {
+            assistantFeedbackEsMapper.deleteFeedbackFromIndex(feedbackId, rebuildTargetIndex);
+        }
+    }
+
+    private void markRebuildTargetIndex(String targetIndexName) {
+        redisCache.setCacheObject(REBUILD_TARGET_INDEX_CACHE_KEY, targetIndexName,
+                REBUILD_TARGET_INDEX_CACHE_MINUTES, TimeUnit.MINUTES);
+    }
+
+    private String getRebuildTargetIndex() {
+        Object cacheValue = redisCache.getCacheObject(REBUILD_TARGET_INDEX_CACHE_KEY);
+        return cacheValue == null ? null : String.valueOf(cacheValue);
+    }
+
+    private void clearRebuildTargetIndex() {
+        redisCache.deleteObject(REBUILD_TARGET_INDEX_CACHE_KEY);
+    }
+
+    private void cleanupFailedRebuildTarget(String oldIndexName, String targetIndexName) {
+        if (StrUtil.isBlank(targetIndexName) || targetIndexName.equals(oldIndexName)) {
+            return;
+        }
+        try {
+            assistantFeedbackEsMapper.deletePhysicalIndex(targetIndexName);
+        } catch (Exception cleanupException) {
+            log.warn("[feedback-es] cleanup failed rebuild target index failed, targetIndex={}", targetIndexName, cleanupException);
+        }
     }
 }

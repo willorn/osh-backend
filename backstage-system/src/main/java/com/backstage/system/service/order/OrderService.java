@@ -15,7 +15,7 @@ public interface OrderService extends IService<OshOrder> {
      * @param reqVO
      * @return
      */
-    OrderCheckoutRespVO checkout(OrderCheckoutReqVO reqVO);
+    OrderCheckoutRespVO checkout(OrderCheckoutReqVO reqVO, Boolean enablePointDeduction);
 
     /**
      * 查询订单状态
@@ -23,6 +23,14 @@ public interface OrderService extends IService<OshOrder> {
      * @return
      */
     OrderStatusResult getOrderStatus(String orderNo);
+
+    /**
+     * 查询当前用户自己的订单状态
+     * @param orderNo
+     * @param userId
+     * @return
+     */
+    OrderStatusResult getOrderStatusForUser(String orderNo, Long userId);
 
     /**
      * 查询支付状态
@@ -49,4 +57,11 @@ public interface OrderService extends IService<OshOrder> {
      * @param orderNo
      */
     void cancelPaymentByOrderNo(String orderNo);
+
+    /**
+     * 按订单号取消当前用户自己的支付
+     * @param orderNo
+     * @param userId
+     */
+    void cancelPaymentByOrderNoForUser(String orderNo, Long userId);
 }
