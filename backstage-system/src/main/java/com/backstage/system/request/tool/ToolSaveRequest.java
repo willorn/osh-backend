@@ -1,5 +1,6 @@
 package com.backstage.system.request.tool;
 
+import com.backstage.common.annotation.OshResourceId;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import org.apache.commons.lang3.StringUtils;
@@ -14,6 +15,7 @@ import java.util.List;
 public class ToolSaveRequest {
 
     @ApiModelProperty(value = "工具ID，新增不传，修改必传", example = "10001")
+    @OshResourceId
     private Long id;
 
     @ApiModelProperty(value = "工具名称", required = true, example = "图片转PDF")

@@ -1,5 +1,6 @@
 package com.backstage.system.controller.audit;
 
+import com.backstage.common.annotation.OshUserEvent;
 import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.enums.ResourceStatusEnum;
 import com.backstage.common.core.domain.R;
@@ -40,6 +41,7 @@ public class ResourceAuditController {
 
     @ApiOperation("审核资源")
     @PostMapping("/auditResource")
+    @OshUserEvent(module = "资源审核", actionType = "审核", resourceTypeExpression = "#p0.resourceType", resourceIdExpression = "#p0.resourceId", description = "审核资源")
     @OshUserLevel(value = 5)
     public R<String> audit(@Validated @RequestBody ResourceAuditApproveRequest request) {
         OshUser currentUser = UserContextUtil.getCurrentUser();
