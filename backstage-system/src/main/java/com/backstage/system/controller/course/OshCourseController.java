@@ -410,6 +410,22 @@ public class OshCourseController extends BaseController {
         }
     }
 
+    @ApiOperation("章/节拖拽排序")
+    @PostMapping("/section/reorder")
+    @PreAuthorize("hasAuthority('course:chapter:save')")
+    public R<Void> reorderSections(@Validated @RequestBody CourseSectionReorderRequest request) {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        try {
+            oshCourseService.reorderSections(request, currentOshUser);
+            return R.ok();
+        } catch (IllegalArgumentException ex) {
+            return R.fail(ex.getMessage());
+        }
+    }
+
 
     @ApiOperation("视频小节添加")
     @PostMapping("/section/video/save")
@@ -438,6 +454,22 @@ public class OshCourseController extends BaseController {
         try {
             Long sectionId = oshCourseService.createCourseTextSection(request, currentOshUser);
             return sectionId == null ? R.fail("新增文本内容小节失败") : R.ok(sectionId);
+        } catch (IllegalArgumentException ex) {
+            return R.fail(ex.getMessage());
+        }
+    }
+
+    @ApiOperation("引入课程作为小节")
+    @PostMapping("/section/courseLink/save")
+    @PreAuthorize("hasAuthority('course:section:video')")
+    public R<Long> saveCourseLinkSection(@Validated @RequestBody CourseLinkSectionCreateRequest request) {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        try {
+            Long sectionId = oshCourseService.createCourseLinkSection(request, currentOshUser);
+            return sectionId == null ? R.fail("引入课程作为小节失败") : R.ok(sectionId);
         } catch (IllegalArgumentException ex) {
             return R.fail(ex.getMessage());
         }

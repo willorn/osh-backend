@@ -118,6 +118,13 @@ public interface OshCourseMapper
     int insertCourseSection(OshCourseSection section);
     int updateCourseSection(OshCourseSection section);
 
+    /** 仅更新某节点的 parent_id 与 sort（拖拽排序专用，不影响其它字段） */
+    int updateSectionOrder(@Param("id") Long id,
+                           @Param("courseId") Long courseId,
+                           @Param("parentId") Long parentId,
+                           @Param("sort") Integer sort,
+                           @Param("updateBy") String updateBy);
+
 
     String getCourseSectionContent(@Param("sectionId") Long sectionId);
 
