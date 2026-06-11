@@ -29,6 +29,28 @@ public class CourseChapterCreateRequest {
     @PositiveOrZero(message = "排序不能小于0")
     private Integer sort;
 
+    @ApiModelProperty(value = "章节类型：留空=普通章；course_link=引入课程作为章", example = "course_link")
+    private String type;
+
+    @ApiModelProperty(value = "引入的课程ID（type=course_link 时必填）", example = "100")
+    private Long linkedCourseId;
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = StringUtils.trimToNull(type);
+    }
+
+    public Long getLinkedCourseId() {
+        return linkedCourseId;
+    }
+
+    public void setLinkedCourseId(Long linkedCourseId) {
+        this.linkedCourseId = linkedCourseId;
+    }
+
     public Long getId() {
         return id;
     }

@@ -48,6 +48,8 @@ public class OshCourseSectionVo {
 
     private String type;
 
+    private Long linkedCourseId;
+
     private Integer status;
 
     private Long examId;
@@ -260,6 +262,14 @@ public class OshCourseSectionVo {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public Long getLinkedCourseId() {
+        return linkedCourseId;
+    }
+
+    public void setLinkedCourseId(Long linkedCourseId) {
+        this.linkedCourseId = linkedCourseId;
     }
 
     public Integer getStatus() {

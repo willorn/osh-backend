@@ -26,6 +26,8 @@ import com.backstage.system.mapper.document.OshDocMapper;
 import com.backstage.system.mapper.user.OshRoleMapper;
 import com.backstage.system.request.CourseCreateRequest;
 import com.backstage.system.request.CourseChapterCreateRequest;
+import com.backstage.system.request.CourseLinkSectionCreateRequest;
+import com.backstage.system.request.CourseSectionReorderRequest;
 import com.backstage.system.request.CourseMaterialCreateRequest;
 import com.backstage.system.request.CourseSearchRequest;
 import com.backstage.system.request.CourseTextSectionCreateRequest;
@@ -502,9 +504,29 @@ public class OshCourseServiceImpl implements IOshCourseService {
         section.setId(request.getId());
         section.setTitle(request.getTitle());
         section.setSort(request.getSort());
+        // 仅当本次请求带了课程链接信息时才更新（普通改标题/排序不会传，故不会覆盖）
+        if (CourseSectionConstants.TYPE_COURSE_LINK.equals(request.getType())) {
+            section.setType(CourseSectionConstants.TYPE_COURSE_LINK);
+            section.setLinkedCourseId(request.getLinkedCourseId());
+        }
         section.setUpdateBy(String.valueOf(operator.getId()));
         section.setUpdateTime(now);
         oshCourseMapper.updateCourseSection(section);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reorderSections(CourseSectionReorderRequest request, OshUser operator) {
+        ensureCourseExists(request.getCourseId());
+        String operatorName = operator == null ? null : String.valueOf(operator.getId());
+        // 在一个事务内逐项更新 parent_id 与 sort；WHERE 带 course_id，防止越权改动其它课程的章节
+        for (CourseSectionReorderRequest.Item item : request.getItems()) {
+            int rows = oshCourseMapper.updateSectionOrder(
+                    item.getId(), request.getCourseId(), item.getParentId(), item.getSort(), operatorName);
+            if (rows <= 0) {
+                throw new IllegalArgumentException("排序更新失败：节点不存在或不属于当前课程，id=" + item.getId());
+            }
+        }
     }
 
     @Override
@@ -607,6 +629,21 @@ public class OshCourseServiceImpl implements IOshCourseService {
         }
         saveOrBindSectionDoc(sectionId, request, operator);
         return sectionId;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createCourseLinkSection(CourseLinkSectionCreateRequest request, OshUser operator) {
+        ensureCourseExists(request.getCourseId());
+        // 父级必须是当前课程下的合法一级章
+        ensureParentChapter(request.getCourseId(), request.getParentId());
+        OshCourseSection section = buildBaseSection(request.getCourseId(), request.getParentId(),
+                request.getTitle(), request.getSort(), operator);
+        section.setType(CourseSectionConstants.TYPE_COURSE_LINK);
+        section.setLinkedCourseId(request.getLinkedCourseId());
+        // 链接小节默认免费，便于点击跳转
+        section.setFreeFlag(CourseSectionConstants.CHAPTER_FREE_FLAG);
+        return insertCourseSection(section);
     }
 
     @Override
@@ -1108,6 +1145,11 @@ public class OshCourseServiceImpl implements IOshCourseService {
         OshCourseSection section = buildBaseSection(request.getCourseId(), CourseSectionConstants.ROOT_PARENT_ID,
                 request.getTitle(), request.getSort(), operator);
         section.setFreeFlag(CourseSectionConstants.CHAPTER_FREE_FLAG);
+        // 引入课程作为章：记录类型与被引入课程ID（普通章 type 留空）
+        if (CourseSectionConstants.TYPE_COURSE_LINK.equals(request.getType())) {
+            section.setType(CourseSectionConstants.TYPE_COURSE_LINK);
+            section.setLinkedCourseId(request.getLinkedCourseId());
+        }
         return section;
     }
 
