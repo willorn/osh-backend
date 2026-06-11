@@ -4,24 +4,20 @@ import com.backstage.common.response.PageResponse;
 import com.backstage.common.utils.StringUtils;
 import com.backstage.system.controller.course.OshCourseController;
 import com.backstage.system.domain.tool.OshTool;
-import com.backstage.system.domain.tool.OshToolPackage;
 import com.backstage.system.mapper.tool.OshToolCollectionMapper;
 import com.backstage.system.mapper.tool.OshToolEsMapper;
 import com.backstage.system.mapper.tool.OshToolMapper;
-import com.backstage.system.mapper.tool.OshToolPackageMapper;
 import com.backstage.system.mapper.tool.OshToolTagMapper;
 import com.backstage.system.request.tool.ToolSearchRequest;
 import com.backstage.system.service.tool.IOshToolEsService;
 import com.backstage.system.service.tool.ToolIndexEventType;
 import com.backstage.system.service.tool.ToolIndexMessage;
-import com.backstage.system.service.tool.ToolIndexPackageMessage;
 import com.github.pagehelper.PageHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -43,9 +39,6 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
 
     @Autowired
     private OshToolTagMapper oshToolTagMapper;
-
-    @Autowired
-    private OshToolPackageMapper oshToolPackageMapper;
 
     @Autowired
     private OshToolCollectionMapper oshToolCollectionMapper;
@@ -114,8 +107,7 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
         }
         List<String> tagNames = oshToolTagMapper.selectTagNamesByToolId(tool.getId());
         List<Long> tagIds = oshToolTagMapper.selectTagIdsByToolId(tool.getId());
-        List<OshToolPackage> packages = oshToolPackageMapper.selectPackagesByToolId(tool.getId());
-        return buildIndexMessage(tool, tagIds, tagNames, packages, eventType);
+        return buildIndexMessage(tool, tagIds, tagNames, eventType);
     }
 
     private PageResponse<OshTool> searchCollectedTools(ToolSearchRequest request, Long userId) throws Exception {
@@ -179,7 +171,7 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
         List<Long> collectedIds = oshToolCollectionMapper.selectActiveToolIdsByUserIdAndToolIds(userId, toolIds);
         for (OshTool row : rows) {
             row.setCollectionFlag(collectedIds.contains(row.getId()) ? 1 : 0);
-            Integer remainingCount = oshToolMapper.selectUserRemainingCount(row.getId(), userId);
+            Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
             int value = remainingCount == null ? 0 : remainingCount;
             row.setRemainingCount(value);
             row.setPurchasedFlag(value > 0 ? 1 : 0);
@@ -187,7 +179,7 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
     }
 
     private ToolIndexMessage buildIndexMessage(OshTool tool, List<Long> tagIds, List<String> tagNames,
-                                               List<OshToolPackage> packages, String eventType) {
+                                               String eventType) {
         ToolIndexMessage message = new ToolIndexMessage();
         message.setEventType(eventType);
         message.setId(tool.getId());
@@ -197,15 +189,13 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
         message.setRoutePath(tool.getRoutePath());
         message.setGithubUrl(tool.getGithubUrl());
         message.setResourceType(tool.getResourceType());
+        message.setQuotaCost(tool.getQuotaCost() == null ? 0 : tool.getQuotaCost());
         message.setLevel(tool.getLevel());
         message.setStatus(tool.getStatus());
         message.setDeleteFlag(tool.getDeleteFlag() == null ? 0 : tool.getDeleteFlag());
         message.setTagIds(tagIds == null ? Collections.emptyList() : tagIds);
         message.setTagNames(tagNames == null ? Collections.emptyList() : tagNames);
         message.setTagNamesText(String.join(" ", message.getTagNames()));
-        message.setPackages(toPackageMessages(packages));
-        message.setPackageCount(message.getPackages().size());
-        fillMinPackage(message);
         message.setViewCount(tool.getViewCount() == null ? 0L : tool.getViewCount());
         message.setTotalUsage(tool.getTotalUsage() == null ? 0L : tool.getTotalUsage());
         message.setCollectionCount(tool.getCollectionCount() == null ? 0 : tool.getCollectionCount());
@@ -218,42 +208,6 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
         message.setUpdateTime(tool.getUpdateTime());
         message.setSearchText(buildSearchText(message));
         return message;
-    }
-
-    private List<ToolIndexPackageMessage> toPackageMessages(List<OshToolPackage> packages) {
-        if (StringUtils.isEmpty(packages)) {
-            return Collections.emptyList();
-        }
-        List<ToolIndexPackageMessage> messages = new ArrayList<>();
-        for (OshToolPackage item : packages) {
-            ToolIndexPackageMessage message = new ToolIndexPackageMessage();
-            message.setId(item.getId());
-            message.setPackageName(item.getPackageName());
-            message.setUseCount(item.getUseCount());
-            message.setPrice(item.getPrice());
-            message.setPointCost(item.getPointCost());
-            message.setPayType(item.getPayType());
-            message.setStatus(item.getStatus());
-            message.setSortOrder(item.getSortOrder());
-            messages.add(message);
-        }
-        return messages;
-    }
-
-    private void fillMinPackage(ToolIndexMessage message) {
-        if (StringUtils.isEmpty(message.getPackages())) {
-            message.setMinPackagePrice(BigDecimal.ZERO);
-            message.setMinPackageUseCount(0);
-            return;
-        }
-        ToolIndexPackageMessage first = message.getPackages().stream()
-                .filter(item -> Integer.valueOf(1).equals(item.getStatus()))
-                .sorted(Comparator.comparing(ToolIndexPackageMessage::getSortOrder,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .findFirst()
-                .orElse(message.getPackages().get(0));
-        message.setMinPackagePrice(first.getPrice() == null ? BigDecimal.ZERO : first.getPrice());
-        message.setMinPackageUseCount(first.getUseCount() == null ? 0 : first.getUseCount());
     }
 
     private Double calculateHotScore(ToolIndexMessage message) {

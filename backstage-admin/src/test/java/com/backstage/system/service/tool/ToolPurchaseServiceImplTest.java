@@ -10,6 +10,7 @@ import com.backstage.system.domain.user.OshUserAsset;
 import com.backstage.system.mapper.tool.OshToolMapper;
 import com.backstage.system.mapper.tool.OshToolPackageMapper;
 import com.backstage.system.mapper.tool.OshToolPurchaseRecordMapper;
+import com.backstage.system.request.tool.ToolQuotaPackageSaveRequest;
 import com.backstage.system.mapper.user.OshUserAssetMapper;
 import com.backstage.system.mapper.user.OshUserAssetRecordMapper;
 import com.backstage.system.request.tool.ToolPurchaseCreateRequest;
@@ -63,26 +64,18 @@ public class ToolPurchaseServiceImplTest {
     @Test
     public void shouldCreateCashOnlyToolPurchaseOrderWithSnapshotRecord() {
         ToolPurchaseCreateRequest request = new ToolPurchaseCreateRequest();
-        request.setToolId(1001L);
         request.setPackageId(2001L);
         request.setPayType(1);
         request.setChannel("wxpay");
 
-        OshTool tool = new OshTool();
-        tool.setId(1001L);
-        tool.setToolName("AI海报生成器");
-        tool.setStatus(4);
-        tool.setResourceType("CASH_ONLY");
-
-        OshToolPackage toolPackage = new OshToolPackage();
-        toolPackage.setId(2001L);
-        toolPackage.setToolId(1001L);
-        toolPackage.setPackageName("体验包");
-        toolPackage.setUseCount(10);
-        toolPackage.setPrice(new BigDecimal("9.90"));
-        toolPackage.setPointCost(0);
-        toolPackage.setPayType(1);
-        toolPackage.setStatus(1);
+        OshToolPackage quotaPackage = new OshToolPackage();
+        quotaPackage.setId(2001L);
+        quotaPackage.setPackageName("体验包");
+        quotaPackage.setUseCount(10);
+        quotaPackage.setPrice(new BigDecimal("9.90"));
+        quotaPackage.setPointCost(0);
+        quotaPackage.setPayType(1);
+        quotaPackage.setStatus(1);
 
         OrderCheckoutRespVO checkoutRespVO = new OrderCheckoutRespVO();
         checkoutRespVO.setOrderNo("O20260517001");
@@ -90,8 +83,7 @@ public class ToolPurchaseServiceImplTest {
         checkoutRespVO.setPrice(new BigDecimal("9.90"));
         checkoutRespVO.setNeedPay(true);
 
-        when(oshToolMapper.selectToolById(1001L)).thenReturn(tool);
-        when(oshToolPackageMapper.selectPackageById(2001L)).thenReturn(toolPackage);
+        when(oshToolPackageMapper.selectPackageById(2001L)).thenReturn(quotaPackage);
         when(orderCheckoutService.checkout(any())).thenReturn(checkoutRespVO);
         when(oshToolPurchaseRecordMapper.insertToolPurchaseRecord(any(OshToolPurchaseRecord.class))).thenReturn(1);
 
@@ -111,33 +103,24 @@ public class ToolPurchaseServiceImplTest {
     @Test(expected = ServiceException.class)
     public void shouldRejectCreateOrderWhenPointsAreInsufficientForCashPointPackage() {
         ToolPurchaseCreateRequest request = new ToolPurchaseCreateRequest();
-        request.setToolId(1002L);
         request.setPackageId(2002L);
         request.setPayType(3);
         request.setChannel("alipay");
 
-        OshTool tool = new OshTool();
-        tool.setId(1002L);
-        tool.setToolName("短视频脚本助手");
-        tool.setStatus(4);
-        tool.setResourceType("CASH_POINT");
-
-        OshToolPackage toolPackage = new OshToolPackage();
-        toolPackage.setId(2002L);
-        toolPackage.setToolId(1002L);
-        toolPackage.setPackageName("推荐包");
-        toolPackage.setUseCount(50);
-        toolPackage.setPrice(new BigDecimal("29.90"));
-        toolPackage.setPointCost(100);
-        toolPackage.setPayType(3);
-        toolPackage.setStatus(1);
+        OshToolPackage quotaPackage = new OshToolPackage();
+        quotaPackage.setId(2002L);
+        quotaPackage.setPackageName("推荐包");
+        quotaPackage.setUseCount(50);
+        quotaPackage.setPrice(new BigDecimal("29.90"));
+        quotaPackage.setPointCost(100);
+        quotaPackage.setPayType(3);
+        quotaPackage.setStatus(1);
 
         OshUserAsset userAsset = new OshUserAsset();
         userAsset.setUserId(9L);
         userAsset.setPoints(99L);
 
-        when(oshToolMapper.selectToolById(1002L)).thenReturn(tool);
-        when(oshToolPackageMapper.selectPackageById(2002L)).thenReturn(toolPackage);
+        when(oshToolPackageMapper.selectPackageById(2002L)).thenReturn(quotaPackage);
         when(oshUserAssetMapper.selectById(9L)).thenReturn(userAsset);
 
         try {
@@ -145,5 +128,30 @@ public class ToolPurchaseServiceImplTest {
         } finally {
             verify(orderCheckoutService, never()).checkout(any());
         }
+    }
+
+    @Test
+    public void shouldAutoConvertPointCostWhenSavingCashPointQuotaPackage() {
+        ToolQuotaPackageSaveRequest request = new ToolQuotaPackageSaveRequest();
+        request.setPackageName("积分包");
+        request.setUseCount(200);
+        request.setPrice(new BigDecimal("9.90"));
+        request.setPayType(3);
+        request.setStatus(1);
+        request.setSortOrder(5);
+
+        when(oshToolPackageMapper.insertPackage(any(OshToolPackage.class))).thenAnswer(invocation -> {
+            OshToolPackage quotaPackage = invocation.getArgument(0);
+            quotaPackage.setId(3001L);
+            return 1;
+        });
+
+        Long packageId = toolPurchaseService.saveQuotaPackage("admin", request);
+
+        assertEquals(Long.valueOf(3001L), packageId);
+        verify(oshToolPackageMapper).insertPackage(argThat(quotaPackage ->
+                Integer.valueOf(99).equals(quotaPackage.getPointCost())
+                        && Integer.valueOf(3).equals(quotaPackage.getPayType())
+        ));
     }
 }

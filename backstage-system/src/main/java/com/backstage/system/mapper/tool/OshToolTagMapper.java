@@ -15,7 +15,7 @@ public interface OshToolTagMapper {
 
     int activateToolTag(@Param("id") Long id, @Param("operator") String operator);
 
-    List<OshToolTag> selectAvailableTags();
+    List<OshToolTag> selectAvailableTags(@Param("keyword") String keyword);
 
     List<OshToolTag> selectRecommendTags(@Param("limit") int limit);
 

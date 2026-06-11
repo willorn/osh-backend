@@ -2,6 +2,7 @@ package com.backstage.system.controller.tool;
 
 import com.backstage.common.annotation.Anonymous;
 import com.backstage.common.annotation.DistributeLock;
+import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.common.exception.ServiceException;
@@ -11,6 +12,7 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
 import com.backstage.system.request.tool.ToolCollectionRequest;
 import com.backstage.system.request.tool.ToolDeleteRequest;
 import com.backstage.system.request.tool.ToolRecommendRequest;
@@ -23,11 +25,11 @@ import com.backstage.system.service.tool.IOshToolEsService;
 import com.backstage.system.service.tool.IOshToolService;
 import com.backstage.system.utils.UserContextUtil;
 import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -80,7 +82,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("ES工具搜索")
     @PostMapping("/esSearch")
-    @PreAuthorize("hasAuthority('tool:list')")
+    @OshUserLevel(value = 1)
     public R<PageResponse<OshTool>> esToolSearch(@RequestBody ToolSearchRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         Long userId = currentOshUser == null ? null : currentOshUser.getId();
@@ -105,6 +107,27 @@ public class OshToolController extends BaseController {
         return R.ok(oshToolService.fillMissingToolNo(), "ok");
     }
 
+    @ApiOperation("为缺少工具点数记录的用户批量初始化工具点数")
+    @PostMapping("/quota/init")
+    public R<Integer> initMissingUserToolQuota() {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        return R.ok(oshToolService.initMissingUserToolQuota(currentOshUser.getUsername()), "ok");
+    }
+
+    @ApiOperation("查询当前用户工具点数")
+    @GetMapping("/quota/current")
+    @Anonymous
+    public R<ToolQuotaCurrentVO> getCurrentUserToolQuota() {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        return R.ok(oshToolService.getCurrentUserToolQuota(currentOshUser.getId()), "ok");
+    }
+
     @ApiOperation("工具推荐列表")
     @PostMapping("/recommend")
     @Anonymous
@@ -120,10 +143,11 @@ public class OshToolController extends BaseController {
     }
 
     @ApiOperation("工具标签选项")
+    @ApiImplicitParam(name = "keyword", value = "标签关键词，支持模糊查询", example = "PDF", dataType = "String", paramType = "query")
     @GetMapping("/tags")
     @Anonymous
-    public R<List<OshToolTag>> listTags() {
-        return R.ok(oshToolService.listAvailableTags());
+    public R<List<OshToolTag>> listTags(@RequestParam(value = "keyword", required = false) String keyword) {
+        return R.ok(oshToolService.listAvailableTags(keyword));
     }
 
     @ApiOperation("工具推荐标签")
@@ -157,7 +181,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("新增/修改工具")
     @PostMapping("/save")
-    @PreAuthorize("hasAuthority('tool:create')")
+    @OshUserLevel(value = 5)
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> save(@Validated @RequestBody ToolSaveRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -176,7 +200,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("修改工具")
     @PostMapping("/update")
-    @PreAuthorize("hasAuthority('tool:update')")
+    @OshUserLevel(value = 5)
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> update(@Validated @RequestBody ToolSaveRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -195,7 +219,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("批量删除工具")
     @PostMapping("/delete")
-    @PreAuthorize("hasAuthority('tool:delete')")
+    @OshUserLevel(value = 5)
     @DistributeLock(scene = "tool:delete", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<String> deleteTools(@Validated @RequestBody ToolDeleteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -212,7 +236,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("收藏工具")
     @PostMapping("/collection/add")
-    @PreAuthorize("hasAuthority('tool:collection:add')")
+    @OshUserLevel(value = 1)
     public R<String> collectTool(@Validated @RequestBody ToolCollectionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -224,7 +248,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("取消收藏工具")
     @PostMapping("/collection/remove")
-    @PreAuthorize("hasAuthority('tool:collection:remove')")
+    @OshUserLevel(value = 1)
     public R<String> removeToolCollection(@Validated @RequestBody ToolCollectionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -236,7 +260,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("扣减工具使用次数")
     @PostMapping("/use/consume")
-    @PreAuthorize("hasAuthority('tool:use:consume')")
+    @OshUserLevel(value = 1)
     public R<Integer> consumeToolUsage(@Validated @RequestBody ToolUsageConsumeRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -257,7 +281,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("校验工具使用与扣费权限")
     @PostMapping("/use/check")
-    @PreAuthorize("hasAuthority('tool:use:consume')")
+    @OshUserLevel(value = 1)
     public R<ToolUsagePermission> checkToolUsagePermission(@Validated @RequestBody ToolUsageConsumeRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -276,7 +300,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("点赞工具")
     @PostMapping("/vote/good")
-    @PreAuthorize("hasAuthority('tool:vote:good')")
+    @OshUserLevel(value = 1)
     public R<Integer> voteGoodTool(@Validated @RequestBody ToolVoteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -292,7 +316,7 @@ public class OshToolController extends BaseController {
 
     @ApiOperation("差评工具")
     @PostMapping("/vote/bad")
-    @PreAuthorize("hasAuthority('tool:vote:bad')")
+    @OshUserLevel(value = 1)
     public R<Integer> voteBadTool(@Validated @RequestBody ToolVoteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {

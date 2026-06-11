@@ -7,6 +7,7 @@ import com.backstage.system.domain.user.OshUser;
 import com.backstage.system.request.tool.ToolRecommendRequest;
 import com.backstage.system.request.tool.ToolSaveRequest;
 import com.backstage.system.request.tool.ToolSearchRequest;
+import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
 
 import java.util.List;
 
@@ -16,7 +17,7 @@ public interface IOshToolService {
 
     List<OshTool> listRecommendTools(Long userId, ToolRecommendRequest request);
 
-    List<OshToolTag> listAvailableTags();
+    List<OshToolTag> listAvailableTags(String keyword);
 
     List<OshToolTag> listRecommendTags(int limit);
 
@@ -37,4 +38,8 @@ public interface IOshToolService {
     void recordToolView(Long toolId);
 
     int fillMissingToolNo();
+
+    int initMissingUserToolQuota(String operator);
+
+    ToolQuotaCurrentVO getCurrentUserToolQuota(Long userId);
 }

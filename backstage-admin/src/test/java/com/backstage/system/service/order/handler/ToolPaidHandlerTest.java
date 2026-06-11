@@ -2,8 +2,8 @@ package com.backstage.system.service.order.handler;
 
 import com.backstage.system.domain.order.enums.ProductTypeEnum;
 import com.backstage.system.domain.tool.OshToolPurchaseRecord;
-import com.backstage.system.mapper.tool.OshToolPurchaseRecordMapper;
 import com.backstage.system.mapper.tool.OshToolQuotaMapper;
+import com.backstage.system.mapper.tool.OshToolPurchaseRecordMapper;
 import com.backstage.system.service.tool.ToolPurchaseAnnouncementPublisher;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -45,19 +45,18 @@ public class ToolPaidHandlerTest {
         record.setId(1L);
         record.setOrderNo("O20260517002");
         record.setUserId(9L);
-        record.setToolId(1002L);
         record.setPackageUseCountSnapshot(50);
         record.setGrantStatus(0);
 
         when(oshToolPurchaseRecordMapper.selectByOrderNo("O20260517002")).thenReturn(record);
-        when(oshToolQuotaMapper.increaseUserToolQuota(1002L, 9L, 50, "system")).thenReturn(0);
-        when(oshToolQuotaMapper.insertUserToolQuota(9L, 1002L, 50, "system")).thenReturn(1);
+        when(oshToolQuotaMapper.increaseUserGlobalQuota(9L, 50, "system")).thenReturn(0);
+        when(oshToolQuotaMapper.insertUserGlobalQuota(9L, 50, "system")).thenReturn(1);
+        when(oshToolPurchaseRecordMapper.updateGrantSuccess(org.mockito.ArgumentMatchers.eq(1L), any(LocalDateTime.class), org.mockito.ArgumentMatchers.eq("system"))).thenReturn(1);
 
         toolPaidHandler.handle("O20260517002");
 
-        verify(oshToolQuotaMapper).insertUserToolQuota(9L, 1002L, 50, "system");
+        verify(oshToolQuotaMapper).insertUserGlobalQuota(9L, 50, "system");
         verify(oshToolPurchaseRecordMapper).updateGrantSuccess(org.mockito.ArgumentMatchers.eq(1L), any(LocalDateTime.class), org.mockito.ArgumentMatchers.eq("system"));
-        verify(toolPurchaseAnnouncementPublisher).publishPurchaseSuccess(record);
     }
 
     @Test
@@ -71,6 +70,6 @@ public class ToolPaidHandlerTest {
 
         toolPaidHandler.handle("O20260517002");
 
-        verify(oshToolQuotaMapper, never()).insertUserToolQuota(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString());
+        verify(oshToolQuotaMapper, never()).insertUserGlobalQuota(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString());
     }
 }

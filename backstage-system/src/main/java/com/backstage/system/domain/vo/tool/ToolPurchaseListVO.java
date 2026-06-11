@@ -7,7 +7,7 @@ import io.swagger.annotations.ApiModelProperty;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@ApiModel(description = "工具购买记录")
+@ApiModel(description = "全局次数购买记录")
 public class ToolPurchaseListVO {
 
     @ApiModelProperty(value = "订单号", example = "O20260517001")
@@ -16,14 +16,8 @@ public class ToolPurchaseListVO {
     @ApiModelProperty(value = "支付流水号", example = "P20260517001")
     private String paymentNo;
 
-    @ApiModelProperty(value = "工具ID", example = "1001")
-    private Long toolId;
-
     @ApiModelProperty(value = "套餐ID", example = "2001")
     private Long packageId;
-
-    @ApiModelProperty(value = "工具名称", example = "AI海报生成器")
-    private String toolNameSnapshot;
 
     @ApiModelProperty(value = "套餐名称", example = "体验包")
     private String packageNameSnapshot;
@@ -70,28 +64,12 @@ public class ToolPurchaseListVO {
         this.paymentNo = paymentNo;
     }
 
-    public Long getToolId() {
-        return toolId;
-    }
-
-    public void setToolId(Long toolId) {
-        this.toolId = toolId;
-    }
-
     public Long getPackageId() {
         return packageId;
     }
 
     public void setPackageId(Long packageId) {
         this.packageId = packageId;
-    }
-
-    public String getToolNameSnapshot() {
-        return toolNameSnapshot;
-    }
-
-    public void setToolNameSnapshot(String toolNameSnapshot) {
-        this.toolNameSnapshot = toolNameSnapshot;
     }
 
     public String getPackageNameSnapshot() {

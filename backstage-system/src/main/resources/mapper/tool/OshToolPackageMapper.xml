@@ -6,7 +6,6 @@
 
     <resultMap id="OshToolPackageResult" type="com.backstage.system.domain.tool.OshToolPackage">
         <id property="id" column="id"/>
-        <result property="toolId" column="tool_id"/>
         <result property="packageName" column="package_name"/>
         <result property="useCount" column="use_count"/>
         <result property="price" column="price"/>
@@ -21,17 +20,19 @@
         <result property="deleteFlag" column="delete_flag"/>
     </resultMap>
 
-    <select id="selectPackagesByToolId" resultMap="OshToolPackageResult">
-        select id, tool_id, package_name, use_count, price, point_cost, pay_type, status, sort_order,
-               create_by, create_time, update_by, update_time, delete_flag
-        from osh_tool_package
-        where tool_id = #{toolId}
-          and delete_flag = 0
-        order by sort_order desc, id asc
-    </select>
+    <resultMap id="ToolQuotaPackageVOResult" type="com.backstage.system.domain.vo.tool.ToolQuotaPackageVO">
+        <id property="packageId" column="id"/>
+        <result property="packageName" column="package_name"/>
+        <result property="useCount" column="use_count"/>
+        <result property="cashAmount" column="price"/>
+        <result property="pointAmount" column="point_cost"/>
+        <result property="payType" column="pay_type"/>
+        <result property="status" column="status"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
 
     <select id="selectPackageById" resultMap="OshToolPackageResult">
-        select id, tool_id, package_name, use_count, price, point_cost, pay_type, status, sort_order,
+        select id, package_name, use_count, price, point_cost, pay_type, status, sort_order,
                create_by, create_time, update_by, update_time, delete_flag
         from osh_tool_package
         where id = #{id}
@@ -39,51 +40,56 @@
         limit 1
     </select>
 
-    <select id="selectPackagesByToolIds" resultMap="OshToolPackageResult">
-        select id, tool_id, package_name, use_count, price, point_cost, pay_type, status, sort_order,
+    <select id="selectEnabledPackages" resultMap="OshToolPackageResult">
+        select id, package_name, use_count, price, point_cost, pay_type, status, sort_order,
                create_by, create_time, update_by, update_time, delete_flag
         from osh_tool_package
-        where delete_flag = 0
-          and tool_id in
-        <foreach collection="toolIds" item="toolId" open="(" separator="," close=")">
-            #{toolId}
-        </foreach>
-        order by sort_order desc, id asc
+        where status = 1
+          and delete_flag = 0
+        order by sort_order asc, id asc
     </select>
 
-    <insert id="insertToolPackage" parameterType="com.backstage.system.domain.tool.OshToolPackage"
+    <select id="selectAllPackageVos" resultMap="ToolQuotaPackageVOResult">
+        select id, package_name, use_count, price, point_cost, pay_type, status, sort_order
+        from osh_tool_package
+        where delete_flag = 0
+        order by sort_order asc, id asc
+    </select>
+
+    <insert id="insertPackage" parameterType="com.backstage.system.domain.tool.OshToolPackage"
             useGeneratedKeys="true" keyProperty="id">
         insert into osh_tool_package (
-            tool_id, package_name, use_count, price, point_cost, pay_type, status, sort_order,
+            package_name, use_count, price, point_cost, pay_type, status, sort_order,
             create_by, create_time, update_by, update_time, delete_flag
         ) values (
-            #{toolId}, #{packageName}, #{useCount}, #{price}, #{pointCost}, #{payType}, #{status}, #{sortOrder},
+            #{packageName}, #{useCount}, #{price}, #{pointCost}, #{payType}, #{status}, #{sortOrder},
             #{createBy}, now(), #{updateBy}, now(), 0
         )
     </insert>
 
-    <update id="updateToolPackage" parameterType="com.backstage.system.domain.tool.OshToolPackage">
+    <update id="updatePackage" parameterType="com.backstage.system.domain.tool.OshToolPackage">
         update osh_tool_package
-        set package_name = #{packageName},
-            use_count = #{useCount},
-            price = #{price},
-            point_cost = #{pointCost},
-            pay_type = #{payType},
-            status = #{status},
-            sort_order = #{sortOrder},
+        <set>
+            <if test="packageName != null">package_name = #{packageName},</if>
+            <if test="useCount != null">use_count = #{useCount},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="pointCost != null">point_cost = #{pointCost},</if>
+            <if test="payType != null">pay_type = #{payType},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sortOrder != null">sort_order = #{sortOrder},</if>
             update_by = #{updateBy},
-            update_time = now(),
-            delete_flag = 0
+            update_time = now()
+        </set>
         where id = #{id}
-          and tool_id = #{toolId}
+          and delete_flag = 0
     </update>
 
-    <update id="softDeletePackagesByToolId">
+    <update id="softDeletePackage">
         update osh_tool_package
         set delete_flag = 1,
             update_by = #{operator},
             update_time = now()
-        where tool_id = #{toolId}
+        where id = #{id}
           and delete_flag = 0
     </update>
 </mapper>

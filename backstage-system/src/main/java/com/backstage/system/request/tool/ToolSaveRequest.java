@@ -22,9 +22,6 @@ public class ToolSaveRequest {
     @ApiModelProperty(value = "工具描述", example = "支持多张图片合成为PDF文件")
     private String description;
 
-    @ApiModelProperty(value = "工具图标相对路径", example = "common/image/tool/202605/logo.png")
-    private String logoUrl;
-
     @ApiModelProperty(value = "站内工具前端路由", example = "/tool/image-to-pdf")
     private String routePath;
 
@@ -37,14 +34,14 @@ public class ToolSaveRequest {
     @ApiModelProperty(value = "备注", example = "首批上线工具")
     private String remark;
 
-    @ApiModelProperty(value = "资源类型：FREE,CASH_ONLY,CASH_POINT,VIP,SMALL_CLASS,INTERNAL", example = "FREE")
+    @ApiModelProperty(value = "资源类型：FREE,CASH_POINT,VIP,SMALL_CLASS,INTERNAL", example = "FREE")
     private String resourceType;
+
+    @ApiModelProperty(value = "单次消耗工具点数，仅按次数消费的工具生效", example = "1")
+    private Integer quotaCost;
 
     @ApiModelProperty(value = "标签名称列表，不存在的标签会自动创建", example = "[\"PDF工具\",\"图片工具\"]")
     private List<String> tags;
-
-    @ApiModelProperty(value = "工具售卖套餐列表", example = "[{\"packageName\":\"10次包\",\"useCount\":10,\"price\":9.90}]")
-    private List<ToolPackageSaveRequest> packages;
 
     public Long getId() {
         return id;
@@ -68,14 +65,6 @@ public class ToolSaveRequest {
 
     public void setDescription(String description) {
         this.description = StringUtils.trimToNull(description);
-    }
-
-    public String getLogoUrl() {
-        return logoUrl;
-    }
-
-    public void setLogoUrl(String logoUrl) {
-        this.logoUrl = StringUtils.trimToNull(logoUrl);
     }
 
     public String getRoutePath() {
@@ -137,11 +126,11 @@ public class ToolSaveRequest {
         this.tags = normalized;
     }
 
-    public List<ToolPackageSaveRequest> getPackages() {
-        return packages;
+    public Integer getQuotaCost() {
+        return quotaCost;
     }
 
-    public void setPackages(List<ToolPackageSaveRequest> packages) {
-        this.packages = packages;
+    public void setQuotaCost(Integer quotaCost) {
+        this.quotaCost = quotaCost;
     }
 }

@@ -17,7 +17,7 @@ public interface OshToolPurchaseRecordMapper {
 
     OshToolPurchaseRecord selectByPaymentNo(@Param("paymentNo") String paymentNo);
 
-    List<ToolPurchaseListVO> selectPurchaseRecordsByUserId(@Param("userId") Long userId, @Param("toolId") Long toolId);
+    List<ToolPurchaseListVO> selectPurchaseRecordsByUserId(@Param("userId") Long userId);
 
     int updateOrderStatusByOrderNo(@Param("orderNo") String orderNo,
                                    @Param("orderStatus") Integer orderStatus,

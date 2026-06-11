@@ -25,7 +25,7 @@ public class ToolSearchRequest extends PageRequest {
     @ApiModelProperty(value = "工具编号，传入时优先按编号精确查询", example = "tlAb12Cd")
     private String no;
 
-    @ApiModelProperty(value = "资源类型：FREE,CASH_ONLY,CASH_POINT,VIP,SMALL_CLASS,INTERNAL", example = "FREE")
+    @ApiModelProperty(value = "资源类型：FREE,CASH_POINT,VIP,SMALL_CLASS,INTERNAL", example = "FREE")
     private String resourceType;
 
     @ApiModelProperty(value = "是否只看我收藏的工具", example = "false")
