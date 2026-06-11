@@ -25,11 +25,13 @@ import com.backstage.system.domain.order.enums.PayChannelEnum;
 import com.backstage.system.domain.order.enums.PaymentStatusEnum;
 import com.backstage.system.domain.order.enums.ProductTypeEnum;
 import com.backstage.system.domain.vo.order.PayResponse;
+import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.mapper.order.OshOrderMapper;
 import com.backstage.system.mapper.order.OshPaymentMapper;
 import com.backstage.system.mapper.order.OshPaymentNotifyLogMapper;
 import com.backstage.system.mapper.user.OshUserAssetMapper;
 import com.backstage.system.mapper.user.OshUserAssetRecordMapper;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.order.*;
 import com.backstage.system.service.book.IBookService;
 import com.backstage.system.service.order.OrderNoGenerator;
@@ -128,6 +130,9 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
 
     @Resource
     private RedisCache redisCache;
+
+    @Resource
+    private ContributionService contributionService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -698,6 +703,7 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
      * @param orderNo 订单号
      */
     private void handleOrderProductPaid(String orderNo) {
+        recordContributionRevenue(orderNo);
 
         try {
             PaySuccessMessage message = packgePaySuccessMessage(orderNo);
@@ -711,6 +717,35 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
             log.info("【支付】发送支付成功消息失败，orderNo={}, userId={}", orderNo, UserContextUtil.getCurrentUserId());
         }
 
+    }
+
+    private void recordContributionRevenue(String orderNo) {
+        OshOrder order = orderMapper.selectByOrderNo(orderNo);
+        if (Objects.isNull(order)) {
+            return;
+        }
+        ProductTypeEnum productType = ProductTypeEnum.fromCode(order.getProductType());
+        if (Objects.isNull(productType) || !isContributionResource(productType)) {
+            return;
+        }
+        try {
+            contributionService.recordRevenue(
+                    productType.getName(),
+                    order.getProductId(),
+                    order.getId(),
+                    order.getOrderNo(),
+                    order.getUserId(),
+                    order.getPayableAmount(),
+                    order.getPointsAmount(),
+                    productType.getName()
+            );
+        } catch (Exception e) {
+            log.warn("record contribution revenue failed, orderNo={}, productType={}", orderNo, productType.getName(), e);
+        }
+    }
+
+    private boolean isContributionResource(ProductTypeEnum productType) {
+        return productType != null && ContributionResourceType.contributionTracked(productType.getName());
     }
 
     private PaySuccessMessage packgePaySuccessMessage(String orderNo) {

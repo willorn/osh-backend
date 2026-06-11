@@ -9,7 +9,7 @@ import java.lang.annotation.*;
  * Date: 2026/4/27
  * Time: 20:02
  */
-@Target(ElementType.FIELD)
+@Target({ElementType.FIELD, ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface OshResourceId {

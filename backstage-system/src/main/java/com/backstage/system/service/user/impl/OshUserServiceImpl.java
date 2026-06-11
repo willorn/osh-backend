@@ -95,6 +95,8 @@ public class OshUserServiceImpl implements IOshUserService {
         }
         String token = createToken(oshUser);
         OshUserLoginVO userLoginVo = new OshUserLoginVO();
+        userLoginVo.setUserId(oshUser.getId());
+        userLoginVo.setUsername(oshUser.getUsername());
         userLoginVo.setToken(token);
         List<Integer> roleIds = oshRoleMapper.getRoleIdsByUserId(oshUser.getId());
         Map<String, String> asset = getAsset(oshUser.getId());
@@ -104,6 +106,8 @@ public class OshUserServiceImpl implements IOshUserService {
         userLoginVo.setRole(role);
         userLoginVo.setPermissionList(permissionList);
         Map<String, Object> map = new HashMap<>();
+        map.put(OshUserConstants.USER_ID, oshUser.getId());
+        map.put(OshUserConstants.USERNAME, oshUser.getUsername());
         map.put(OshUserConstants.ASSET, asset);
         map.put(OshUserConstants.ROLE, role);
         map.put(OshUserConstants.PERMISSION, permissionList);

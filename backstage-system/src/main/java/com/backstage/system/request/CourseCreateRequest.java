@@ -1,5 +1,6 @@
 package com.backstage.system.request;
 
+import com.backstage.common.annotation.OshResourceId;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.commons.lang3.StringUtils;
 
@@ -18,6 +19,7 @@ import java.util.List;
 public class CourseCreateRequest {
 
     // 新增：有值时走更新，null 时走新增
+    @OshResourceId
     private Long id;
 
     @NotBlank(message = "课程标题不能为空")

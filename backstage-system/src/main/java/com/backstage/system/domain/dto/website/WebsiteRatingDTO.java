@@ -1,5 +1,6 @@
 package com.backstage.system.domain.dto.website;
 
+import com.backstage.common.annotation.OshResourceId;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
@@ -14,6 +15,7 @@ public class WebsiteRatingDTO {
 
     @ApiModelProperty(value = "网站ID", required = true)
     @NotNull(message = "网站ID不能为空")
+    @OshResourceId
     private Long websiteId;
 
     @ApiModelProperty(value = "评价类型: 1-好评, 2-中评, 3-差评", required = true)
