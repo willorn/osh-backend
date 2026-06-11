@@ -5,16 +5,16 @@ import io.swagger.annotations.ApiModelProperty;
 
 import java.math.BigDecimal;
 
-@ApiModel(description = "工具购买套餐")
-public class ToolPurchasePackageVO {
+@ApiModel(description = "工具点数套餐")
+public class ToolQuotaPackageVO {
 
-    @ApiModelProperty(value = "套餐ID", example = "2001")
+    @ApiModelProperty(value = "套餐ID", example = "1001")
     private Long packageId;
 
-    @ApiModelProperty(value = "套餐名称", example = "体验包")
+    @ApiModelProperty(value = "套餐名称", example = "基础包")
     private String packageName;
 
-    @ApiModelProperty(value = "购买后增加次数", example = "10")
+    @ApiModelProperty(value = "购买后增加的工具点数", example = "100")
     private Integer useCount;
 
     @ApiModelProperty(value = "现金金额", example = "9.90")
@@ -23,8 +23,14 @@ public class ToolPurchasePackageVO {
     @ApiModelProperty(value = "积分金额", example = "100")
     private Integer pointAmount;
 
-    @ApiModelProperty(value = "支付类型：1-纯现金，3-现金+积分", example = "3")
+    @ApiModelProperty(value = "支付类型：1-纯现金，3-现金+积分", example = "1")
     private Integer payType;
+
+    @ApiModelProperty(value = "状态：0-停用，1-启用", example = "1")
+    private Integer status;
+
+    @ApiModelProperty(value = "排序", example = "10")
+    private Integer sortOrder;
 
     public Long getPackageId() {
         return packageId;
@@ -72,5 +78,21 @@ public class ToolPurchasePackageVO {
 
     public void setPayType(Integer payType) {
         this.payType = payType;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
+    public Integer getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
     }
 }

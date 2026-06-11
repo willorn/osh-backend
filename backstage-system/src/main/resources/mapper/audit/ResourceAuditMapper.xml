@@ -65,7 +65,7 @@
                 limit #{offset}, #{pageSize}
             </when>
             <when test="tableName == 'osh_tool'">
-                select id, tool_name as title, description, logo_url as cover, route_path as url,
+                select id, tool_name as title, description, null as cover, route_path as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_tool
                 where delete_flag = 0 and status in (0, 2)
@@ -204,7 +204,7 @@
                 limit 1
             </when>
             <when test="tableName == 'osh_tool'">
-                select id, tool_name as title, description, logo_url as cover, route_path as url,
+                select id, tool_name as title, description, null as cover, route_path as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_tool
                 where id = #{resourceId}

@@ -4,7 +4,6 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.mapper.tool.OshToolCollectionMapper;
 import com.backstage.system.mapper.tool.OshToolEsMapper;
 import com.backstage.system.mapper.tool.OshToolMapper;
-import com.backstage.system.mapper.tool.OshToolPackageMapper;
 import com.backstage.system.mapper.tool.OshToolTagMapper;
 import com.backstage.system.service.impl.tool.OshToolEsServiceImpl;
 import org.junit.Test;
@@ -37,9 +36,6 @@ public class OshToolEsServiceImplTest {
     private OshToolTagMapper oshToolTagMapper;
 
     @Mock
-    private OshToolPackageMapper oshToolPackageMapper;
-
-    @Mock
     private OshToolCollectionMapper oshToolCollectionMapper;
 
     @Test
@@ -54,7 +50,6 @@ public class OshToolEsServiceImplTest {
         when(oshToolMapper.selectAllToolsForEsSync()).thenReturn(Collections.singletonList(tool), Collections.emptyList());
         when(oshToolTagMapper.selectTagNamesByToolId(10001L)).thenReturn(Collections.singletonList("PDF工具"));
         when(oshToolTagMapper.selectTagIdsByToolId(10001L)).thenReturn(Collections.singletonList(1L));
-        when(oshToolPackageMapper.selectPackagesByToolId(10001L)).thenReturn(Collections.emptyList());
         when(oshToolEsMapper.bulkUpsertTools(anyList())).thenReturn(1);
 
         int count = oshToolEsService.syncAllToolsToEs();
