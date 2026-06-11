@@ -15,8 +15,10 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.vo.tool.ToolCalculatorResultVO;
 import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
+import com.backstage.system.request.tool.ToolCalculatorRequest;
 import com.backstage.system.request.tool.ToolCollectionRequest;
 import com.backstage.system.request.tool.ToolDeleteRequest;
 import com.backstage.system.request.tool.ToolRecommendRequest;
@@ -306,11 +308,26 @@ public class OshToolController extends BaseController {
         }
     }
 
+    @ApiOperation("工具计算器计算")
+    @PostMapping("/calculator/calculate")
+    @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "使用", resourceType = ResourceType.TOOL_TYPE, description = "使用计算器工具")
+    public R<ToolCalculatorResultVO> calculateTool(@Validated @RequestBody ToolCalculatorRequest request) {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        try {
+            return R.ok(oshToolService.calculateTool(currentOshUser.getId(), request));
+        } catch (IllegalArgumentException | ServiceException ex) {
+            return R.fail(ex.getMessage());
+        }
+    }
+
     @ApiOperation("校验工具使用与扣费权限")
     @PostMapping("/use/check")
     @OshUserLevel(value = 1)
     @OshUserEvent(module = "工具模块", actionType = "查询", resourceType = ResourceType.TOOL_TYPE, description = "校验工具使用权限")
-    @PreAuthorize("hasAuthority('tool:use:consume')")
     public R<ToolUsagePermission> checkToolUsagePermission(@Validated @RequestBody ToolUsageConsumeRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {
@@ -330,7 +347,6 @@ public class OshToolController extends BaseController {
     @ApiOperation("点赞工具")
     @PostMapping("/vote/good")
     @OshUserEvent(module = "工具模块", actionType = "点赞", resourceType = ResourceType.TOOL_TYPE, description = "点赞工具")
-    @PreAuthorize("hasAuthority('tool:vote:good')")
     @OshUserLevel(value = 1)
     public R<Integer> voteGoodTool(@Validated @RequestBody ToolVoteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -349,7 +365,6 @@ public class OshToolController extends BaseController {
     @PostMapping("/vote/bad")
     @OshUserLevel(value = 1)
     @OshUserEvent(module = "工具模块", actionType = "评价", resourceType = ResourceType.TOOL_TYPE, description = "差评工具")
-    @PreAuthorize("hasAuthority('tool:vote:bad')")
     public R<Integer> voteBadTool(@Validated @RequestBody ToolVoteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         if (currentOshUser == null) {

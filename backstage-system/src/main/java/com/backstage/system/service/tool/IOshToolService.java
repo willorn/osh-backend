@@ -4,7 +4,9 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.vo.tool.ToolCalculatorResultVO;
 import com.backstage.system.request.tool.ToolRecommendRequest;
+import com.backstage.system.request.tool.ToolCalculatorRequest;
 import com.backstage.system.request.tool.ToolSaveRequest;
 import com.backstage.system.request.tool.ToolSearchRequest;
 import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
@@ -30,6 +32,10 @@ public interface IOshToolService {
     OshTool getToolDetail(Long toolId, Long userId);
 
     ToolUsagePermission checkToolUsagePermission(Long userId, Integer userLevel, Long toolId);
+
+    Boolean canUseTool(Long userId, Long toolId);
+
+    ToolCalculatorResultVO calculateTool(Long userId, ToolCalculatorRequest request);
 
     Integer consumeToolUsage(Long userId, Integer userLevel, String operator, Long toolId);
 

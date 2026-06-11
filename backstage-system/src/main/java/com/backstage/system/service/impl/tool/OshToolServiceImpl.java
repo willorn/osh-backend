@@ -7,6 +7,7 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.vo.tool.ToolCalculatorResultVO;
 import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
 import com.backstage.system.mapper.tool.OshToolCollectionMapper;
 import com.backstage.system.mapper.tool.OshToolMapper;
@@ -14,6 +15,7 @@ import com.backstage.system.mapper.tool.OshToolQuotaMapper;
 import com.backstage.system.mapper.tool.OshToolTagMapper;
 import com.backstage.system.mapper.tool.OshToolVoteMapper;
 import com.backstage.system.domain.tool.OshToolVote;
+import com.backstage.system.request.tool.ToolCalculatorRequest;
 import com.backstage.system.request.tool.ToolRecommendRequest;
 import com.backstage.system.request.tool.ToolSaveRequest;
 import com.backstage.system.request.tool.ToolSearchRequest;
@@ -25,12 +27,15 @@ import com.backstage.system.service.tool.ToolIndexDeleteMessage;
 import com.backstage.system.service.tool.ToolIndexEventType;
 import com.backstage.system.service.tool.ToolIndexMessage;
 import com.backstage.system.utils.ResourcePermissionUtil;
+import com.backstage.system.utils.UserContextUtil;
 import com.github.pagehelper.PageHelper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -214,6 +219,84 @@ public class OshToolServiceImpl implements IOshToolService {
             throw new ServiceException("工具不存在");
         }
         return buildToolUsagePermission(tool, userId, userLevel);
+    }
+
+    @Override
+    public Boolean canUseTool(Long userId, Long toolId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("请先登录");
+        }
+        if (toolId == null) {
+            throw new IllegalArgumentException("工具ID不能为空");
+        }
+        OshTool tool = oshToolMapper.selectToolById(toolId);
+        if (tool == null) {
+            throw new ServiceException("工具不存在");
+        }
+        if (!isPackageEnabledResourceType(tool.getResourceType())) {
+            return true;
+        }
+        Integer currentLevel = UserContextUtil.getCurrentLevelSafely();
+        int requiredLevel = tool.getLevel() == null ? 0 : tool.getLevel();
+        if (currentLevel != null && currentLevel > requiredLevel) {
+            return true;
+        }
+        Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
+        int value = remainingCount == null ? 0 : remainingCount;
+        return value >= resolveConsumeCount(tool);
+    }
+
+    @Override
+    public ToolCalculatorResultVO calculateTool(Long userId, ToolCalculatorRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("计算参数不能为空");
+        }
+        if (!Boolean.TRUE.equals(canUseTool(userId, request.getToolId()))) {
+            throw new ServiceException("工具使用次数不足");
+        }
+        OshTool tool = oshToolMapper.selectToolById(request.getToolId());
+        if (tool == null) {
+            throw new ServiceException("工具不存在");
+        }
+        OshUser currentUser = UserContextUtil.getCurrentUser();
+        String currentOperator = currentUser == null ? "system" : currentUser.getUsername();
+        int currentLevel = UserContextUtil.getCurrentLevelSafely();
+        int requiredLevel = tool.getLevel() == null ? 0 : tool.getLevel();
+        if (isPackageEnabledResourceType(tool.getResourceType()) && currentLevel <= requiredLevel) {
+            Integer consumeCount = resolveConsumeCount(tool);
+            if (oshToolMapper.consumeUserGlobalQuota(userId, consumeCount, currentOperator) <= 0) {
+                throw new ServiceException("工具使用次数不足");
+            }
+        }
+        oshToolMapper.increaseTotalUsage(request.getToolId());
+        saveToolIndexEvent(request.getToolId(), ToolIndexEventType.TOOL_INDEX_COUNTER, currentOperator);
+        BigDecimal leftValue = request.getLeftValue();
+        BigDecimal rightValue = request.getRightValue();
+        String operator = StringUtils.trimToEmpty(request.getOperator());
+        if (leftValue == null || rightValue == null) {
+            throw new IllegalArgumentException("计算数字不能为空");
+        }
+        ToolCalculatorResultVO resultVO = new ToolCalculatorResultVO();
+        switch (operator) {
+            case "+":
+                resultVO.setResult(leftValue.add(rightValue));
+                break;
+            case "-":
+                resultVO.setResult(leftValue.subtract(rightValue));
+                break;
+            case "*":
+                resultVO.setResult(leftValue.multiply(rightValue));
+                break;
+            case "/":
+                if (BigDecimal.ZERO.compareTo(rightValue) == 0) {
+                    throw new IllegalArgumentException("除数不能为0");
+                }
+                resultVO.setResult(leftValue.divide(rightValue, 8, RoundingMode.HALF_UP).stripTrailingZeros());
+                break;
+            default:
+                throw new IllegalArgumentException("暂不支持该运算符");
+        }
+        return resultVO;
     }
 
     @Override
@@ -436,10 +519,12 @@ public class OshToolServiceImpl implements IOshToolService {
             return permission;
         }
         permission.setUseAllowed(true);
-        if (!isPackageEnabledResourceType(tool.getResourceType())) {
+        int currentLevel = userLevel == null ? 0 : userLevel;
+        int requiredLevel = tool.getLevel() == null ? 0 : tool.getLevel();
+        if (!isPackageEnabledResourceType(tool.getResourceType()) || currentLevel > requiredLevel) {
             permission.setDeductAllowed(false);
             permission.setRemainingCount(0);
-            permission.setMessage("允许使用");
+            permission.setMessage("允许免费使用");
             return permission;
         }
         Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
