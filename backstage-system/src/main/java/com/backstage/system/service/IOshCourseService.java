@@ -8,6 +8,8 @@ import com.backstage.system.domain.course.OshCourse;
 import com.backstage.system.domain.user.OshUser;
 import com.backstage.system.request.CourseCreateRequest;
 import com.backstage.system.request.CourseChapterCreateRequest;
+import com.backstage.system.request.CourseLinkSectionCreateRequest;
+import com.backstage.system.request.CourseSectionReorderRequest;
 import com.backstage.system.request.CourseSearchRequest;
 import com.backstage.system.request.CourseTextSectionCreateRequest;
 import com.backstage.system.request.CourseUpdateRequest;
@@ -105,6 +107,10 @@ public interface IOshCourseService {
     boolean safeDeleteSection(Long courseId, Long sectionId, OshUser currentOshUser);
 
     void updateCourseChapter(CourseChapterCreateRequest request, OshUser currentOshUser);
+
+    void reorderSections(CourseSectionReorderRequest request, OshUser currentOshUser);
+
+    Long createCourseLinkSection(CourseLinkSectionCreateRequest request, OshUser currentOshUser);
 
     void deleteCoursesByIds(List<Long> ids, OshUser currentOshUser);
 

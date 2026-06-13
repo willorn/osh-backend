@@ -214,6 +214,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="fileSize" column="file_size"/>
         <result property="subtitleUrl" column="subtitle_url"/>
         <result property="type" column="type"/>
+        <result property="linkedCourseId" column="linked_course_id"/>
         <result property="status" column="status"/>
         <result property="examId" column="exam_id"/>
         <result property="deleteFlag" column="delete_flag"/>
@@ -241,6 +242,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="fileSize" column="file_size"/>
         <result property="subtitleUrl" column="subtitle_url"/>
         <result property="type" column="type"/>
+        <result property="linkedCourseId" column="linked_course_id"/>
         <result property="status" column="status"/>
         <result property="examId" column="exam_id"/>
         <result property="deleteFlag" column="delete_flag"/>
@@ -340,11 +342,25 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="textContent != null and textContent != ''">text_content = #{textContent},</if>
             <if test="fileSize != null">file_size = #{fileSize},</if>
             <if test="sort != null">sort = #{sort},</if>
+            <if test="type != null and type != ''">type = #{type},</if>
+            <if test="linkedCourseId != null">linked_course_id = #{linkedCourseId},</if>
             <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
             update_time = now(),
         </trim>
         where id = #{id}
         and delete_flag = 0
+    </update>
+
+    <!-- 拖拽排序专用：只更新 parent_id 与 sort，不动其它字段 -->
+    <update id="updateSectionOrder">
+        update osh_course_section
+        set parent_id = #{parentId},
+            sort = #{sort},
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            update_time = now()
+        where id = #{id}
+          and course_id = #{courseId}
+          and delete_flag = 0
     </update>
 
     <update id="deleteSectionsByCourseId">
@@ -567,6 +583,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                s.file_size,
                s.subtitle_url,
                s.type,
+               s.linked_course_id,
                s.status,
                s.exam_id,
                s.delete_flag,
@@ -638,6 +655,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                s.file_size,
                s.subtitle_url,
                s.type,
+               s.linked_course_id,
                s.status,
                s.exam_id,
                s.delete_flag,
@@ -878,6 +896,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="videoResolution != null and videoResolution != ''">video_resolution,</if>
             <if test="fileSize != null">file_size,</if>
             <if test="type != null and type != ''">type,</if>
+            <if test="linkedCourseId != null">linked_course_id,</if>
             <if test="status != null">status,</if>
             <if test="examId != null">exam_id,</if>
             <if test="deleteFlag != null">delete_flag,</if>
@@ -902,6 +921,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="videoResolution != null and videoResolution != ''">#{videoResolution},</if>
             <if test="fileSize != null">#{fileSize},</if>
             <if test="type != null and type != ''">#{type},</if>
+            <if test="linkedCourseId != null">#{linkedCourseId},</if>
             <if test="status != null">#{status},</if>
             <if test="examId != null">#{examId},</if>
             <if test="deleteFlag != null">#{deleteFlag},</if>
