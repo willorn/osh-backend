@@ -6,24 +6,16 @@
   "mappings": {
     "dynamic": false,
     "properties": {
-      "id": {
-        "type": "long"
-      },
+      "id": { "type": "long" },
       "toolName": {
         "type": "text",
         "analyzer": "ik_max_word",
         "search_analyzer": "ik_smart",
         "fields": {
-          "keyword": {
-            "type": "keyword",
-            "ignore_above": 256
-          }
+          "keyword": { "type": "keyword", "ignore_above": 256 }
         }
       },
-      "no": {
-        "type": "keyword",
-        "ignore_above": 64
-      },
+      "no": { "type": "keyword", "ignore_above": 64 },
       "description": {
         "type": "text",
         "analyzer": "ik_max_word",
@@ -34,113 +26,28 @@
         "analyzer": "ik_max_word",
         "search_analyzer": "ik_smart"
       },
-      "routePath": {
-        "type": "keyword",
-        "ignore_above": 256
-      },
-      "githubUrl": {
-        "type": "keyword",
-        "ignore_above": 512
-      },
-      "resourceType": {
-        "type": "keyword",
-        "ignore_above": 64
-      },
-      "level": {
-        "type": "integer"
-      },
-      "status": {
-        "type": "integer"
-      },
-      "deleteFlag": {
-        "type": "integer"
-      },
-      "tagIds": {
-        "type": "long"
-      },
-      "tagNames": {
-        "type": "keyword",
-        "ignore_above": 128
-      },
+      "routePath": { "type": "keyword", "ignore_above": 256 },
+      "githubUrl": { "type": "keyword", "ignore_above": 512 },
+      "resourceType": { "type": "keyword", "ignore_above": 64 },
+      "quotaCost": { "type": "integer" },
+      "level": { "type": "integer" },
+      "status": { "type": "integer" },
+      "deleteFlag": { "type": "integer" },
+      "tagIds": { "type": "long" },
+      "tagNames": { "type": "keyword", "ignore_above": 128 },
       "tagNamesText": {
         "type": "text",
         "analyzer": "ik_max_word",
         "search_analyzer": "ik_smart"
       },
-      "minPackagePrice": {
-        "type": "scaled_float",
-        "scaling_factor": 100
-      },
-      "minPackageUseCount": {
-        "type": "integer"
-      },
-      "packageCount": {
-        "type": "integer"
-      },
-      "packages": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "long"
-          },
-          "packageName": {
-            "type": "text",
-            "analyzer": "ik_max_word",
-            "search_analyzer": "ik_smart",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "ignore_above": 256
-              }
-            }
-          },
-          "useCount": {
-            "type": "integer"
-          },
-          "price": {
-            "type": "scaled_float",
-            "scaling_factor": 100
-          },
-          "pointCost": {
-            "type": "integer"
-          },
-          "payType": {
-            "type": "integer"
-          },
-          "status": {
-            "type": "integer"
-          },
-          "sortOrder": {
-            "type": "integer"
-          }
-        }
-      },
-      "viewCount": {
-        "type": "long"
-      },
-      "totalUsage": {
-        "type": "long"
-      },
-      "collectionCount": {
-        "type": "integer"
-      },
-      "goodCount": {
-        "type": "integer"
-      },
-      "badCount": {
-        "type": "integer"
-      },
-      "hotScore": {
-        "type": "double"
-      },
-      "createBy": {
-        "type": "keyword",
-        "ignore_above": 128
-      },
-      "updateBy": {
-        "type": "keyword",
-        "ignore_above": 128
-      },
+      "viewCount": { "type": "long" },
+      "totalUsage": { "type": "long" },
+      "collectionCount": { "type": "integer" },
+      "goodCount": { "type": "integer" },
+      "badCount": { "type": "integer" },
+      "hotScore": { "type": "double" },
+      "createBy": { "type": "keyword", "ignore_above": 128 },
+      "updateBy": { "type": "keyword", "ignore_above": 128 },
       "createTime": {
         "type": "date",
         "format": "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd HH:mm:ss.SSS||strict_date_optional_time||epoch_millis"

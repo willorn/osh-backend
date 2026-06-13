@@ -4,10 +4,8 @@ import com.backstage.common.response.PageResponse;
 import com.backstage.common.utils.StringUtils;
 import com.backstage.system.config.properties.SearchEsProperties;
 import com.backstage.system.domain.tool.OshTool;
-import com.backstage.system.domain.tool.OshToolPackage;
 import com.backstage.system.request.tool.ToolSearchRequest;
 import com.backstage.system.service.tool.ToolIndexMessage;
-import com.backstage.system.service.tool.ToolIndexPackageMessage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.util.EntityUtils;
@@ -40,7 +38,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Component
 public class OshToolEsMapper {
@@ -183,6 +180,7 @@ public class OshToolEsMapper {
         tool.setRoutePath(document.getRoutePath());
         tool.setGithubUrl(document.getGithubUrl());
         tool.setResourceType(document.getResourceType());
+        tool.setQuotaCost(document.getQuotaCost());
         tool.setLevel(document.getLevel());
         tool.setStatus(document.getStatus());
         tool.setDeleteFlag(document.getDeleteFlag());
@@ -192,7 +190,6 @@ public class OshToolEsMapper {
         tool.setCollectionCount(document.getCollectionCount());
         tool.setGoodCount(document.getGoodCount());
         tool.setBadCount(document.getBadCount());
-        tool.setPackages(toToolPackages(document));
         tool.setCreateBy(document.getCreateBy());
         tool.setUpdateBy(document.getUpdateBy());
         tool.setCreateTime(document.getCreateTime());
@@ -232,26 +229,5 @@ public class OshToolEsMapper {
                     .optionalEnd()
                     .toFormatter());
         }
-    }
-
-    private List<OshToolPackage> toToolPackages(ToolIndexMessage document) {
-        if (StringUtils.isEmpty(document.getPackages())) {
-            return Collections.emptyList();
-        }
-        return document.getPackages().stream()
-                .map(item -> toToolPackage(document.getId(), item))
-                .collect(Collectors.toList());
-    }
-
-    private OshToolPackage toToolPackage(Long toolId, ToolIndexPackageMessage item) {
-        OshToolPackage toolPackage = new OshToolPackage();
-        toolPackage.setId(item.getId());
-        toolPackage.setToolId(toolId);
-        toolPackage.setPackageName(item.getPackageName());
-        toolPackage.setUseCount(item.getUseCount());
-        toolPackage.setPrice(item.getPrice());
-        toolPackage.setStatus(item.getStatus());
-        toolPackage.setSortOrder(item.getSortOrder());
-        return toolPackage;
     }
 }

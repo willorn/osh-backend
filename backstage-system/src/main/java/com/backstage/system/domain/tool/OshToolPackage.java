@@ -9,22 +9,19 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 工具使用次数套餐对象 osh_tool_package
+ * 工具点数套餐对象 osh_tool_package
  */
-@ApiModel(description = "工具使用次数套餐")
+@ApiModel(description = "工具点数套餐")
 @TableName("osh_tool_package")
 public class OshToolPackage {
 
     @ApiModelProperty("套餐ID")
     private Long id;
 
-    @ApiModelProperty("工具ID")
-    private Long toolId;
-
     @ApiModelProperty("套餐名称")
     private String packageName;
 
-    @ApiModelProperty("购买后增加的使用次数")
+    @ApiModelProperty("购买后增加的工具点数")
     private Integer useCount;
 
     @ApiModelProperty("现金价格")
@@ -65,14 +62,6 @@ public class OshToolPackage {
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    public Long getToolId() {
-        return toolId;
-    }
-
-    public void setToolId(Long toolId) {
-        this.toolId = toolId;
     }
 
     public String getPackageName() {

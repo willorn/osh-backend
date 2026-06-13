@@ -9,12 +9,16 @@ import java.util.UUID;
 import com.backstage.common.config.PayConfig;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.domain.course.OshCourse;
+import com.backstage.system.domain.order.enums.ProductTypeEnum;
 import com.backstage.system.domain.vo.order.PayResponse;
 import com.backstage.system.mapper.course.CourseBuyMapper;
 import com.backstage.system.mapper.course.OshCourseMapper;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.course.ICoursePayService;
 import com.backstage.system.utils.SignUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -32,6 +36,7 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 public class CoursePayServiceImpl implements ICoursePayService {
+    private static final Logger log = LoggerFactory.getLogger(CoursePayServiceImpl.class);
 
     private static final String PAY_TYPE_WECHAT = "wxpay";
     private static final String PAY_TYPE_ALIPAY = "alipay";
@@ -47,6 +52,9 @@ public class CoursePayServiceImpl implements ICoursePayService {
 
     @Autowired
     private PayConfig payConfig;
+
+    @Autowired
+    private ContributionService contributionService;
 
     @Override
     public PayResponse createCoursePay(Long courseId, String payType, String clientIp, Long userId) {
@@ -134,7 +142,11 @@ public class CoursePayServiceImpl implements ICoursePayService {
             }
             boolean paid = isGatewayPaid(res);
             if (paid) {
-                courseBuyMapper.markPaidByOrderNoAndUserId(outTradeNo, userId);
+                Map<String, Object> courseBuy = courseBuyMapper.selectByOrderNoAndUserId(outTradeNo, userId);
+                int updated = courseBuyMapper.markPaidByOrderNoAndUserId(outTradeNo, userId);
+                if (updated > 0) {
+                    recordCourseRevenue(courseBuy, outTradeNo, userId);
+                }
             }
             return paid;
         } catch (Exception e) {
@@ -176,6 +188,57 @@ public class CoursePayServiceImpl implements ICoursePayService {
                 || isPaidValue(dataStatus)
                 || isPaidValue(dataTradeStatus)
                 || ("1".equals(String.valueOf(topCode)) && (isPaidValue(topStatus) || isPaidValue(dataStatus)));
+    }
+
+    private void recordCourseRevenue(Map<String, Object> courseBuy, String outTradeNo, Long userId) {
+        if (courseBuy == null) {
+            return;
+        }
+        try {
+            contributionService.recordRevenue(
+                    ProductTypeEnum.COURSE.getName(),
+                    toLong(courseBuy.get("courseId")),
+                    toLong(courseBuy.get("id")),
+                    outTradeNo,
+                    userId,
+                    toBigDecimal(courseBuy.get("payPrice")),
+                    0L,
+                    ProductTypeEnum.COURSE.getName()
+            );
+        } catch (Exception e) {
+            log.warn("record course contribution revenue failed, orderNo={}, userId={}", outTradeNo, userId, e);
+        }
+    }
+
+    private Long toLong(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.valueOf(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        }
+        if (value instanceof Number) {
+            return BigDecimal.valueOf(((Number) value).doubleValue());
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (NumberFormatException e) {
+            return BigDecimal.ZERO;
+        }
     }
 
     private boolean isPaidValue(Object raw) {

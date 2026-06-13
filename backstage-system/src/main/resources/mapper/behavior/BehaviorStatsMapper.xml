@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.backstage.system.mapper.behavior.BehaviorStatsMapper">
+
+    <sql id="eventWhere">
+        <where>
+            <if test="query.userId != null">
+                and user_id = #{query.userId}
+            </if>
+            <if test="query.username != null and query.username != ''">
+                and username like concat('%', #{query.username}, '%')
+            </if>
+            <if test="query.roleLevel != null">
+                and role_level = #{query.roleLevel}
+            </if>
+            <if test="query.module != null and query.module != ''">
+                and module = #{query.module}
+            </if>
+            <if test="query.actionType != null and query.actionType != ''">
+                and action_type = #{query.actionType}
+            </if>
+            <if test="query.resourceType != null and query.resourceType != ''">
+                and resource_type = #{query.resourceType}
+            </if>
+            <if test="query.status != null and query.status != ''">
+                and status = #{query.status}
+            </if>
+            <if test="query.startTime != null and query.startTime != ''">
+                and happen_time &gt;= #{query.startTime}
+            </if>
+            <if test="query.endTime != null and query.endTime != ''">
+                and happen_time &lt;= #{query.endTime}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectEventPage" resultType="java.util.LinkedHashMap">
+        select
+            id,
+            user_id as userId,
+            username,
+            role,
+            role_level as roleLevel,
+            module,
+            method_name as methodName,
+            action_type as actionType,
+            resource_id as resourceId,
+            resource_type as resourceType,
+            resource_name as resourceName,
+            description,
+            status,
+            exception,
+            request_uri as requestUri,
+            request_method as requestMethod,
+            ip,
+            user_agent as userAgent,
+            duration_ms as durationMs,
+            result_code as resultCode,
+            current_point as currentPoint,
+            contribution,
+            happen_time as happenTime
+        from osh_user_action_event
+        <include refid="eventWhere"/>
+        order by happen_time desc, id desc
+    </select>
+
+    <select id="selectSummary" resultType="java.util.LinkedHashMap">
+        select
+            count(1) as totalEvents,
+            count(distinct user_id) as activeUsers,
+            sum(case
+                when status is null then 0
+                when result_code = '1000' then 0
+                when status in ('SUCCESS', '成功', '操作成功', '0') then 0
+                else 1
+            end) as failedEvents,
+            sum(case when contribution = 1 then 1 else 0 end) as contributionEvents,
+            ifnull(avg(duration_ms), 0) as avgDurationMs
+        from osh_user_action_event
+        <include refid="eventWhere"/>
+    </select>
+
+    <select id="selectTrend" resultType="java.util.LinkedHashMap">
+        select
+            <choose>
+                <when test="grain == 'hour'">date_format(happen_time, '%Y-%m-%d %H:00')</when>
+                <otherwise>date_format(happen_time, '%Y-%m-%d')</otherwise>
+            </choose>
+            as label,
+            count(1) as value,
+            count(distinct user_id) as activeUsers
+        from osh_user_action_event
+        <include refid="eventWhere"/>
+        group by label
+        order by label asc
+    </select>
+
+    <select id="selectModuleDistribution" resultType="java.util.LinkedHashMap">
+        select module as label, count(1) as value
+        from osh_user_action_event
+        <include refid="eventWhere"/>
+        group by module
+        order by value desc
+        limit 20
+    </select>
+
+    <select id="selectActionDistribution" resultType="java.util.LinkedHashMap">
+        select action_type as label, count(1) as value
+        from osh_user_action_event
+        <include refid="eventWhere"/>
+        group by action_type
+        order by value desc
+        limit 20
+    </select>
+
+    <select id="selectActiveUserRank" resultType="java.util.LinkedHashMap">
+        select
+            user_id as userId,
+            max(username) as username,
+            max(role) as roleCode,
+            max(role_level) as roleLevel,
+            count(1) as eventCount,
+            max(happen_time) as lastHappenTime
+        from osh_user_action_event
+        <include refid="eventWhere"/>
+        group by user_id
+        order by eventCount desc
+        limit 30
+    </select>
+
+    <sql id="contributionWhere">
+        <where>
+            c.delete_flag = 0
+            and c.status = 1
+            <if test="query.contributorUserId != null">
+                and c.contributor_user_id = #{query.contributorUserId}
+            </if>
+            <if test="query.resourceType != null and query.resourceType != ''">
+                and c.resource_type = #{query.resourceType}
+            </if>
+            <if test="query.startTime != null and query.startTime != ''">
+                and c.create_time &gt;= #{query.startTime}
+            </if>
+            <if test="query.endTime != null and query.endTime != ''">
+                and c.create_time &lt;= #{query.endTime}
+            </if>
+        </where>
+    </sql>
+
+    <sql id="resourceMetrics">
+        select 'course' as resource_type,
+               id as resource_id,
+               ifnull(buy_count, 0) + ifnull(sales_count, 0) as purchase_count,
+               ifnull(view_count, 0) as view_count,
+               ifnull(collection_count, 0) as collect_count,
+               ifnull(like_count, 0) + ifnull(good_count, 0) as like_count,
+               0 as use_count
+        from osh_course
+        where ifnull(delete_flag, 0) = 0
+        union all
+        select 'book' as resource_type,
+               id as resource_id,
+               0 as purchase_count,
+               0 as view_count,
+               ifnull(sub_count, 0) as collect_count,
+               0 as like_count,
+               0 as use_count
+        from osh_book
+        where ifnull(delete_flag, 0) = 0
+        union all
+        select 'tool' as resource_type,
+               id as resource_id,
+               0 as purchase_count,
+               ifnull(view_count, 0) as view_count,
+               ifnull(collection_count, 0) as collect_count,
+               ifnull(good_count, 0) as like_count,
+               ifnull(total_usage, 0) as use_count
+        from osh_tool
+        where ifnull(delete_flag, 0) = 0
+        union all
+        select 'info_gap' as resource_type,
+               id as resource_id,
+               0 as purchase_count,
+               ifnull(view_count, 0) as view_count,
+               ifnull(collect_count, 0) as collect_count,
+               ifnull(good_count, 0) as like_count,
+               0 as use_count
+        from osh_info_gap
+        where ifnull(delete_flag, 0) = 0
+        union all
+        select 'website' as resource_type,
+               id as resource_id,
+               0 as purchase_count,
+               ifnull(click_count, 0) as view_count,
+               ifnull(collection_count, 0) as collect_count,
+               ifnull(good_count, 0) as like_count,
+               0 as use_count
+        from osh_practical_website
+        where ifnull(delete_flag, 0) = 0
+        union all
+        select 'open_project' as resource_type,
+               id as resource_id,
+               0 as purchase_count,
+               ifnull(click_count, 0) as view_count,
+               0 as collect_count,
+               ifnull(star_count, 0) as like_count,
+               0 as use_count
+        from osh_open_project
+        where ifnull(delete_flag, 0) = 0
+    </sql>
+
+    <sql id="contributionPointExpression">
+        (
+            #{query.baseCoefficient}
+            + ifnull(rv.revenue_amount, 0) * #{query.cashRevenueCoefficient}
+            + ifnull(rv.point_amount, 0) * #{query.pointRevenueCoefficient}
+            + ifnull(m.purchase_count, 0) * #{query.purchaseCoefficient}
+            + ifnull(m.view_count, 0) * #{query.viewCoefficient}
+            + ifnull(m.collect_count, 0) * #{query.collectCoefficient}
+            + ifnull(m.like_count, 0) * #{query.likeCoefficient}
+            + ifnull(m.use_count, 0) * #{query.useCoefficient}
+        )
+    </sql>
+
+    <sql id="revenueAggJoin">
+        left join (
+            select contribution_id,
+                   ifnull(sum(revenue_amount), 0) as revenue_amount,
+                   ifnull(sum(point_amount), 0) as point_amount,
+                   count(id) as revenue_count
+            from osh_resource_revenue_record
+            where delete_flag = 0
+            group by contribution_id
+        ) rv on rv.contribution_id = c.id
+    </sql>
+
+    <sql id="resourceMetricsJoin">
+        left join (
+            <include refid="resourceMetrics"/>
+        ) m on m.resource_type = c.resource_type and m.resource_id = c.resource_id
+    </sql>
+
+    <select id="selectContributionSummary" resultType="java.util.LinkedHashMap">
+        select
+            c.contributor_user_id as contributorUserId,
+            max(c.contributor_username) as contributorUsername,
+            max(c.contributor_role_level) as contributorRoleLevel,
+            count(distinct c.id) as resourceCount,
+            ifnull(sum(rv.revenue_amount), 0) as revenueAmount,
+            ifnull(sum(rv.point_amount), 0) as pointAmount,
+            ifnull(sum(rv.revenue_count), 0) as revenueCount,
+            ifnull(sum(ifnull(m.purchase_count, 0)), 0) as purchaseCount,
+            ifnull(sum(ifnull(m.view_count, 0)), 0) as viewCount,
+            ifnull(sum(ifnull(m.collect_count, 0)), 0) as collectCount,
+            ifnull(sum(ifnull(m.like_count, 0)), 0) as likeCount,
+            ifnull(sum(ifnull(m.use_count, 0)), 0) as useCount,
+            round(ifnull(sum(<include refid="contributionPointExpression"/>), 0), 2) as contributionPoints
+        from osh_resource_contribution c
+        <include refid="revenueAggJoin"/>
+        <include refid="resourceMetricsJoin"/>
+        <include refid="contributionWhere"/>
+        group by c.contributor_user_id
+        order by contributionPoints desc, revenueAmount desc, resourceCount desc
+    </select>
+
+    <select id="selectContributionResources" resultType="java.util.LinkedHashMap">
+        select
+            c.id,
+            c.contributor_user_id as contributorUserId,
+            c.contributor_username as contributorUsername,
+            c.contributor_role_level as contributorRoleLevel,
+            c.resource_type as resourceType,
+            c.resource_id as resourceId,
+            c.resource_name as resourceName,
+            c.status,
+            c.create_time as createTime,
+            ifnull(rv.revenue_amount, 0) as revenueAmount,
+            ifnull(rv.point_amount, 0) as pointAmount,
+            ifnull(rv.revenue_count, 0) as revenueCount,
+            ifnull(m.purchase_count, 0) as purchaseCount,
+            ifnull(m.view_count, 0) as viewCount,
+            ifnull(m.collect_count, 0) as collectCount,
+            ifnull(m.like_count, 0) as likeCount,
+            ifnull(m.use_count, 0) as useCount,
+            round(<include refid="contributionPointExpression"/>, 2) as contributionPoints
+        from osh_resource_contribution c
+        <include refid="revenueAggJoin"/>
+        <include refid="resourceMetricsJoin"/>
+        <include refid="contributionWhere"/>
+        order by contributionPoints desc, revenueAmount desc, c.create_time desc
+    </select>
+
+    <select id="selectContributionRevenueDetails" resultType="java.util.LinkedHashMap">
+        select
+            r.id,
+            r.contribution_id as contributionId,
+            c.contributor_user_id as contributorUserId,
+            c.contributor_username as contributorUsername,
+            c.resource_type as resourceType,
+            c.resource_id as resourceId,
+            c.resource_name as resourceName,
+            r.order_id as orderId,
+            r.order_no as orderNo,
+            r.buyer_user_id as buyerUserId,
+            r.revenue_amount as revenueAmount,
+            r.point_amount as pointAmount,
+            r.biz_type as bizType,
+            r.revenue_time as revenueTime
+        from osh_resource_revenue_record r
+        join osh_resource_contribution c on c.id = r.contribution_id
+        <where>
+            r.delete_flag = 0
+            <if test="query.contributorUserId != null">
+                and c.contributor_user_id = #{query.contributorUserId}
+            </if>
+            <if test="query.resourceType != null and query.resourceType != ''">
+                and c.resource_type = #{query.resourceType}
+            </if>
+            <if test="query.startTime != null and query.startTime != ''">
+                and r.revenue_time &gt;= #{query.startTime}
+            </if>
+            <if test="query.endTime != null and query.endTime != ''">
+                and r.revenue_time &lt;= #{query.endTime}
+            </if>
+        </where>
+        order by r.revenue_time desc, r.id desc
+    </select>
+</mapper>

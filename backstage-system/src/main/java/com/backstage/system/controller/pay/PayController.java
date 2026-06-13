@@ -1,6 +1,7 @@
 package com.backstage.system.controller.pay;
 
 
+import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.vo.pay.OrderCheckoutReqVO;
 import com.backstage.system.domain.vo.pay.OrderCheckoutRespVO;
@@ -58,6 +59,8 @@ public class PayController {
      * @return 订单支付状态mmi
      */
     @GetMapping("/status")
+//    @PreAuthorize("hasAuthority('pay:status')")
+    @OshUserLevel(value = 1)
     public R<OrderStatusResult> status(@RequestParam String orderNo) {
         return R.ok(orderService.getOrderStatusForUser(orderNo, UserContextUtil.getCurrentUserIdSafely()));
     }

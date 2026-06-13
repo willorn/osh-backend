@@ -24,7 +24,7 @@
                 select id, title, intro as description, cover, null as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_course
-                where delete_flag = 0 and status = 0
+                where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (title like concat('%', #{keyword}, '%') or intro like concat('%', #{keyword}, '%'))
                 </if>
@@ -35,7 +35,7 @@
                 select id, content as title, content as description, null as cover, null as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_question_answer_question
-                where delete_flag = 0 and status = 0
+                where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and content like concat('%', #{keyword}, '%')
                 </if>
@@ -46,7 +46,7 @@
                 select id, content as title, content as description, null as cover, null as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_question_answer_answer
-                where delete_flag = 0 and status = 0
+                where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and content like concat('%', #{keyword}, '%')
                 </if>
@@ -57,7 +57,7 @@
                 select id, title, description, cover, null as url,
                        null as author, null as submit_time, level, cast(status as signed) as status, create_by, create_time
                 from osh_book
-                where del_flag = '0' and status = '0'
+                where del_flag = '0' and status in ('0', '2')
                 <if test="keyword != null and keyword != ''">
                     and (title like concat('%', #{keyword}, '%') or description like concat('%', #{keyword}, '%'))
                 </if>
@@ -65,10 +65,10 @@
                 limit #{offset}, #{pageSize}
             </when>
             <when test="tableName == 'osh_tool'">
-                select id, tool_name as title, description, logo_url as cover, route_path as url,
+                select id, tool_name as title, description, null as cover, route_path as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_tool
-                where delete_flag = 0 and status = 0
+                where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (tool_name like concat('%', #{keyword}, '%') or description like concat('%', #{keyword}, '%'))
                 </if>
@@ -79,7 +79,7 @@
                 select id, name as title, description, logo_url as cover, url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_practical_website
-                where delete_flag = 0 and status = 0
+                where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (name like concat('%', #{keyword}, '%') or description like concat('%', #{keyword}, '%') or url like concat('%', #{keyword}, '%'))
                 </if>
@@ -90,7 +90,7 @@
                 select id, project_name as title, project_desc as description, project_cover as cover, project_url as url,
                        author_name as author, create_time as submit_time, null as level, status, create_by, create_time
                 from osh_open_project
-                where delete_flag = 0 and status = 0
+                where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (project_name like concat('%', #{keyword}, '%') or project_desc like concat('%', #{keyword}, '%') or project_url like concat('%', #{keyword}, '%') or author_name like concat('%', #{keyword}, '%'))
                 </if>
@@ -120,43 +120,43 @@
     <select id="countPending" resultType="java.lang.Long">
         <choose>
             <when test="tableName == 'osh_course'">
-                select count(1) from osh_course where delete_flag = 0 and status = 0
+                select count(1) from osh_course where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (title like concat('%', #{keyword}, '%') or intro like concat('%', #{keyword}, '%'))
                 </if>
             </when>
             <when test="tableName == 'osh_question_answer_question'">
-                select count(1) from osh_question_answer_question where delete_flag = 0 and status = 0
+                select count(1) from osh_question_answer_question where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and content like concat('%', #{keyword}, '%')
                 </if>
             </when>
             <when test="tableName == 'osh_question_answer_answer'">
-                select count(1) from osh_question_answer_answer where delete_flag = 0 and status = 0
+                select count(1) from osh_question_answer_answer where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and content like concat('%', #{keyword}, '%')
                 </if>
             </when>
             <when test="tableName == 'osh_book'">
-                select count(1) from osh_book where del_flag = '0' and status = '0'
+                select count(1) from osh_book where del_flag = '0' and status in ('0', '2')
                 <if test="keyword != null and keyword != ''">
                     and (title like concat('%', #{keyword}, '%') or description like concat('%', #{keyword}, '%'))
                 </if>
             </when>
             <when test="tableName == 'osh_tool'">
-                select count(1) from osh_tool where delete_flag = 0 and status = 0
+                select count(1) from osh_tool where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (tool_name like concat('%', #{keyword}, '%') or description like concat('%', #{keyword}, '%'))
                 </if>
             </when>
             <when test="tableName == 'osh_practical_website'">
-                select count(1) from osh_practical_website where delete_flag = 0 and status = 0
+                select count(1) from osh_practical_website where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (name like concat('%', #{keyword}, '%') or description like concat('%', #{keyword}, '%') or url like concat('%', #{keyword}, '%'))
                 </if>
             </when>
             <when test="tableName == 'osh_open_project'">
-                select count(1) from osh_open_project where delete_flag = 0 and status = 0
+                select count(1) from osh_open_project where delete_flag = 0 and status in (0, 2)
                 <if test="keyword != null and keyword != ''">
                     and (project_name like concat('%', #{keyword}, '%') or project_desc like concat('%', #{keyword}, '%') or project_url like concat('%', #{keyword}, '%') or author_name like concat('%', #{keyword}, '%'))
                 </if>
@@ -204,7 +204,7 @@
                 limit 1
             </when>
             <when test="tableName == 'osh_tool'">
-                select id, tool_name as title, description, logo_url as cover, route_path as url,
+                select id, tool_name as title, description, null as cover, route_path as url,
                        null as author, null as submit_time, level, status, create_by, create_time
                 from osh_tool
                 where id = #{resourceId}
@@ -247,35 +247,35 @@
                 set status = #{status},
                     update_by = #{operator},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = 2
+                where id = #{resourceId} and delete_flag = 0 and status in (0, 2)
             </when>
             <when test="tableName == 'osh_question_answer_question'">
                 update osh_question_answer_question
                 set status = #{status},
                     update_by = #{operatorId},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = 2
+                where id = #{resourceId} and delete_flag = 0 and status in (0, 2)
             </when>
             <when test="tableName == 'osh_question_answer_answer'">
                 update osh_question_answer_answer
                 set status = #{status},
                     update_by = #{operatorId},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = 2
+                where id = #{resourceId} and delete_flag = 0 and status in (0, 2)
             </when>
             <when test="tableName == 'osh_book'">
                 update osh_book
                 set status = #{status},
                     update_by = #{operator},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = '2'
+                where id = #{resourceId} and delete_flag = 0 and status in ('0', '2')
             </when>
             <when test="tableName == 'osh_tool'">
                 update osh_tool
                 set status = #{status},
                     update_by = #{operator},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = 2
+                where id = #{resourceId} and delete_flag = 0 and status in (0, 2)
             </when>
             <when test="tableName == 'osh_practical_website'">
                 update osh_practical_website
@@ -284,14 +284,14 @@
                     audit_time = now(),
                     update_by = #{operator},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = 2
+                where id = #{resourceId} and delete_flag = 0 and status in (0, 2)
             </when>
             <when test="tableName == 'osh_open_project'">
                 update osh_open_project
                 set status = #{status},
                     update_by = #{operatorId},
                     update_time = now()
-                where id = #{resourceId} and delete_flag = 0 and status = 2
+                where id = #{resourceId} and delete_flag = 0 and status in (0, 2)
             </when>
             <when test="tableName == 'osh_info_gap'">
                 update osh_info_gap

@@ -1,5 +1,6 @@
 package com.backstage.system.request;
 
+import com.backstage.common.annotation.OshResourceId;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +17,7 @@ public class CourseChapterCreateRequest {
     private Long id;
 
     @ApiModelProperty(value = "课程ID", required = true, example = "100")
+    @OshResourceId
     private Long courseId;
 
     @ApiModelProperty(value = "章节标题", required = true, example = "第一章")
@@ -26,6 +28,28 @@ public class CourseChapterCreateRequest {
     @NotNull(message = "排序不能为空")
     @PositiveOrZero(message = "排序不能小于0")
     private Integer sort;
+
+    @ApiModelProperty(value = "章节类型：留空=普通章；course_link=引入课程作为章", example = "course_link")
+    private String type;
+
+    @ApiModelProperty(value = "引入的课程ID（type=course_link 时必填）", example = "100")
+    private Long linkedCourseId;
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = StringUtils.trimToNull(type);
+    }
+
+    public Long getLinkedCourseId() {
+        return linkedCourseId;
+    }
+
+    public void setLinkedCourseId(Long linkedCourseId) {
+        this.linkedCourseId = linkedCourseId;
+    }
 
     public Long getId() {
         return id;

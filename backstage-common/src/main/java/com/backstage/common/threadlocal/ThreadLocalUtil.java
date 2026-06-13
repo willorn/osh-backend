@@ -55,6 +55,13 @@ public class ThreadLocalUtil {
         THREAD_LOCAL.remove();
     }
 
+    public static void remove(String key) {
+        Map<String, Object> map = THREAD_LOCAL.get();
+        if (map != null) {
+            map.remove(key);
+        }
+    }
+
     public static long getCurrentUserId() {
         return Objects.requireNonNull(ThreadLocalUtil.get(OshUserConstants.USER_ID, Long.class), "user is not logged in");
     }

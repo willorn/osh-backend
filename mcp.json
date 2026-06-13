@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "zentao": {
+      "disabled": false,
+      "type": "mcp",
+      "url": "http://43.242.200.25:52002/zentao/mcp",
+      "timeout": 60000,
+      "headers": {
+        "token": "",
+        "Authorization": ""
+      },
+      "apiBaseUrl": "http://43.242.200.25:52001"
+    }
+  }
+}

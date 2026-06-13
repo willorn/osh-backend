@@ -1,6 +1,7 @@
 package com.backstage.system.mapper.course;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import org.apache.ibatis.annotations.Param;
 
 /**
@@ -19,6 +20,7 @@ public interface CourseBuyMapper {
                            @Param("payPrice") BigDecimal payPrice,
                            @Param("originPrice") BigDecimal originPrice);
 
+    Map<String, Object> selectByOrderNoAndUserId(@Param("orderNo") String orderNo, @Param("userId") Long userId);
+
     int markPaidByOrderNoAndUserId(@Param("orderNo") String orderNo, @Param("userId") Long userId);
 }
-

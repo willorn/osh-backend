@@ -1,7 +1,10 @@
 package com.backstage.system.domain.dto.info_gap;
 
+import com.backstage.common.annotation.OshResourceId;
+
 public class InfoGapVoteReqDTO {
 
+    @OshResourceId
     private Long id;
     private Integer type;
 

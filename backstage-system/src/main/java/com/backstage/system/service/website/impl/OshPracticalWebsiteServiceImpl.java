@@ -19,9 +19,11 @@ import com.backstage.system.domain.vo.website.OshPracticalWebsiteVO;
 import com.backstage.system.domain.vo.website.WebsiteImportResultVO;
 import com.backstage.system.domain.website.OshPracticalWebsite;
 import com.backstage.system.domain.website.WebsiteEsDoc;
+import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.mapper.website.OshPracticalWebsiteMapper;
 import com.backstage.system.mapper.website.OshWebsiteTagRelMapper;
 import com.backstage.system.mapper.website.OshWebsiteUserRatingMapper;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.website.OshPracticalWebsiteService;
 import com.backstage.system.service.website.OshWebsiteTagService;
 import com.backstage.system.utils.UserContextUtil;
@@ -81,6 +83,8 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
     @Autowired
     private WebsiteEsService websiteEsService;
 
+    @Autowired
+    private ContributionService contributionService;
     /**
      * 查询网站列表
      *
@@ -228,6 +232,7 @@ public class OshPracticalWebsiteServiceImpl implements OshPracticalWebsiteServic
         if (websiteResult <= 0) {
             throw new RuntimeException("网站数据保存失败");
         }
+        contributionService.recordContribution(ContributionResourceType.WEBSITE.getCode(), website.getId(), website.getName());
 
         // 5. 处理标签关联（tagNames 可选，为空则跳过）
         // 参考课程模块：标签不存在时自动创建，并维护 use_count

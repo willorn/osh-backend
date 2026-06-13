@@ -9,9 +9,7 @@
         <result property="orderNo" column="order_no"/>
         <result property="paymentNo" column="payment_no"/>
         <result property="userId" column="user_id"/>
-        <result property="toolId" column="tool_id"/>
         <result property="packageId" column="package_id"/>
-        <result property="toolNameSnapshot" column="tool_name_snapshot"/>
         <result property="packageNameSnapshot" column="package_name_snapshot"/>
         <result property="packageUseCountSnapshot" column="package_use_count_snapshot"/>
         <result property="packageCashAmountSnapshot" column="package_cash_amount_snapshot"/>
@@ -31,9 +29,7 @@
     <resultMap id="ToolPurchaseListVOResult" type="com.backstage.system.domain.vo.tool.ToolPurchaseListVO">
         <result property="orderNo" column="order_no"/>
         <result property="paymentNo" column="payment_no"/>
-        <result property="toolId" column="tool_id"/>
         <result property="packageId" column="package_id"/>
-        <result property="toolNameSnapshot" column="tool_name_snapshot"/>
         <result property="packageNameSnapshot" column="package_name_snapshot"/>
         <result property="packageUseCountSnapshot" column="package_use_count_snapshot"/>
         <result property="packageCashAmountSnapshot" column="package_cash_amount_snapshot"/>
@@ -46,8 +42,8 @@
     </resultMap>
 
     <sql id="purchaseRecordColumns">
-        id, order_no, payment_no, user_id, tool_id, package_id,
-        tool_name_snapshot, package_name_snapshot, package_use_count_snapshot,
+        id, order_no, payment_no, user_id, package_id,
+        package_name_snapshot, package_use_count_snapshot,
         package_cash_amount_snapshot, package_point_amount_snapshot, package_pay_type_snapshot,
         order_status, grant_status, grant_time, remark,
         create_by, create_time, update_by, update_time, delete_flag
@@ -55,13 +51,13 @@
 
     <insert id="insertToolPurchaseRecord" parameterType="com.backstage.system.domain.tool.OshToolPurchaseRecord"
             useGeneratedKeys="true" keyProperty="id">
-        insert into osh_tool_purchase_record (
-            order_no, payment_no, user_id, tool_id, package_id, tool_name_snapshot, package_name_snapshot,
+        insert into osh_tool_package_purchase_record (
+            order_no, payment_no, user_id, package_id, package_name_snapshot,
             package_use_count_snapshot, package_cash_amount_snapshot, package_point_amount_snapshot,
             package_pay_type_snapshot, order_status, grant_status, grant_time, remark,
             create_by, create_time, update_by, update_time, delete_flag
         ) values (
-            #{orderNo}, #{paymentNo}, #{userId}, #{toolId}, #{packageId}, #{toolNameSnapshot}, #{packageNameSnapshot},
+            #{orderNo}, #{paymentNo}, #{userId}, #{packageId}, #{packageNameSnapshot},
             #{packageUseCountSnapshot}, #{packageCashAmountSnapshot}, #{packagePointAmountSnapshot},
             #{packagePayTypeSnapshot}, #{orderStatus}, #{grantStatus}, #{grantTime}, #{remark},
             #{createBy}, now(), #{updateBy}, now(), #{deleteFlag}
@@ -70,7 +66,7 @@
 
     <select id="selectByOrderNo" resultMap="OshToolPurchaseRecordResult">
         select <include refid="purchaseRecordColumns"/>
-        from osh_tool_purchase_record
+        from osh_tool_package_purchase_record
         where order_no = #{orderNo}
           and delete_flag = 0
         limit 1
@@ -78,27 +74,24 @@
 
     <select id="selectByPaymentNo" resultMap="OshToolPurchaseRecordResult">
         select <include refid="purchaseRecordColumns"/>
-        from osh_tool_purchase_record
+        from osh_tool_package_purchase_record
         where payment_no = #{paymentNo}
           and delete_flag = 0
         limit 1
     </select>
 
     <select id="selectPurchaseRecordsByUserId" resultMap="ToolPurchaseListVOResult">
-        select order_no, payment_no, tool_id, package_id, tool_name_snapshot, package_name_snapshot,
+        select order_no, payment_no, package_id, package_name_snapshot,
                package_use_count_snapshot, package_cash_amount_snapshot, package_point_amount_snapshot,
                package_pay_type_snapshot, order_status, grant_status, grant_time, create_time
-        from osh_tool_purchase_record
+        from osh_tool_package_purchase_record
         where user_id = #{userId}
           and delete_flag = 0
-        <if test="toolId != null">
-            and tool_id = #{toolId}
-        </if>
         order by create_time desc, id desc
     </select>
 
     <update id="updateOrderStatusByOrderNo">
-        update osh_tool_purchase_record
+        update osh_tool_package_purchase_record
         set order_status = #{orderStatus},
             update_by = #{operator},
             update_time = now()
@@ -107,7 +100,7 @@
     </update>
 
     <update id="updateGrantSuccess">
-        update osh_tool_purchase_record
+        update osh_tool_package_purchase_record
         set grant_status = 1,
             grant_time = #{grantTime},
             update_by = #{operator},
@@ -118,7 +111,7 @@
     </update>
 
     <update id="updateGrantFailed">
-        update osh_tool_purchase_record
+        update osh_tool_package_purchase_record
         set grant_status = 2,
             remark = #{remark},
             update_by = #{operator},

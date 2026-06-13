@@ -11,6 +11,10 @@ import java.util.Map;
  * Time: 20:16
  */
 public class OshUserLoginVO {
+    private Long userId;
+
+    private String username;
+
     private String token;
 
     private Map<String, String> asset;
@@ -18,6 +22,22 @@ public class OshUserLoginVO {
     private Map<String, String> role;
 
     private Map<String,List<String>> permissionList;
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
     public String getToken() {
         return token;
@@ -54,7 +74,9 @@ public class OshUserLoginVO {
     @Override
     public String toString() {
         return "OshUserLoginVO{" +
-                "token='" + token + '\'' +
+                "userId=" + userId +
+                ", username='" + username + '\'' +
+                ", token='" + token + '\'' +
                 ", asset=" + asset +
                 ", role=" + role +
                 ", permissionList=" + permissionList +
