@@ -64,6 +64,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * 统一订单服务实现，负责订单创建、支付查询和支付回调处理。
@@ -477,11 +478,20 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
             if ("1".equals(tradeStatus)) {
                 String platformTradeNo = platformResult.get("trade_no");
                 LocalDateTime paidTime = LocalDateTime.now();
-                executeInTransaction(() -> {
-                    paymentMapper.updatePendingToSuccess(payment.getPaymentNo(), platformTradeNo, paidTime);
+                boolean paymentUpdated = Boolean.TRUE.equals(executeInTransaction(() -> {
+                    int updated = paymentMapper.updatePendingToSuccess(payment.getPaymentNo(), platformTradeNo, paidTime);
+                    if (updated == 0) {
+                        return false;
+                    }
                     orderMapper.updatePendingToPaid(payment.getOrderNo(), paidTime);
-                });
-                handleOrderProductPaid(payment.getOrderNo());
+                    return true;
+                }));
+                if (paymentUpdated) {
+                    handleOrderProductPaid(payment.getOrderNo());
+                } else {
+                    log.info("主动查询支付平台发现订单已被处理，跳过重复发放权益消息, paymentNo={}, orderNo={}",
+                            payment.getPaymentNo(), payment.getOrderNo());
+                }
             }
         } catch (Exception e) {
             log.warn("主动查询支付平台异常, paymentNo={}", payment.getPaymentNo(), e);
@@ -572,6 +582,17 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
             operation.run();
             return null;
         });
+    }
+
+    /**
+     * 执行本地事务操作，并返回事务内计算结果。
+     *
+     * @param operation 需要纳入事务的操作
+     * @param <T> 返回结果类型
+     * @return 事务内操作返回值
+     */
+    private <T> T executeInTransaction(Supplier<T> operation) {
+        return new TransactionTemplate(transactionManager).execute(status -> operation.get());
     }
 
     /**
