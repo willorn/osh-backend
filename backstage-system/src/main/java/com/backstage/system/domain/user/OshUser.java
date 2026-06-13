@@ -50,6 +50,16 @@ public class OshUser extends OSHBaseEntity {
     private String introduction;
 
     /**
+     * GitHub account
+     */
+    private String githubAccount;
+
+    /**
+     * WeChat display name
+     */
+    private String wechatName;
+
+    /**
      * 违规次数
      */
     private Integer violationCount;
@@ -120,6 +130,22 @@ public class OshUser extends OSHBaseEntity {
         this.introduction = introduction;
     }
 
+    public String getGithubAccount() {
+        return githubAccount;
+    }
+
+    public void setGithubAccount(String githubAccount) {
+        this.githubAccount = githubAccount;
+    }
+
+    public String getWechatName() {
+        return wechatName;
+    }
+
+    public void setWechatName(String wechatName) {
+        this.wechatName = wechatName;
+    }
+
     public Integer getViolationCount() {
         return violationCount;
     }
@@ -146,6 +172,8 @@ public class OshUser extends OSHBaseEntity {
                 ", avatar='" + avatar + '\'' +
                 ", sex='" + sex + '\'' +
                 ", introduction='" + introduction + '\'' +
+                ", githubAccount='" + githubAccount + '\'' +
+                ", wechatName='" + wechatName + '\'' +
                 ", violationCount=" + violationCount +
                 ", status=" + status +
                 '}';

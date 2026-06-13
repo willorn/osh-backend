@@ -5,6 +5,7 @@ import java.util.List;
 public class OpenProjectQueryDTO {
     private String keyword;
     private List<Long> tagIds;
+    private Long sourceId;
     private Integer pageNum = 1;
     private Integer pageSize = 10;
 
@@ -31,6 +32,9 @@ public class OpenProjectQueryDTO {
 
     public List<Long> getTagIds() { return tagIds; }
     public void setTagIds(List<Long> tagIds) { this.tagIds = tagIds; }
+
+    public Long getSourceId() { return sourceId; }
+    public void setSourceId(Long sourceId) { this.sourceId = sourceId; }
 
     public Integer getPageNum() { return pageNum; }
     public void setPageNum(Integer pageNum) { this.pageNum = pageNum; }

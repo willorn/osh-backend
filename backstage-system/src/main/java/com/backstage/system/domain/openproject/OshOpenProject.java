@@ -61,6 +61,15 @@ public class OshOpenProject extends OSHBaseEntity implements Serializable {
     /** 最后一次从 GitHub 同步数据的时间 */
     private LocalDateTime lastSyncTime;
 
+    private Long sourceId;
+    private Long githubRepoId;
+    private String githubOwner;
+    private String githubRepoName;
+    private String defaultBranch;
+    private String language;
+    private String licenseName;
+    private String homepage;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -105,4 +114,28 @@ public class OshOpenProject extends OSHBaseEntity implements Serializable {
 
     public LocalDateTime getLastSyncTime() { return lastSyncTime; }
     public void setLastSyncTime(LocalDateTime lastSyncTime) { this.lastSyncTime = lastSyncTime; }
+
+    public Long getSourceId() { return sourceId; }
+    public void setSourceId(Long sourceId) { this.sourceId = sourceId; }
+
+    public Long getGithubRepoId() { return githubRepoId; }
+    public void setGithubRepoId(Long githubRepoId) { this.githubRepoId = githubRepoId; }
+
+    public String getGithubOwner() { return githubOwner; }
+    public void setGithubOwner(String githubOwner) { this.githubOwner = githubOwner; }
+
+    public String getGithubRepoName() { return githubRepoName; }
+    public void setGithubRepoName(String githubRepoName) { this.githubRepoName = githubRepoName; }
+
+    public String getDefaultBranch() { return defaultBranch; }
+    public void setDefaultBranch(String defaultBranch) { this.defaultBranch = defaultBranch; }
+
+    public String getLanguage() { return language; }
+    public void setLanguage(String language) { this.language = language; }
+
+    public String getLicenseName() { return licenseName; }
+    public void setLicenseName(String licenseName) { this.licenseName = licenseName; }
+
+    public String getHomepage() { return homepage; }
+    public void setHomepage(String homepage) { this.homepage = homepage; }
 }
