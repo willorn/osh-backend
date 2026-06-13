@@ -45,6 +45,9 @@ public class OshOpenProjectRankServiceImpl implements IOshOpenProjectRankService
             // 今天还没有快照，用昨天的
             todaySnapshots = snapshotMapper.selectByDate(today.minusDays(1));
         }
+        if (todaySnapshots.isEmpty()) {
+            todaySnapshots = buildCurrentSnapshots();
+        }
         if (todaySnapshots.isEmpty()) return Collections.emptyList();
 
         // 查 period 天前的快照
@@ -148,6 +151,24 @@ public class OshOpenProjectRankServiceImpl implements IOshOpenProjectRankService
             }
         }
         log.info("今日快照保存完成，新增={}，更新={}", inserted, updated);
+    }
+
+    private List<OshOpenProjectStatsSnapshot> buildCurrentSnapshots() {
+        List<OshOpenProject> projects = projectMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProject>()
+                        .eq(OshOpenProject::getStatus, 1)
+                        .eq(OshOpenProject::getDeleteFlag, (byte) 0)
+        );
+        List<OshOpenProjectStatsSnapshot> snapshots = new ArrayList<>();
+        for (OshOpenProject project : projects) {
+            OshOpenProjectStatsSnapshot snapshot = new OshOpenProjectStatsSnapshot();
+            snapshot.setProjectId(project.getId());
+            snapshot.setStarCount(project.getStarCount() == null ? 0 : project.getStarCount());
+            snapshot.setForkCount(project.getForkCount() == null ? 0 : project.getForkCount());
+            snapshot.setSnapshotDate(LocalDate.now());
+            snapshots.add(snapshot);
+        }
+        return snapshots;
     }
 
     private String normalizeRankType(String rankType) {

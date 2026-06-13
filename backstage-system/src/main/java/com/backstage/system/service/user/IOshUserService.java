@@ -33,7 +33,7 @@ public interface IOshUserService {
 
     R<String> forget(String uniqueId, String password, String repassword);
 
-    R<String> updateInfo(String username, String sex, String introduction);
+    R<String> updateInfo(String username, String sex, String introduction, String githubAccount, String wechatName);
 
     R<String> uploadAvatar(MultipartFile file);
 

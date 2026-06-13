@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.backstage.system.domain.openproject.OshOpenProject;
 import com.backstage.system.mapper.openproject.OshOpenProjectMapper;
 import com.backstage.system.service.openproject.IOshOpenProjectRankService;
+import com.backstage.system.service.openproject.IOshOpenProjectSourceService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.xxl.job.core.context.XxlJobHelper;
@@ -52,6 +53,9 @@ public class OpenProjectSyncTask {
     @Autowired(required = false)
     private IOshOpenProjectRankService rankService;
 
+    @Autowired(required = false)
+    private IOshOpenProjectSourceService sourceService;
+
     /**
      * 全量同步所有已通过审核的开源项目的 GitHub 数据
      * xxl-job handler 名称：osh-backend-githubsync
@@ -60,6 +64,20 @@ public class OpenProjectSyncTask {
     public void syncAll() {
         XxlJobHelper.log("开源项目 GitHub 数据同步开始");
         log.info("开源项目 GitHub 数据同步开始");
+
+        if (sourceService != null) {
+            int synced = sourceService.syncAllEnabledSources();
+            log.info("开源项目源同步完成，同步仓库数={}", synced);
+            XxlJobHelper.log("开源项目源同步完成，同步仓库数=%d", synced);
+            if (rankService != null) {
+                try {
+                    rankService.saveTodaySnapshot();
+                } catch (Exception e) {
+                    log.error("保存今日快照失败：{}", e.getMessage());
+                }
+            }
+            return;
+        }
 
         // 只同步已通过审核的项目
         List<OshOpenProject> projects =
