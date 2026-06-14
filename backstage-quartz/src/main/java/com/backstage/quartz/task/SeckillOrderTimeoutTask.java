@@ -119,7 +119,7 @@ public class SeckillOrderTimeoutTask {
                 "pay_timeout"
         );
         if (updated == 0) {
-            logger.info("【超时取消】订单状态已变更，跳过本次处理，seckillNo={}", order.getSeckillNo());
+            logger.info("【超时取消】订单状态已变更，跳过本次处理，orderNo={}", orderNo);
             return;
         }
 
