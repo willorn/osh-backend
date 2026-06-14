@@ -7,7 +7,7 @@ import io.swagger.annotations.ApiModelProperty;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@ApiModel(description = "全局次数购买记录")
+@ApiModel(description = "工具点数购买记录")
 public class ToolPurchaseListVO {
 
     @ApiModelProperty(value = "订单号", example = "O20260517001")

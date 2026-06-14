@@ -7,9 +7,9 @@ import io.swagger.annotations.ApiModelProperty;
 import javax.validation.constraints.NotNull;
 
 /**
- * 工具使用次数扣减请求
+ * 工具点数扣减请求
  */
-@ApiModel(description = "工具使用次数扣减请求")
+@ApiModel(description = "工具点数扣减请求")
 public class ToolUsageConsumeRequest {
 
     @NotNull(message = "工具ID不能为空")

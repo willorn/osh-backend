@@ -21,6 +21,7 @@ import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
 import com.backstage.system.request.tool.ToolCalculatorRequest;
 import com.backstage.system.request.tool.ToolCollectionRequest;
 import com.backstage.system.request.tool.ToolDeleteRequest;
+import com.backstage.system.request.tool.ToolQuestionCreateRequest;
 import com.backstage.system.request.tool.ToolRecommendRequest;
 import com.backstage.system.request.tool.ToolSaveRequest;
 import com.backstage.system.request.tool.ToolSearchRequest;
@@ -30,6 +31,7 @@ import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.tool.IOshToolCollectionService;
 import com.backstage.system.service.tool.IOshToolEsService;
 import com.backstage.system.service.tool.IOshToolService;
+import com.backstage.system.service.questionanswer.IOshQAQuestionService;
 import com.backstage.system.utils.UserContextUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -66,6 +68,9 @@ public class OshToolController extends BaseController {
 
     @Autowired
     private ContributionService contributionService;
+
+    @Autowired
+    private IOshQAQuestionService oshQaQuestionService;
 
     @ApiOperation("工具搜索")
     @PostMapping("/search")
@@ -286,7 +291,7 @@ public class OshToolController extends BaseController {
         return R.ok("取消工具收藏成功");
     }
 
-    @ApiOperation("扣减工具使用次数")
+    @ApiOperation("扣减工具点数")
     @PostMapping("/use/consume")
     @OshUserLevel(value = 1)
     @OshUserEvent(module = "工具模块", actionType = "使用", resourceType = ResourceType.TOOL_TYPE, description = "使用工具")
@@ -322,6 +327,23 @@ public class OshToolController extends BaseController {
         } catch (IllegalArgumentException | ServiceException ex) {
             return R.fail(ex.getMessage());
         }
+    }
+
+    @ApiOperation("工具提问")
+    @PostMapping("/question/create")
+    @OshUserLevel(value = 1)
+    @OshUserEvent(module = "工具模块", actionType = "提问", resourceType = ResourceType.TOOL_TYPE, description = "为工具提问")
+    public R<String> createToolQuestion(@Validated @RequestBody ToolQuestionCreateRequest request) {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        return oshQaQuestionService.addToolQuestion(
+                currentOshUser.getId(),
+                request.getToolId(),
+                request.getContent(),
+                request.getTags()
+        );
     }
 
     @ApiOperation("校验工具使用与扣费权限")
