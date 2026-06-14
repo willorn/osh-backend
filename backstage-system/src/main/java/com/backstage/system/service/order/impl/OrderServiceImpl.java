@@ -34,9 +34,9 @@ import com.backstage.system.service.order.*;
 import com.backstage.system.service.book.IBookService;
 import com.backstage.system.service.order.OrderNoGenerator;
 import com.backstage.system.service.order.PayService;
+import com.backstage.system.service.order.OrderCancelHandlerRegistry;
 import com.backstage.system.service.order.OrderPaidHandlerRegistry;
 import com.backstage.system.service.order.OrderService;
-import com.backstage.system.service.tool.ToolPurchaseService;
 import com.backstage.system.utils.SignUtil;
 import com.backstage.system.utils.UserContextUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -119,7 +119,7 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
     private OrderPaidHandlerRegistry paidHandlerRegistry;
 
     @Resource
-    private ToolPurchaseService toolPurchaseService;
+    private OrderCancelHandlerRegistry cancelHandlerRegistry;
 
     @Resource
     private OshUserAssetMapper oshUserAssetMapper;
@@ -608,14 +608,39 @@ public class OrderServiceImpl extends ServiceImpl<OshOrderMapper, OshOrder> impl
             throw new ServiceException("当前支付状态不可取消");
         }
         String paymentNo = payment.getPaymentNo();
-        executeInTransaction(() -> {
+        OshOrder order = orderMapper.selectByOrderNo(payment.getOrderNo());
+        boolean closed = Boolean.TRUE.equals(executeInTransaction(() -> {
             int paymentUpdated = paymentMapper.updatePendingToClosed(paymentNo);
             int orderUpdated = orderMapper.updatePendingToClosed(payment.getOrderNo(), LocalDateTime.now());
             if (paymentUpdated > 0 && orderUpdated > 0) {
                 refundOrderPoints(payment.getOrderNo());
+                return true;
             }
-        });
-        toolPurchaseService.cancelPendingPurchase(paymentNo);
+            return false;
+        }));
+        if (closed) {
+            handleOrderProductCanceled(order, paymentNo);
+        }
+    }
+
+    /**
+     * 执行订单取消后的业务释放处理。
+     *
+     * @param order 统一订单
+     * @param paymentNo 支付流水号
+     */
+    private void handleOrderProductCanceled(OshOrder order, String paymentNo) {
+        if (Objects.isNull(order)) {
+            log.warn("订单取消后置处理跳过，统一订单不存在, paymentNo={}", paymentNo);
+            return;
+        }
+        ProductTypeEnum productType = ProductTypeEnum.fromCode(order.getProductType());
+        if (Objects.isNull(productType)) {
+            log.warn("订单取消后置处理跳过，商品类型非法, orderNo={}, productType={}",
+                    order.getOrderNo(), order.getProductType());
+            return;
+        }
+        cancelHandlerRegistry.handleIfPresent(productType.getName(), order.getOrderNo(), paymentNo);
     }
 
     /**

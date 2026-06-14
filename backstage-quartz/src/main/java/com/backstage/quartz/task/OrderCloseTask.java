@@ -18,6 +18,11 @@ public class OrderCloseTask {
 
     private static final Logger log = LoggerFactory.getLogger(OrderCloseTask.class);
 
+    /**
+     * 订单关闭缓冲时间，单位：分钟
+     */
+    private static final long ORDER_CLOSE_BUFFER_MINUTES = 1L;
+
     @Resource
     private OshPaymentMapper oshPaymentMapper;
 
@@ -26,7 +31,8 @@ public class OrderCloseTask {
 
     @XxlJob("OrderCloseHandler")
     public void closeExpiredPendingPayments() {
-        List<OshPayment> payments = oshPaymentMapper.selectExpiredPendingPayments(LocalDateTime.now());
+        LocalDateTime expireDeadline = LocalDateTime.now().minusMinutes(ORDER_CLOSE_BUFFER_MINUTES);
+        List<OshPayment> payments = oshPaymentMapper.selectExpiredPendingPayments(expireDeadline);
         if (payments == null || payments.isEmpty()) {
             XxlJobHelper.log("未扫描到超时待支付订单");
             return;
