@@ -1,5 +1,6 @@
 package com.backstage.system.service.impl;
 
+import com.backstage.common.enums.ResourceCodePrefixEnum;
 import com.backstage.system.config.properties.SearchEsProperties;
 import com.backstage.system.constants.CourseConstants;
 import com.backstage.system.constants.CourseSectionConstants;
@@ -426,6 +427,7 @@ public class OshCourseServiceImpl implements IOshCourseService {
      */
     @Override
     public int insertCourse(OshCourse course) {
+        ensureCourseNo(course);
         return oshCourseMapper.insertCourse(course);
     }
 
@@ -433,6 +435,7 @@ public class OshCourseServiceImpl implements IOshCourseService {
     @Transactional(rollbackFor = Exception.class)
     public Long createCourse(CourseCreateRequest request, OshUser operator) {
         OshCourse course = buildCourseForCreate(request, operator);
+        ensureCourseNo(course);
         course.setStatus(resolveCourseStatusAfterOperatorAction(operator));
         int rows = oshCourseMapper.insertCourse(course);
         if (rows <= 0) {
@@ -446,6 +449,12 @@ public class OshCourseServiceImpl implements IOshCourseService {
         publishCourseIndexOutboxIfNeeded(course.getId(), latestCourse.getStatus(), indexMessage, operator);
         scheduleCourseEsUpsertAfterCommit(course.getId(), latestCourse.getStatus());
         return course.getId();
+    }
+
+    private void ensureCourseNo(OshCourse course) {
+        if (course != null && StringUtils.isBlank(course.getNo())) {
+            course.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.COURSE));
+        }
     }
 
     @Override

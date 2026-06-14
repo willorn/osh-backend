@@ -19,7 +19,7 @@ public enum ResourceTypeEnum {
     INFO_GAP("info_gap", "osh_info_gap", ""),
     BBS_POST("bbs_post", "osh_bbs_post", ""),
     BBS_COMMENT("bbs_comment", "osh_bbs_comment", ""),
-    EXAM("exam", "osh_exam", ""),
+    EXAM("exam", "osh_examination", ""),
     EXAM_QUESTION("exam_question", "osh_exam_question", ""),
     COMMENT("comment", "osh_comment", ""),
     ASSISTANT_FEEDBACK("assistant_feedback", "assistant_feedback", ""),
@@ -28,7 +28,7 @@ public enum ResourceTypeEnum {
     COUPON("coupon", "osh_card", ""),
     GROUP("group", "osh_group", ""),
     SECKILL("seckill", "osh_seckill_activity", ""),
-    INTERNAL_RESOURCE("internal_resource", "resource", ""),
+    INTERNAL_RESOURCE("internal_resource", "osh_resource", ""),
     ;
     private final String type;
     private final String mysqlTableName;

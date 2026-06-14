@@ -88,8 +88,8 @@
 
 
     <insert id="insertInfoGap" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO osh_info_gap (user_id, user_name, title, tag, content, status, create_time)
-        VALUES (#{userId}, #{userName}, #{title}, #{tag}, #{content}, #{status}, NOW())
+        INSERT INTO osh_info_gap (no, user_id, user_name, title, tag, content, status, create_time)
+        VALUES (#{no}, #{userId}, #{userName}, #{title}, #{tag}, #{content}, #{status}, NOW())
     </insert>
 
     <update id="updateCountAtomically">
