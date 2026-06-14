@@ -10,8 +10,8 @@
         <result property="usedCount" column="used_count"/>
     </resultMap>
 
-    <update id="increaseUserGlobalQuota">
-        update osh_user_tool_quota
+    <update id="increaseUserQuota">
+        update osh_tool_user_quota
         set remaining_count = remaining_count + #{addCount},
             total_buy_count = total_buy_count + #{addCount},
             update_by = #{operator},
@@ -20,8 +20,8 @@
           and delete_flag = 0
     </update>
 
-    <insert id="insertUserGlobalQuota">
-        insert into osh_user_tool_quota (
+    <insert id="insertUserQuota">
+        insert into osh_tool_user_quota (
             user_id, remaining_count, total_buy_count, used_count, last_use_time,
             create_by, create_time, update_by, update_time, delete_flag
         ) values (
@@ -30,25 +30,25 @@
         )
     </insert>
 
-    <select id="selectUserGlobalQuotaByUserId" resultMap="ToolQuotaCurrentVOResult">
+    <select id="selectUserQuotaByUserId" resultMap="ToolQuotaCurrentVOResult">
         select remaining_count, total_buy_count, used_count
-        from osh_user_tool_quota
+        from osh_tool_user_quota
         where user_id = #{userId}
           and delete_flag = 0
         limit 1
     </select>
 
-    <select id="selectUserIdsWithoutGlobalQuota" resultType="java.lang.Long">
+    <select id="selectUserIdsWithoutQuota" resultType="java.lang.Long">
         select u.id
         from osh_user u
-        left join osh_user_tool_quota q on q.user_id = u.id
+        left join osh_tool_user_quota q on q.user_id = u.id
             and q.delete_flag = 0
         where u.delete_flag = 0
           and q.user_id is null
     </select>
 
-    <insert id="batchInsertInitialGlobalQuota">
-        insert into osh_user_tool_quota (
+    <insert id="batchInsertInitialQuota">
+        insert into osh_tool_user_quota (
             user_id, remaining_count, total_buy_count, used_count, last_use_time,
             create_by, create_time, update_by, update_time, delete_flag
         ) values

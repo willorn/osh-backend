@@ -198,12 +198,12 @@ public class OshToolServiceImpl implements IOshToolService {
             throw new ServiceException(permission.getMessage());
         }
         Integer consumeCount = resolveConsumeCount(tool);
-        if (oshToolMapper.consumeUserGlobalQuota(userId, consumeCount, operator) <= 0) {
-            throw new ServiceException("工具使用次数不足");
+        if (oshToolMapper.consumeUserQuota(userId, consumeCount, operator) <= 0) {
+            throw new ServiceException("工具点数不足");
         }
         oshToolMapper.increaseTotalUsage(toolId);
         saveToolIndexEvent(toolId, ToolIndexEventType.TOOL_INDEX_COUNTER, operator);
-        return oshToolMapper.selectUserGlobalRemainingCount(userId);
+        return oshToolMapper.selectUserRemainingCount(userId);
     }
 
     @Override
@@ -241,7 +241,7 @@ public class OshToolServiceImpl implements IOshToolService {
         if (currentLevel != null && currentLevel > requiredLevel) {
             return true;
         }
-        Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
+        Integer remainingCount = oshToolMapper.selectUserRemainingCount(userId);
         int value = remainingCount == null ? 0 : remainingCount;
         return value >= resolveConsumeCount(tool);
     }
@@ -252,7 +252,7 @@ public class OshToolServiceImpl implements IOshToolService {
             throw new IllegalArgumentException("计算参数不能为空");
         }
         if (!Boolean.TRUE.equals(canUseTool(userId, request.getToolId()))) {
-            throw new ServiceException("工具使用次数不足");
+            throw new ServiceException("工具点数不足");
         }
         OshTool tool = oshToolMapper.selectToolById(request.getToolId());
         if (tool == null) {
@@ -264,8 +264,8 @@ public class OshToolServiceImpl implements IOshToolService {
         int requiredLevel = tool.getLevel() == null ? 0 : tool.getLevel();
         if (isPackageEnabledResourceType(tool.getResourceType()) && currentLevel <= requiredLevel) {
             Integer consumeCount = resolveConsumeCount(tool);
-            if (oshToolMapper.consumeUserGlobalQuota(userId, consumeCount, currentOperator) <= 0) {
-                throw new ServiceException("工具使用次数不足");
+            if (oshToolMapper.consumeUserQuota(userId, consumeCount, currentOperator) <= 0) {
+                throw new ServiceException("工具点数不足");
             }
         }
         oshToolMapper.increaseTotalUsage(request.getToolId());
@@ -381,11 +381,11 @@ public class OshToolServiceImpl implements IOshToolService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int initMissingUserToolQuota(String operator) {
-        List<Long> userIds = oshToolQuotaMapper.selectUserIdsWithoutGlobalQuota();
+        List<Long> userIds = oshToolQuotaMapper.selectUserIdsWithoutQuota();
         if (userIds == null || userIds.isEmpty()) {
             return 0;
         }
-        return oshToolQuotaMapper.batchInsertInitialGlobalQuota(userIds, DEFAULT_INIT_TOOL_QUOTA, operator);
+        return oshToolQuotaMapper.batchInsertInitialQuota(userIds, DEFAULT_INIT_TOOL_QUOTA, operator);
     }
 
     @Override
@@ -393,7 +393,7 @@ public class OshToolServiceImpl implements IOshToolService {
         if (userId == null) {
             throw new IllegalArgumentException("请先登录");
         }
-        ToolQuotaCurrentVO quota = oshToolQuotaMapper.selectUserGlobalQuotaByUserId(userId);
+        ToolQuotaCurrentVO quota = oshToolQuotaMapper.selectUserQuotaByUserId(userId);
         if (quota != null) {
             return quota;
         }
@@ -527,12 +527,12 @@ public class OshToolServiceImpl implements IOshToolService {
             permission.setMessage("允许免费使用");
             return permission;
         }
-        Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
+        Integer remainingCount = oshToolMapper.selectUserRemainingCount(userId);
         int value = remainingCount == null ? 0 : remainingCount;
         int consumeCount = resolveConsumeCount(tool);
         permission.setRemainingCount(value);
         permission.setDeductAllowed(value >= consumeCount);
-        permission.setMessage(value >= consumeCount ? "允许使用" : "工具使用次数不足");
+        permission.setMessage(value >= consumeCount ? "允许使用" : "工具点数不足");
         return permission;
     }
 
@@ -591,7 +591,7 @@ public class OshToolServiceImpl implements IOshToolService {
             tool.setPurchasedFlag(0);
             return;
         }
-        Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
+        Integer remainingCount = oshToolMapper.selectUserRemainingCount(userId);
         int value = remainingCount == null ? 0 : remainingCount;
         tool.setRemainingCount(value);
         tool.setPurchasedFlag(value > 0 ? 1 : 0);

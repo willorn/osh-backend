@@ -22,11 +22,11 @@ public interface OshToolMapper {
 
     OshTool selectToolById(@Param("id") Long id);
 
-    Integer selectUserGlobalRemainingCount(@Param("userId") Long userId);
+    Integer selectUserRemainingCount(@Param("userId") Long userId);
 
-    int consumeUserGlobalQuota(@Param("userId") Long userId,
-                               @Param("quotaCost") Integer quotaCost,
-                               @Param("operator") String operator);
+    int consumeUserQuota(@Param("userId") Long userId,
+                         @Param("quotaCost") Integer quotaCost,
+                         @Param("operator") String operator);
 
     int increaseTotalUsage(@Param("toolId") Long toolId);
 

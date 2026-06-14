@@ -79,7 +79,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
     @Override
     public ToolPurchaseDetailVO getPurchaseDetail(Long userId) {
         ToolPurchaseDetailVO detailVO = new ToolPurchaseDetailVO();
-        Integer remainingCount = userId == null ? 0 : oshToolMapper.selectUserGlobalRemainingCount(userId);
+        Integer remainingCount = userId == null ? 0 : oshToolMapper.selectUserRemainingCount(userId);
         detailVO.setRemainingCount(remainingCount == null ? 0 : remainingCount);
         return detailVO;
     }
@@ -108,7 +108,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         OrderCheckoutRespVO checkoutResult = orderCheckoutService.checkout(buildCheckoutReqVO(userId, quotaPackage, request.getChannel()));
         OshToolPurchaseRecord record = buildPurchaseRecord(userId, operator, quotaPackage, request, checkoutResult);
         if (oshToolPurchaseRecordMapper.insertToolPurchaseRecord(record) <= 0) {
-            throw new ServiceException("新增全局次数购买记录失败");
+            throw new ServiceException("新增工具点数购买记录失败");
         }
         return checkoutResult;
     }
@@ -267,7 +267,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         assetRecord.setChangeAmount((long) pointCost);
         assetRecord.setBeforeBalance(beforeBalance);
         assetRecord.setAfterBalance(userAsset.getPoints());
-        assetRecord.setRemark("购买全局次数套餐【" + toolPackage.getPackageName() + "】扣减积分");
+        assetRecord.setRemark("购买工具点数套餐【" + toolPackage.getPackageName() + "】扣减积分");
         oshUserAssetRecordMapper.insert(assetRecord);
 
         registerAssetCacheRefreshAfterCommit(userId, userAsset.getPoints());
@@ -290,7 +290,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         assetRecord.setChangeAmount(refundPoint);
         assetRecord.setBeforeBalance(beforeBalance);
         assetRecord.setAfterBalance(userAsset.getPoints());
-        assetRecord.setRemark("取消全局次数订单【" + record.getOrderNo() + "】退回积分");
+        assetRecord.setRemark("取消工具点数订单【" + record.getOrderNo() + "】退回积分");
         oshUserAssetRecordMapper.insert(assetRecord);
 
         registerAssetCacheRefreshAfterCommit(record.getUserId(), userAsset.getPoints());
@@ -330,7 +330,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         reqVO.setUserId(userId);
         reqVO.setProductType(ProductTypeEnum.TOOL.getCode());
         reqVO.setProductId(toolPackage.getId());
-        reqVO.setProductName("全局工具次数套餐-" + toolPackage.getPackageName());
+        reqVO.setProductName("工具点数套餐-" + toolPackage.getPackageName());
         reqVO.setPurchaseMode(PurchaseModeEnum.NORMAL.getCode());
         reqVO.setOriginalAmount(defaultAmount(toolPackage.getPrice()));
         reqVO.setPayableAmount(defaultAmount(toolPackage.getPrice()));
