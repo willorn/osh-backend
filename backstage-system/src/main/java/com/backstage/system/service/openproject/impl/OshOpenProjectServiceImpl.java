@@ -1,37 +1,49 @@
 package com.backstage.system.service.openproject.impl;
 
 import com.backstage.system.domain.openproject.OshOpenProject;
+import com.backstage.system.domain.openproject.OshOpenProjectContributor;
 import com.backstage.system.domain.openproject.OshOpenProjectResourceRel;
 import com.backstage.system.domain.openproject.OshOpenProjectTag;
 import com.backstage.system.domain.openproject.OshOpenProjectTagRel;
-import com.backstage.system.domain.openproject.dto.OpenProjectAuditDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectContributorDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectEditDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectQueryDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectResourceDTO;
-import com.backstage.system.domain.openproject.dto.OpenProjectSubmitDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectVO;
-import com.backstage.system.domain.websocket.WsNotifyMessage;
-import com.backstage.system.enums.behavior.ContributionResourceType;
+import com.backstage.system.domain.openproject.vo.OpenProjectResourceOptionVO;
+import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.mapper.openproject.OshOpenProjectContributorMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectResourceRelMapper;
+import com.backstage.system.mapper.openproject.OshOpenProjectResourceSearchMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectTagMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectTagRelMapper;
-import com.backstage.system.service.behavior.ContributionService;
+import com.backstage.system.mapper.user.OshUserMapper;
 import com.backstage.system.service.openproject.IOshOpenProjectFavoriteService;
 import com.backstage.system.service.openproject.IOshOpenProjectService;
-import com.backstage.system.service.websocket.WebSocketNotifyService;
 import com.backstage.system.utils.UserContextUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -46,6 +58,7 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
     private static final int MAX_TAG_COUNT = 10;
     private static final int MAX_CUSTOM_TAG_LENGTH = 30;
     private static final int MAX_RESOURCE_COUNT = 20;
+    private static final int MAX_CONTRIBUTOR_COUNT = 30;
     private static final Set<String> ALLOWED_RESOURCE_TYPES =
             new HashSet<>(Arrays.asList("course", "book", "tool"));
 
@@ -62,16 +75,16 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
     private OshOpenProjectResourceRelMapper resourceRelMapper;
 
     @Autowired
+    private OshOpenProjectResourceSearchMapper resourceSearchMapper;
+
+    @Autowired
+    private OshOpenProjectContributorMapper contributorMapper;
+
+    @Autowired
+    private OshUserMapper userMapper;
+
+    @Autowired
     private IOshOpenProjectFavoriteService favoriteService;
-
-    @Autowired
-    private WebSocketNotifyService webSocketNotifyService;
-
-    @Autowired
-    private ContributionService contributionService;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
 
     @Override
     public Map<String, Object> listPage(OpenProjectQueryDTO queryDTO) {
@@ -79,26 +92,11 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         int pageNum = queryDTO.getPageNum();
         int pageSize = queryDTO.getPageSize();
 
-        // 如果按标签筛选，先查出符合标签的 projectId
-        Set<Long> tagFilterIds = null;
-        Set<Long> queryTagIds = normalizeTagIds(queryDTO.getTagIds());
-        if (!queryTagIds.isEmpty()) {
-            List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTagRel>()
-                            .in(OshOpenProjectTagRel::getTagId, queryTagIds)
-            );
-            tagFilterIds = rels.stream().map(OshOpenProjectTagRel::getProjectId).collect(Collectors.toSet());
-            if (tagFilterIds.isEmpty()) {
-                Map<String, Object> empty = new LinkedHashMap<>();
-                empty.put("rows", Collections.emptyList());
-                empty.put("total", 0L);
-                empty.put("pageNum", pageNum);
-                empty.put("pageSize", pageSize);
-                return empty;
-            }
+        Set<Long> tagFilterIds = getTagFilterProjectIds(queryDTO.getTagIds());
+        if (tagFilterIds != null && tagFilterIds.isEmpty()) {
+            return emptyPage(pageNum, pageSize);
         }
 
-        // 如果只看收藏，查出当前用户收藏的 projectId
         Long currentUserId = UserContextUtil.getCurrentUserIdSafely();
         Set<Long> favoriteIds = null;
         if (Boolean.TRUE.equals(queryDTO.getOnlyFavorite())) {
@@ -111,25 +109,11 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             }
         }
 
-        // 合并标签筛选和收藏筛选的 id 集合（取交集）
-        Set<Long> idFilter = null;
-        if (tagFilterIds != null && favoriteIds != null) {
-            idFilter = tagFilterIds.stream().filter(favoriteIds::contains).collect(Collectors.toSet());
-            if (idFilter.isEmpty()) {
-                Map<String, Object> empty = new LinkedHashMap<>();
-                empty.put("rows", Collections.emptyList());
-                empty.put("total", 0L);
-                empty.put("pageNum", pageNum);
-                empty.put("pageSize", pageSize);
-                return empty;
-            }
-        } else if (tagFilterIds != null) {
-            idFilter = tagFilterIds;
-        } else if (favoriteIds != null) {
-            idFilter = favoriteIds;
+        Set<Long> idFilter = mergeIdFilters(tagFilterIds, favoriteIds);
+        if (idFilter != null && idFilter.isEmpty()) {
+            return emptyPage(pageNum, pageSize);
         }
 
-        // 构建查询条件
         LambdaQueryWrapper<OshOpenProject> wrapper = new LambdaQueryWrapper<OshOpenProject>()
                 .eq(OshOpenProject::getStatus, 1)
                 .eq(OshOpenProject::getDeleteFlag, (byte) 0);
@@ -137,104 +121,25 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         if (StringUtils.hasText(queryDTO.getKeyword())) {
             String kw = "%" + queryDTO.getKeyword() + "%";
             wrapper.and(w -> w.like(OshOpenProject::getProjectName, kw)
-                    .or().like(OshOpenProject::getProjectDesc, kw));
+                    .or().like(OshOpenProject::getProjectDesc, kw)
+                    .or().like(OshOpenProject::getGithubOwner, kw)
+                    .or().like(OshOpenProject::getGithubRepoName, kw));
         }
-
         if (idFilter != null) {
             wrapper.in(OshOpenProject::getId, idFilter);
         }
-        // 排序：白名单校验，防止 SQL 注入
-        String sortField = queryDTO.getSortField();
-        boolean asc = "asc".equalsIgnoreCase(queryDTO.getSortOrder());
-        switch (sortField == null ? "" : sortField) {
-            case "star_count":
-                if (asc) wrapper.orderByAsc(OshOpenProject::getStarCount);
-                else     wrapper.orderByDesc(OshOpenProject::getStarCount);
-                break;
-            case "fork_count":
-                if (asc) wrapper.orderByAsc(OshOpenProject::getForkCount);
-                else     wrapper.orderByDesc(OshOpenProject::getForkCount);
-                break;
-            case "last_commit_time":
-                if (asc) wrapper.orderByAsc(OshOpenProject::getLastCommitTime);
-                else     wrapper.orderByDesc(OshOpenProject::getLastCommitTime);
-                break;
-            default:
-                wrapper.orderByDesc(OshOpenProject::getCreateTime);
+        if (queryDTO.getSourceId() != null && queryDTO.getSourceId() > 0) {
+            wrapper.eq(OshOpenProject::getSourceId, queryDTO.getSourceId());
         }
+        applySort(wrapper, queryDTO);
 
         PageHelper.startPage(pageNum, pageSize);
         List<OshOpenProject> projects = projectMapper.selectList(wrapper);
         PageInfo<OshOpenProject> pageInfo = new PageInfo<>(projects);
 
-        // 批量查询标签关联
-        List<Long> projectIds = projects.stream().map(OshOpenProject::getId).collect(Collectors.toList());
-        Map<Long, List<Long>> projectTagMap = new HashMap<>();
-        Map<Long, List<String>> projectTagNameMap = new HashMap<>();
-
-        if (!projectIds.isEmpty()) {
-            List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTagRel>()
-                            .in(OshOpenProjectTagRel::getProjectId, projectIds)
-            );
-            // 查所有标签
-            List<OshOpenProjectTag> allTags = tagMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTag>().eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
-            );
-            Map<Long, String> tagIdNameMap = allTags.stream()
-                    .collect(Collectors.toMap(OshOpenProjectTag::getId, OshOpenProjectTag::getTagName));
-
-            for (OshOpenProjectTagRel rel : rels) {
-                projectTagMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(rel.getTagId());
-                String tagName = tagIdNameMap.get(rel.getTagId());
-                if (tagName != null) {
-                    projectTagNameMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(tagName);
-                }
-            }
-        }
-
-        // 查当前用户收藏集合（用于标记 favorited，未登录则为空集合）
-        final Set<Long> userFavoriteIds = favoriteService.getFavoriteProjectIds(currentUserId);
-
-        // 批量查询资源关联
-        Map<Long, List<OshOpenProjectResourceRel>> projectResourceMap = new HashMap<>();
-        if (!projectIds.isEmpty()) {
-            List<OshOpenProjectResourceRel> resourceRels = resourceRelMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectResourceRel>()
-                            .in(OshOpenProjectResourceRel::getProjectId, projectIds)
-                            .eq(OshOpenProjectResourceRel::getDeleteFlag, (byte) 0)
-            );
-            for (OshOpenProjectResourceRel rel : resourceRels) {
-                projectResourceMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(rel);
-            }
-        }
-
-        // 转 VO
-        List<OpenProjectVO> voList = projects.stream().map(p -> {
-            OpenProjectVO vo = new OpenProjectVO();
-            vo.setId(p.getId());
-            vo.setProjectName(p.getProjectName());
-            vo.setProjectDesc(p.getProjectDesc());
-            vo.setProjectUrl(p.getProjectUrl());
-            vo.setAuthorName(p.getAuthorName());
-            vo.setProjectCover(p.getProjectCover());
-            vo.setStatus(p.getStatus());
-            vo.setClickCount(p.getClickCount());
-            vo.setCreateTime(p.getCreateTime());
-            vo.setTagIds(projectTagMap.getOrDefault(p.getId(), Collections.emptyList()));
-            vo.setTagNames(projectTagNameMap.getOrDefault(p.getId(), Collections.emptyList()));
-            vo.setStarCount(p.getStarCount());
-            vo.setForkCount(p.getForkCount());
-            vo.setLastCommitTime(p.getLastCommitTime());
-            vo.setIsArchived(p.getIsArchived());
-            vo.setLastSyncTime(p.getLastSyncTime());
-            vo.setResources(projectResourceMap.getOrDefault(p.getId(), Collections.emptyList()));
-            vo.setFavorited(userFavoriteIds.contains(p.getId()));
-            return vo;
-        }).collect(Collectors.toList());
-
+        List<OpenProjectVO> rows = buildProjectVOs(projects, currentUserId);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("rows", voList);
+        result.put("rows", rows);
         result.put("total", pageInfo.getTotal());
         result.put("pageNum", pageInfo.getPageNum());
         result.put("pageSize", pageInfo.getPageSize());
@@ -243,207 +148,44 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void submit(OpenProjectSubmitDTO dto) {
-        if (dto == null) throw new IllegalArgumentException("提交内容不能为空");
-        String projectName = trimToMax(dto.getProjectName(), MAX_NAME_LENGTH);
-        String projectUrl = trimToMax(dto.getProjectUrl(), MAX_URL_LENGTH);
-        if (!StringUtils.hasText(projectName)) throw new IllegalArgumentException("项目名称不能为空");
-        if (!StringUtils.hasText(projectUrl)) throw new IllegalArgumentException("项目链接不能为空");
-        if (!projectUrl.matches("^https?://[^\\s]+$")) throw new IllegalArgumentException("请输入有效的URL地址");
+    public void updateProject(OpenProjectEditDTO dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("编辑内容不能为空");
+        }
+        if (dto.getId() == null) {
+            throw new IllegalArgumentException("项目ID不能为空");
+        }
+        OshOpenProject project = projectMapper.selectOne(new LambdaQueryWrapper<OshOpenProject>()
+                .eq(OshOpenProject::getId, dto.getId())
+                .eq(OshOpenProject::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+        if (project == null) {
+            throw new IllegalArgumentException("项目不存在");
+        }
+        if (project.getGithubRepoId() == null && !StringUtils.hasText(project.getGithubOwner())) {
+            throw new IllegalArgumentException("只能编辑从 GitHub 数据源同步的开源项目");
+        }
 
-        OshOpenProject project = new OshOpenProject();
-        project.setProjectName(projectName);
+        String projectName = trimToMax(dto.getProjectName(), MAX_NAME_LENGTH);
+        if (StringUtils.hasText(projectName)) {
+            project.setProjectName(projectName);
+        }
         project.setProjectDesc(trimToMax(dto.getProjectDesc(), MAX_TEXT_LENGTH));
-        project.setProjectUrl(projectUrl);
         project.setAuthorName(trimToMax(dto.getAuthorName(), MAX_NAME_LENGTH));
         project.setProjectCover(trimToMax(dto.getProjectCover(), MAX_URL_LENGTH));
-        project.setStatus(0);
-        project.setClickCount(0);
-        project.setStarCount(0);
-        project.setForkCount(0);
-        project.setIsArchived((byte) 0);
-        project.setDeleted(false);
-        projectMapper.insert(project);
-        contributionService.recordContribution(ContributionResourceType.OPEN_PROJECT.getCode(), project.getId(), projectName);
-
-        // 保存资源关联（课程、电子书、工具等）
-        List<OpenProjectResourceDTO> resources = limitList(dto.getResources(), MAX_RESOURCE_COUNT);
-        if (!CollectionUtils.isEmpty(resources)) {
-            for (OpenProjectResourceDTO res : resources) {
-                if (res == null) continue;
-                String resourceType = normalizeResourceType(res.getResourceType());
-                String resourceUrl = trimToMax(res.getResourceUrl(), MAX_URL_LENGTH);
-                if (!StringUtils.hasText(resourceUrl)) continue;
-                OshOpenProjectResourceRel rel = new OshOpenProjectResourceRel();
-                rel.setProjectId(project.getId());
-                rel.setResourceType(resourceType);
-                rel.setResourceUrl(resourceUrl);
-                rel.setResourceName(trimToMax(res.getResourceName(), MAX_NAME_LENGTH));
-                rel.setDeleted(false);
-                resourceRelMapper.insert(rel);
-            }
-        }
-
-        // 保存已有标签关联
-        Set<Long> tagIds = normalizeTagIds(dto.getTagIds());
-        if (!tagIds.isEmpty()) {
-            List<OshOpenProjectTag> existingTags = tagMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTag>()
-                            .in(OshOpenProjectTag::getId, tagIds)
-                            .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
-            );
-            for (OshOpenProjectTag tag : existingTags) {
-                OshOpenProjectTagRel rel = new OshOpenProjectTagRel();
-                rel.setProjectId(project.getId());
-                rel.setTagId(tag.getId());
-                tagRelMapper.insert(rel);
-            }
-        }
-
-        // 处理自定义标签：不存在则创建，然后建立关联
-        Set<String> customTags = normalizeCustomTags(dto.getCustomTags());
-        if (!customTags.isEmpty()) {
-            for (String trimmed : customTags) {
-
-                // 查询标签是否已存在（忽略大小写）
-                OshOpenProjectTag existTag = tagMapper.selectOne(
-                        new LambdaQueryWrapper<OshOpenProjectTag>()
-                                .eq(OshOpenProjectTag::getTagName, trimmed)
-                                .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
-                                .last("limit 1")
-                );
-
-                Long tagId;
-                if (existTag != null) {
-                    // 已存在，直接复用
-                    tagId = existTag.getId();
-                } else {
-                    // 不存在，创建新标签
-                    OshOpenProjectTag newTag = new OshOpenProjectTag();
-                    newTag.setTagName(trimmed);
-                    newTag.setTagCode(trimmed.toLowerCase().replaceAll("\\s+", "_"));
-                    newTag.setSortOrder(999);
-                    newTag.setDeleted(false);
-                    tagMapper.insert(newTag);
-                    tagId = newTag.getId();
-                }
-
-                OshOpenProjectTagRel rel = new OshOpenProjectTagRel();
-                rel.setProjectId(project.getId());
-                rel.setTagId(tagId);
-                tagRelMapper.insert(rel);
-            }
-        }
-    }
-
-    @Override
-    public Map<String, Object> listPending(OpenProjectQueryDTO queryDTO) {
-        queryDTO = normalizeQuery(queryDTO);
-        int pageNum = queryDTO.getPageNum();
-        int pageSize = queryDTO.getPageSize();
-
-        LambdaQueryWrapper<OshOpenProject> wrapper = new LambdaQueryWrapper<OshOpenProject>()
-                .eq(OshOpenProject::getStatus, 0)
-                .eq(OshOpenProject::getDeleteFlag, (byte) 0)
-                .orderByAsc(OshOpenProject::getCreateTime);
-
-        if (StringUtils.hasText(queryDTO.getKeyword())) {
-            String kw = "%" + queryDTO.getKeyword() + "%";
-            wrapper.and(w -> w.like(OshOpenProject::getProjectName, kw)
-                    .or().like(OshOpenProject::getProjectDesc, kw));
-        }
-
-        PageHelper.startPage(pageNum, pageSize);
-        List<OshOpenProject> projects = projectMapper.selectList(wrapper);
-        PageInfo<OshOpenProject> pageInfo = new PageInfo<>(projects);
-
-        // 批量查询标签关联
-        List<Long> projectIds = projects.stream().map(OshOpenProject::getId).collect(Collectors.toList());
-        Map<Long, List<String>> projectTagNameMap = new HashMap<>();
-        if (!projectIds.isEmpty()) {
-            List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTagRel>()
-                            .in(OshOpenProjectTagRel::getProjectId, projectIds)
-            );
-            List<OshOpenProjectTag> allTags = tagMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTag>().eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
-            );
-            Map<Long, String> tagIdNameMap = allTags.stream()
-                    .collect(Collectors.toMap(OshOpenProjectTag::getId, OshOpenProjectTag::getTagName));
-            for (OshOpenProjectTagRel rel : rels) {
-                String tagName = tagIdNameMap.get(rel.getTagId());
-                if (tagName != null) {
-                    projectTagNameMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(tagName);
-                }
-            }
-        }
-
-        List<OpenProjectVO> voList = projects.stream().map(p -> {
-            OpenProjectVO vo = new OpenProjectVO();
-            vo.setId(p.getId());
-            vo.setProjectName(p.getProjectName());
-            vo.setProjectDesc(p.getProjectDesc());
-            vo.setProjectUrl(p.getProjectUrl());
-            vo.setAuthorName(p.getAuthorName());
-            vo.setProjectCover(p.getProjectCover());
-            vo.setStatus(p.getStatus());
-            vo.setCreateTime(p.getCreateTime());
-            vo.setTagNames(projectTagNameMap.getOrDefault(p.getId(), Collections.emptyList()));
-            return vo;
-        }).collect(Collectors.toList());
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("rows", voList);
-        result.put("total", pageInfo.getTotal());
-        result.put("pageNum", pageInfo.getPageNum());
-        result.put("pageSize", pageInfo.getPageSize());
-        return result;
-    }
-
-    @Override
-    public void audit(OpenProjectAuditDTO dto) {
-        if (dto == null) throw new IllegalArgumentException("审核内容不能为空");
-        if (dto.getId() == null) throw new IllegalArgumentException("项目ID不能为空");
-        if (dto.getStatus() == null || (dto.getStatus() != 1 && dto.getStatus() != 2)) {
-            throw new IllegalArgumentException("审核状态不合法");
-        }
-        if (dto.getStatus() == 2 && !StringUtils.hasText(dto.getRejectReason())) {
-            throw new IllegalArgumentException("拒绝时必须填写原因");
-        }
-
-        OshOpenProject project = projectMapper.selectById(dto.getId());
-        if (project == null) throw new IllegalArgumentException("项目不存在");
-        Integer oldStatus = project.getStatus();
-
-        project.setStatus(dto.getStatus());
-        project.setRejectReason(trimToMax(dto.getRejectReason(), MAX_TEXT_LENGTH));
+        project.setStatus(1);
         projectMapper.updateById(project);
 
-        // 审核通过时广播公告给所有在线用户，并写入公告表
-        if (dto.getStatus() == 1 && !Integer.valueOf(1).equals(oldStatus)) {
-            String announcementTitle = "「" + project.getProjectName() + "」已上线，快来看看吧！";
-
-            // 写入 osh_announcement 表
-            jdbcTemplate.update(
-                "INSERT INTO osh_announcement (title, link, resource_type, channel, status, delete_flag, create_by, create_time, update_by, update_time) " +
-                "VALUES (?, ?, 'openproject', 0, 0, 0, 'system', NOW(), 'system', NOW())",
-                announcementTitle, "/openproject/list"
-            );
-
-            // WebSocket 广播
-            WsNotifyMessage broadcast = new WsNotifyMessage();
-            broadcast.setType("NEW_OPEN_PROJECT");
-            broadcast.setTitle("新开源项目上线");
-            broadcast.setContent(announcementTitle);
-            broadcast.setJumpUrl("/openproject/list");
-            broadcast.setBizId(String.valueOf(project.getId()));
-            webSocketNotifyService.broadcast(broadcast);
-        }
+        replaceProjectTags(project.getId(), dto.getTagIds(), dto.getCustomTags());
+        replaceProjectResources(project.getId(), dto.getResources());
+        replaceProjectContributors(project.getId(), dto.getContributors());
     }
 
     @Override
     public void incrementClickCount(Long id) {
-        if (id == null) throw new IllegalArgumentException("项目ID不能为空");
+        if (id == null) {
+            throw new IllegalArgumentException("项目ID不能为空");
+        }
         int updated = projectMapper.update(null,
                 new LambdaUpdateWrapper<OshOpenProject>()
                         .eq(OshOpenProject::getId, id)
@@ -451,57 +193,22 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
                         .eq(OshOpenProject::getDeleteFlag, (byte) 0)
                         .setSql("click_count = click_count + 1")
         );
-        if (updated <= 0) throw new IllegalArgumentException("项目不存在或未上线");
+        if (updated <= 0) {
+            throw new IllegalArgumentException("项目不存在或未上线");
+        }
     }
 
     @Override
     public OpenProjectVO getDetail(Long id) {
-        if (id == null) return null;
-        OshOpenProject p = projectMapper.selectById(id);
-        if (p == null || p.getDeleteFlag() == 1 || !Integer.valueOf(1).equals(p.getStatus())) return null;
-
-        // 查标签
-        List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
-                new LambdaQueryWrapper<OshOpenProjectTagRel>()
-                        .eq(OshOpenProjectTagRel::getProjectId, id)
-        );
-        List<Long> tagIds = rels.stream().map(OshOpenProjectTagRel::getTagId).collect(Collectors.toList());
-        List<String> tagNames = Collections.emptyList();
-        if (!tagIds.isEmpty()) {
-            List<OshOpenProjectTag> tags = tagMapper.selectList(
-                    new LambdaQueryWrapper<OshOpenProjectTag>()
-                            .in(OshOpenProjectTag::getId, tagIds)
-                            .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
-            );
-            tagNames = tags.stream().map(OshOpenProjectTag::getTagName).collect(Collectors.toList());
+        if (id == null) {
+            return null;
         }
-
-        OpenProjectVO vo = new OpenProjectVO();
-        vo.setId(p.getId());
-        vo.setProjectName(p.getProjectName());
-        vo.setProjectDesc(p.getProjectDesc());
-        vo.setProjectUrl(p.getProjectUrl());
-        vo.setAuthorName(p.getAuthorName());
-        vo.setProjectCover(p.getProjectCover());
-        vo.setStatus(p.getStatus());
-        vo.setClickCount(p.getClickCount());
-        vo.setCreateTime(p.getCreateTime());
-        vo.setTagIds(tagIds);
-        vo.setTagNames(tagNames);
-        vo.setStarCount(p.getStarCount());
-        vo.setForkCount(p.getForkCount());
-        vo.setLastCommitTime(p.getLastCommitTime());
-        vo.setIsArchived(p.getIsArchived());
-        vo.setLastSyncTime(p.getLastSyncTime());
-
-        // 查资源关联
-        List<OshOpenProjectResourceRel> resources = resourceRelMapper.selectList(
-                new LambdaQueryWrapper<OshOpenProjectResourceRel>()
-                        .eq(OshOpenProjectResourceRel::getProjectId, id)
-                        .eq(OshOpenProjectResourceRel::getDeleteFlag, (byte) 0)
-        );
-        vo.setResources(resources);
-        return vo;
+        OshOpenProject project = projectMapper.selectById(id);
+        if (project == null || project.getDeleteFlag() == 1 || !Integer.valueOf(1).equals(project.getStatus())) {
+            return null;
+        }
+        List<OpenProjectVO> list = buildProjectVOs(Collections.singletonList(project), UserContextUtil.getCurrentUserIdSafely());
+        return list.isEmpty() ? null : list.get(0);
     }
 
     @Override
@@ -511,6 +218,339 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
                         .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
                         .orderByAsc(OshOpenProjectTag::getSortOrder)
         );
+    }
+
+    private List<OpenProjectVO> buildProjectVOs(List<OshOpenProject> projects, Long currentUserId) {
+        if (CollectionUtils.isEmpty(projects)) {
+            return Collections.emptyList();
+        }
+        List<Long> projectIds = projects.stream().map(OshOpenProject::getId).collect(Collectors.toList());
+        Map<Long, List<Long>> projectTagMap = new HashMap<>();
+        Map<Long, List<String>> projectTagNameMap = new HashMap<>();
+        Map<Long, List<OshOpenProjectResourceRel>> projectResourceMap = new HashMap<>();
+        Map<Long, List<OshOpenProjectContributor>> projectContributorMap = new HashMap<>();
+
+        List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectTagRel>().in(OshOpenProjectTagRel::getProjectId, projectIds));
+        List<OshOpenProjectTag> allTags = tagMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectTag>().eq(OshOpenProjectTag::getDeleteFlag, (byte) 0));
+        Map<Long, String> tagIdNameMap = allTags.stream()
+                .collect(Collectors.toMap(OshOpenProjectTag::getId, OshOpenProjectTag::getTagName, (a, b) -> a));
+        for (OshOpenProjectTagRel rel : rels) {
+            projectTagMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(rel.getTagId());
+            String tagName = tagIdNameMap.get(rel.getTagId());
+            if (tagName != null) {
+                projectTagNameMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(tagName);
+            }
+        }
+
+        List<OshOpenProjectResourceRel> resourceRels = resourceRelMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectResourceRel>()
+                        .in(OshOpenProjectResourceRel::getProjectId, projectIds)
+                        .eq(OshOpenProjectResourceRel::getDeleteFlag, (byte) 0));
+        for (OshOpenProjectResourceRel rel : resourceRels) {
+            projectResourceMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(rel);
+        }
+
+        List<OshOpenProjectContributor> contributors = contributorMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectContributor>()
+                        .in(OshOpenProjectContributor::getProjectId, projectIds)
+                        .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0)
+                        .orderByAsc(OshOpenProjectContributor::getSortOrder));
+        fillContributorDisplayInfo(contributors);
+        for (OshOpenProjectContributor contributor : contributors) {
+            projectContributorMap.computeIfAbsent(contributor.getProjectId(), k -> new ArrayList<>()).add(contributor);
+        }
+
+        Set<Long> userFavoriteIds = favoriteService.getFavoriteProjectIds(currentUserId);
+        return projects.stream().map(project -> {
+            OpenProjectVO vo = new OpenProjectVO();
+            vo.setId(project.getId());
+            vo.setProjectName(project.getProjectName());
+            vo.setProjectDesc(project.getProjectDesc());
+            vo.setProjectUrl(project.getProjectUrl());
+            vo.setAuthorName(project.getAuthorName());
+            vo.setProjectCover(project.getProjectCover());
+            vo.setStatus(project.getStatus());
+            vo.setClickCount(project.getClickCount());
+            vo.setCreateTime(project.getCreateTime());
+            vo.setTagIds(projectTagMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setTagNames(projectTagNameMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setStarCount(project.getStarCount());
+            vo.setForkCount(project.getForkCount());
+            vo.setLastCommitTime(project.getLastCommitTime());
+            vo.setIsArchived(project.getIsArchived());
+            vo.setLastSyncTime(project.getLastSyncTime());
+            fillGithubFields(vo, project);
+            vo.setResources(projectResourceMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setContributors(projectContributorMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setFavorited(userFavoriteIds.contains(project.getId()));
+            return vo;
+        }).collect(Collectors.toList());
+    }
+
+    private void fillContributorDisplayInfo(List<OshOpenProjectContributor> contributors) {
+        if (CollectionUtils.isEmpty(contributors)) {
+            return;
+        }
+        for (OshOpenProjectContributor contributor : contributors) {
+            String githubAccount = contributor.getGithubAccount();
+            if (!StringUtils.hasText(githubAccount)) {
+                continue;
+            }
+            if (!StringUtils.hasText(contributor.getWechatName())) {
+                contributor.setWechatName(resolveWechatName(githubAccount));
+            }
+            if (!StringUtils.hasText(contributor.getProfileUrl())) {
+                contributor.setProfileUrl(resolveGithubProfileUrl(githubAccount, contributor.getProfileUrl()));
+            }
+        }
+    }
+
+    private Set<Long> getTagFilterProjectIds(List<Long> tagIds) {
+        Set<Long> queryTagIds = normalizeTagIds(tagIds);
+        if (queryTagIds.isEmpty()) {
+            return null;
+        }
+        List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectTagRel>().in(OshOpenProjectTagRel::getTagId, queryTagIds));
+        return rels.stream().map(OshOpenProjectTagRel::getProjectId).collect(Collectors.toSet());
+    }
+
+    private Set<Long> mergeIdFilters(Set<Long> first, Set<Long> second) {
+        if (first != null && second != null) {
+            return first.stream().filter(second::contains).collect(Collectors.toSet());
+        }
+        return first != null ? first : second;
+    }
+
+    private void applySort(LambdaQueryWrapper<OshOpenProject> wrapper, OpenProjectQueryDTO queryDTO) {
+        boolean asc = "asc".equalsIgnoreCase(queryDTO.getSortOrder());
+        switch (queryDTO.getSortField() == null ? "" : queryDTO.getSortField()) {
+            case "star_count":
+                if (asc) wrapper.orderByAsc(OshOpenProject::getStarCount);
+                else wrapper.orderByDesc(OshOpenProject::getStarCount);
+                break;
+            case "fork_count":
+                if (asc) wrapper.orderByAsc(OshOpenProject::getForkCount);
+                else wrapper.orderByDesc(OshOpenProject::getForkCount);
+                break;
+            case "last_commit_time":
+                if (asc) wrapper.orderByAsc(OshOpenProject::getLastCommitTime);
+                else wrapper.orderByDesc(OshOpenProject::getLastCommitTime);
+                break;
+            default:
+                if (asc) wrapper.orderByAsc(OshOpenProject::getCreateTime);
+                else wrapper.orderByDesc(OshOpenProject::getCreateTime);
+        }
+    }
+
+    private void replaceProjectTags(Long projectId, List<Long> tagIds, List<String> customTags) {
+        tagRelMapper.delete(new LambdaQueryWrapper<OshOpenProjectTagRel>()
+                .eq(OshOpenProjectTagRel::getProjectId, projectId));
+
+        Set<Long> allTagIds = new LinkedHashSet<>();
+        Set<Long> normalizedTagIds = normalizeTagIds(tagIds);
+        if (!normalizedTagIds.isEmpty()) {
+            List<OshOpenProjectTag> existingTags = tagMapper.selectList(
+                    new LambdaQueryWrapper<OshOpenProjectTag>()
+                            .in(OshOpenProjectTag::getId, normalizedTagIds)
+                            .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0));
+            existingTags.forEach(tag -> allTagIds.add(tag.getId()));
+        }
+
+        for (String tagName : normalizeCustomTags(customTags)) {
+            allTagIds.add(findOrCreateTag(tagName));
+            if (allTagIds.size() >= MAX_TAG_COUNT) {
+                break;
+            }
+        }
+
+        for (Long tagId : allTagIds) {
+            OshOpenProjectTagRel rel = new OshOpenProjectTagRel();
+            rel.setProjectId(projectId);
+            rel.setTagId(tagId);
+            tagRelMapper.insert(rel);
+        }
+    }
+
+    private Long findOrCreateTag(String tagName) {
+        OshOpenProjectTag existing = tagMapper.selectOne(
+                new LambdaQueryWrapper<OshOpenProjectTag>()
+                        .eq(OshOpenProjectTag::getTagName, tagName)
+                        .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
+                        .last("limit 1"));
+        if (existing != null) {
+            return existing.getId();
+        }
+        OshOpenProjectTag tag = new OshOpenProjectTag();
+        tag.setTagName(tagName);
+        tag.setTagCode(tagName.toLowerCase(Locale.ROOT).replaceAll("\\s+", "_"));
+        tag.setSortOrder(999);
+        tag.setDeleted(false);
+        tagMapper.insert(tag);
+        return tag.getId();
+    }
+
+    private void replaceProjectResources(Long projectId, List<OpenProjectResourceDTO> resources) {
+        resourceRelMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectResourceRel>()
+                .eq(OshOpenProjectResourceRel::getProjectId, projectId)
+                .set(OshOpenProjectResourceRel::getDeleteFlag, (byte) 1));
+
+        for (OpenProjectResourceDTO item : limitList(resources, MAX_RESOURCE_COUNT)) {
+            if (item == null) {
+                continue;
+            }
+            String resourceType = normalizeResourceType(item.getResourceType());
+            Long resourceId = item.getResourceId();
+            if (resourceId == null) {
+                continue;
+            }
+            OpenProjectResourceOptionVO option = resolveResourceOption(resourceType, resourceId);
+            if (option == null) {
+                continue;
+            }
+            OshOpenProjectResourceRel rel = new OshOpenProjectResourceRel();
+            rel.setProjectId(projectId);
+            rel.setResourceType(resourceType);
+            rel.setResourceId(resourceId);
+            rel.setResourceUrl(trimToMax(option.getResourceUrl(), MAX_URL_LENGTH));
+            rel.setResourceName(trimToMax(option.getResourceName(), 200));
+            rel.setDeleted(false);
+            resourceRelMapper.insert(rel);
+        }
+    }
+
+    private OpenProjectResourceOptionVO resolveResourceOption(String resourceType, Long resourceId) {
+        if (resourceId == null) {
+            return null;
+        }
+        if ("book".equals(resourceType)) {
+            return resourceSearchMapper.selectBookById(resourceId);
+        }
+        if ("tool".equals(resourceType)) {
+            return resourceSearchMapper.selectToolById(resourceId);
+        }
+        return resourceSearchMapper.selectCourseById(resourceId);
+    }
+
+    private void replaceProjectContributors(Long projectId, List<OpenProjectContributorDTO> contributors) {
+        if (contributors == null) {
+            return;
+        }
+        contributorMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .set(OshOpenProjectContributor::getDeleteFlag, (byte) 1));
+
+        int sort = 0;
+        for (OpenProjectContributorDTO item : limitList(contributors, MAX_CONTRIBUTOR_COUNT)) {
+            if (item == null || !StringUtils.hasText(item.getGithubAccount())) {
+                continue;
+            }
+            String githubAccount = normalizeGithubAccount(item.getGithubAccount());
+            if (!StringUtils.hasText(githubAccount)) {
+                continue;
+            }
+            OshOpenProjectContributor contributor = contributorMapper.selectOne(
+                    new LambdaQueryWrapper<OshOpenProjectContributor>()
+                            .eq(OshOpenProjectContributor::getProjectId, projectId)
+                            .eq(OshOpenProjectContributor::getGithubAccount, githubAccount)
+                            .last("limit 1"));
+            if (contributor == null) {
+                contributor = new OshOpenProjectContributor();
+                contributor.setProjectId(projectId);
+                contributor.setGithubAccount(githubAccount);
+            }
+            String wechatName = trimToMax(item.getWechatName(), MAX_NAME_LENGTH);
+            if (!StringUtils.hasText(wechatName)) {
+                wechatName = resolveWechatName(githubAccount);
+            }
+            contributor.setWechatName(wechatName);
+            contributor.setContributorType(normalizeContributorType(item.getContributorType(), sort));
+            if (contributor.getId() == null) {
+                contributor.setContributions(0);
+                contributor.setAvatarUrl(trimToMax(item.getAvatarUrl(), MAX_URL_LENGTH));
+                contributor.setProfileUrl(resolveGithubProfileUrl(githubAccount, null));
+            }
+            contributor.setSource("manual");
+            contributor.setEditable(1);
+            contributor.setSortOrder(item.getSortOrder() == null ? sort : item.getSortOrder());
+            contributor.setDeleted(false);
+            if (contributor.getId() == null) {
+                contributorMapper.insert(contributor);
+            } else {
+                contributorMapper.updateById(contributor);
+            }
+            sort++;
+        }
+    }
+
+    private String resolveWechatName(String githubAccount) {
+        if (!StringUtils.hasText(githubAccount)) {
+            return null;
+        }
+        String normalizedAccount = normalizeGithubAccount(githubAccount);
+        OshUser user = userMapper.selectOne(new LambdaQueryWrapper<OshUser>()
+                .eq(OshUser::getDeleteFlag, (byte) 0)
+                .and(wrapper -> wrapper
+                        .eq(OshUser::getGithubAccount, normalizedAccount)
+                        .or()
+                        .eq(OshUser::getGithubAccount, "https://github.com/" + normalizedAccount)
+                        .or()
+                        .eq(OshUser::getGithubAccount, "http://github.com/" + normalizedAccount)
+                        .or()
+                        .eq(OshUser::getGithubAccount, "github.com/" + normalizedAccount))
+                .last("limit 1"));
+        return user == null ? null : trimToMax(user.getWechatName(), MAX_NAME_LENGTH);
+    }
+
+    private String resolveGithubProfileUrl(String githubAccount, String profileUrl) {
+        String normalized = trimToMax(profileUrl, MAX_URL_LENGTH);
+        if (StringUtils.hasText(normalized)) {
+            return normalized;
+        }
+        return "https://github.com/" + githubAccount;
+    }
+
+    private String normalizeGithubAccount(String githubAccount) {
+        String normalized = trimToMax(githubAccount, MAX_NAME_LENGTH);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        normalized = normalized.replace("https://github.com/", "")
+                .replace("http://github.com/", "")
+                .replace("github.com/", "");
+        int slashIndex = normalized.indexOf('/');
+        if (slashIndex >= 0) {
+            normalized = normalized.substring(0, slashIndex);
+        }
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        return trimToMax(normalized, MAX_NAME_LENGTH);
+    }
+
+    private String normalizeContributorType(String contributorType, int sort) {
+        String normalized = trimToMax(contributorType, 20);
+        if ("primary".equalsIgnoreCase(normalized)) {
+            return "primary";
+        }
+        if ("collaborator".equalsIgnoreCase(normalized)) {
+            return "collaborator";
+        }
+        return sort == 0 ? "primary" : "contributor";
+    }
+
+    private void fillGithubFields(OpenProjectVO vo, OshOpenProject p) {
+        vo.setSourceId(p.getSourceId());
+        vo.setGithubRepoId(p.getGithubRepoId());
+        vo.setGithubOwner(p.getGithubOwner());
+        vo.setGithubRepoName(p.getGithubRepoName());
+        vo.setDefaultBranch(p.getDefaultBranch());
+        vo.setLanguage(p.getLanguage());
+        vo.setLicenseName(p.getLicenseName());
+        vo.setHomepage(p.getHomepage());
     }
 
     private OpenProjectQueryDTO normalizeQuery(OpenProjectQueryDTO queryDTO) {
@@ -532,14 +572,6 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         empty.put("pageNum", pageNum);
         empty.put("pageSize", pageSize);
         return empty;
-    }
-
-    private String trimToMax(String value, int maxLength) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
     }
 
     private String normalizeResourceType(String resourceType) {
@@ -578,5 +610,13 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             return Collections.emptyList();
         }
         return source.stream().limit(limit).collect(Collectors.toList());
+    }
+
+    private String trimToMax(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
     }
 }

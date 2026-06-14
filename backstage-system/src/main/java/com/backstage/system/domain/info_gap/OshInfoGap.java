@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class OshInfoGap {
     @TableId(type = IdType.AUTO)
     private Long id;
+    private String no;
     private Long userId;
     private String userName;
     private String title;
@@ -34,6 +35,8 @@ public class OshInfoGap {
     // Getter and Setter
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public String getNo() { return no; }
+    public void setNo(String no) { this.no = no; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public String getTitle() { return title; }

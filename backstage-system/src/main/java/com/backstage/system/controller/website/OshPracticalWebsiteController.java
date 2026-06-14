@@ -8,11 +8,13 @@ import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.exception.ServiceException;
+import com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO;
 import com.backstage.system.domain.dto.website.WebsiteAuditDTO;
 import com.backstage.system.domain.dto.website.WebsiteQueryDTO;
 import com.backstage.system.domain.dto.website.WebsiteRatingDTO;
 import com.backstage.system.domain.dto.website.WebsiteSubmitDTO;
 import com.backstage.system.domain.vo.website.OshPracticalWebsiteVO;
+import com.backstage.system.domain.vo.website.WebsiteImportResultVO;
 import com.backstage.system.service.website.IWebsiteAnnouncementService;
 import com.backstage.system.service.website.OshPracticalWebsiteService;
 import com.backstage.system.service.website.OshUserFavoriteWebsiteService;
@@ -23,7 +25,10 @@ import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletResponse;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +64,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @ApiOperation("查询实用网站公告栏")
     @GetMapping("/notices")
     @OshUserEvent(module = "实用网站", actionType = "查询", resourceType = ResourceType.WEBSITE_TYPE, description = "查询实用网站公告", recordAnonymous = true)
-    public R<java.util.List<com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO>> getNotices(
+    public R<List<AnnouncementMarqueeVO>> getNotices(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         return R.ok(websiteAnnouncementService.getWebsiteNotices(limit));
     }
@@ -71,7 +76,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @ApiOperation("查询实用网站动态栏")
     @GetMapping("/dynamics")
     @OshUserEvent(module = "实用网站", actionType = "查询", resourceType = ResourceType.WEBSITE_TYPE, description = "查询实用网站动态", recordAnonymous = true)
-    public R<java.util.List<com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO>> getDynamics(
+    public R<List<AnnouncementMarqueeVO>> getDynamics(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         return R.ok(websiteAnnouncementService.getWebsiteDynamics(limit));
     }
@@ -84,7 +89,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @ApiOperation("查询网站标签列表")
     @GetMapping("/tags")
     @OshUserEvent(module = "实用网站", actionType = "查询", resourceType = ResourceType.WEBSITE_TYPE, description = "查询网站标签", recordAnonymous = true)
-    public R<java.util.List<java.util.Map<String, Object>>> getTags(
+    public R<List<Map<String, Object>>> getTags(
             @RequestParam(required = false) String keyword) {
         return R.ok(oshWebsiteTagService.searchTags(keyword));
     }
@@ -126,7 +131,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @PostMapping("/submit")
     @OshUserEvent(module = "实用网站", actionType = "提交", resourceType = ResourceType.WEBSITE_TYPE, resourceNameExpression = "#p0.name", description = "提交网站")
     @PreAuthorize("hasAuthority('website:submit')")
-    public R submit(@RequestBody WebsiteSubmitDTO submitDto) {
+    public R<String> submit(@RequestBody WebsiteSubmitDTO submitDto) {
         try {
             int result = oshPracticalWebsiteService.submitWebsite(submitDto);
             if (result > 0) {
@@ -195,13 +200,13 @@ public class OshPracticalWebsiteController extends BaseController {
     @GetMapping("/Favorites")
     @OshUserEvent(module = "实用网站", actionType = "查询", resourceType = ResourceType.WEBSITE_TYPE, description = "查询用户收藏网站")
     @PreAuthorize("hasAuthority('website:favorite:list')")
-    public R<java.util.Map<String, Object>> getMyFavoriteList(
+    public R<Map<String, Object>> getMyFavoriteList(
             @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum,
             @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
         try {
             TableDataInfo result = oshUserFavoriteWebsiteService.selectUserFavoriteList(pageNum, pageSize);
             // 手动组装，避免 TableDataInfo 自带的 code/msg 字段污染响应结构
-            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            Map<String, Object> data = new LinkedHashMap<>();
             data.put("total", result.getTotal());
             data.put("rows", result.getRows());
             return R.ok(data);
@@ -224,7 +229,7 @@ public class OshPracticalWebsiteController extends BaseController {
             if (auditResult) {
                 // 通过和拒绝都算操作成功
                 Integer status = auditDto.getStatus();
-                String msg = (status == 1) ? "审核通过" : "已拒绝";
+                String msg = (status == 4) ? "审核通过" : "已拒绝";
                 return R.ok(msg);
             } else {
                 return R.fail("审核操作失败，请稍后重试");
@@ -318,6 +323,60 @@ public class OshPracticalWebsiteController extends BaseController {
         } catch (Exception e) {
             e.printStackTrace();
             return R.fail("评价失败，请稍后重试");
+        }
+    }
+
+    // ===================== 批量导入 =====================
+
+    /**
+     * 下载导入模板（需登录，管理员和普通用户均可下载）
+     */
+    @ApiOperation("下载实用网站导入模板")
+    @GetMapping("/import/template")
+    @Anonymous
+    public void downloadImportTemplate(HttpServletResponse response) {
+        oshPracticalWebsiteService.downloadImportTemplate(response);
+    }
+
+    /**
+     * 普通用户批量导入网站（导入后进入审核队列，status=2）
+     */
+    @ApiOperation("普通用户批量导入网站（待审核）")
+    @PostMapping("/import")
+    @OshUserEvent(module = "实用网站", actionType = "批量导入", description = "普通用户批量导入网站")
+    @PreAuthorize("hasAuthority('website:import')")
+    public R<WebsiteImportResultVO> importWebsites(@RequestParam("file") MultipartFile file) {
+        try {
+            String operator = getCurrentUser().getUsername();
+            WebsiteImportResultVO result = oshPracticalWebsiteService.batchImport(file, 2, operator);
+            String msg = "导入完成：成功 " + result.getSuccessCount() + " 条，失败 " + result.getFailCount() + " 条";
+            return R.ok(result, msg);
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return R.fail("导入失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 管理员批量导入网站（直接发布，status=4）
+     */
+    @ApiOperation("管理员批量导入网站（直接发布）")
+    @PostMapping("/import/admin")
+    @OshUserEvent(module = "实用网站", actionType = "批量导入", description = "管理员批量导入网站并直接发布")
+    @PreAuthorize("hasAuthority('website:import:admin')")
+    public R<WebsiteImportResultVO> adminImportWebsites(@RequestParam("file") MultipartFile file) {
+        try {
+            String operator = getCurrentUser().getUsername();
+            WebsiteImportResultVO result = oshPracticalWebsiteService.batchImport(file, 4, operator);
+            String msg = "导入完成：成功 " + result.getSuccessCount() + " 条，失败 " + result.getFailCount() + " 条";
+            return R.ok(result, msg);
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return R.fail("导入失败，请稍后重试");
         }
     }
 }

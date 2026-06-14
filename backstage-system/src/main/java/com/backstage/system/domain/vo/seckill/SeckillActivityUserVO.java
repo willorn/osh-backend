@@ -34,7 +34,7 @@ public class SeckillActivityUserVO implements Serializable {
     @ApiModelProperty("活动结束时间")
     private Date endTime;
 
-    @ApiModelProperty("活动状态：2-进行中")
+    @ApiModelProperty("活动状态：1-未开始 2-进行中 3-已结束")
     private Integer status;
 
     @ApiModelProperty("支付超时时间（分钟），告知用户抢到后需在多少分钟内付款")

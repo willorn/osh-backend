@@ -113,7 +113,9 @@ public class OshUserController extends BaseController {
     public R<String> updateInfo(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
             @RequestBody UserUpdateInfoDTO userUpdateInfoDTO) {
-        return userService.updateInfo(userUpdateInfoDTO.getUsername(),userUpdateInfoDTO.getSex(),userUpdateInfoDTO.getIntroduction());
+        return userService.updateInfo(userUpdateInfoDTO.getUsername(), userUpdateInfoDTO.getSex(),
+                userUpdateInfoDTO.getIntroduction(), userUpdateInfoDTO.getGithubAccount(),
+                userUpdateInfoDTO.getWechatName());
     }
 
     @ApiOperation("上传头像")

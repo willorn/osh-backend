@@ -4,9 +4,9 @@ import com.backstage.common.constant.OshUserConstants;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.threadlocal.ThreadLocalUtil;
 import com.backstage.system.domain.vo.website.UserFavoriteWebsiteVO;
-import com.backstage.system.mapper.website.OshPracticalWebsiteMapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.backstage.system.domain.website.OshUserFavoriteWebsite;
+import com.backstage.system.mapper.website.OshPracticalWebsiteMapper;
 import com.backstage.system.mapper.website.OshUserFavoriteWebsiteMapper;
 import com.backstage.system.service.website.OshUserFavoriteWebsiteService;
 import com.backstage.system.utils.UserContextUtil;
@@ -20,13 +20,11 @@ import java.util.Collections;
 import java.util.List;
 
 /**
-* @author 24333
-* @description 针对表【osh_user_favorite_website(用户收藏网站表)】的数据库操作Service实现
-* @createDate 2026-04-01 15:01:09
-*/
+ * 用户收藏网站 Service 实现
+ */
 @Service
 public class OshUserFavoriteWebsiteServiceImpl extends ServiceImpl<OshUserFavoriteWebsiteMapper, OshUserFavoriteWebsite>
-    implements OshUserFavoriteWebsiteService{
+        implements OshUserFavoriteWebsiteService {
 
     @Autowired
     private OshUserFavoriteWebsiteMapper userFavoriteWebsiteMapper;
@@ -71,7 +69,7 @@ public class OshUserFavoriteWebsiteServiceImpl extends ServiceImpl<OshUserFavori
         // 避免 USER_INFO 查库失败时 NPE
         Long userId = UserContextUtil.getCurrentUserId();
         if (userId == null) {
-            return new TableDataInfo(java.util.Collections.emptyList(), 0);
+            return new TableDataInfo(Collections.emptyList(), 0);
         }
         // 开启分页
         PageHelper.startPage(pageNum, pageSize);
@@ -82,7 +80,4 @@ public class OshUserFavoriteWebsiteServiceImpl extends ServiceImpl<OshUserFavori
     }
 
 }
-
-
-
 

@@ -1,5 +1,6 @@
 package com.backstage.system.domain.openproject.vo;
 
+import com.backstage.system.domain.openproject.OshOpenProjectContributor;
 import com.backstage.system.domain.openproject.OshOpenProjectResourceRel;
 
 import java.time.LocalDateTime;
@@ -24,9 +25,18 @@ public class OpenProjectVO {
     private LocalDateTime lastCommitTime;
     private Byte isArchived;
     private LocalDateTime lastSyncTime;
+    private Long sourceId;
+    private Long githubRepoId;
+    private String githubOwner;
+    private String githubRepoName;
+    private String defaultBranch;
+    private String language;
+    private String licenseName;
+    private String homepage;
 
     // 关联本站资源（课程、电子书、工具等）
     private List<OshOpenProjectResourceRel> resources;
+    private List<OshOpenProjectContributor> contributors;
 
     /** 当前用户是否已收藏 */
     private Boolean favorited;
@@ -82,6 +92,25 @@ public class OpenProjectVO {
     public LocalDateTime getLastSyncTime() { return lastSyncTime; }
     public void setLastSyncTime(LocalDateTime lastSyncTime) { this.lastSyncTime = lastSyncTime; }
 
+    public Long getSourceId() { return sourceId; }
+    public void setSourceId(Long sourceId) { this.sourceId = sourceId; }
+    public Long getGithubRepoId() { return githubRepoId; }
+    public void setGithubRepoId(Long githubRepoId) { this.githubRepoId = githubRepoId; }
+    public String getGithubOwner() { return githubOwner; }
+    public void setGithubOwner(String githubOwner) { this.githubOwner = githubOwner; }
+    public String getGithubRepoName() { return githubRepoName; }
+    public void setGithubRepoName(String githubRepoName) { this.githubRepoName = githubRepoName; }
+    public String getDefaultBranch() { return defaultBranch; }
+    public void setDefaultBranch(String defaultBranch) { this.defaultBranch = defaultBranch; }
+    public String getLanguage() { return language; }
+    public void setLanguage(String language) { this.language = language; }
+    public String getLicenseName() { return licenseName; }
+    public void setLicenseName(String licenseName) { this.licenseName = licenseName; }
+    public String getHomepage() { return homepage; }
+    public void setHomepage(String homepage) { this.homepage = homepage; }
+
     public List<OshOpenProjectResourceRel> getResources() { return resources; }
     public void setResources(List<OshOpenProjectResourceRel> resources) { this.resources = resources; }
+    public List<OshOpenProjectContributor> getContributors() { return contributors; }
+    public void setContributors(List<OshOpenProjectContributor> contributors) { this.contributors = contributors; }
 }

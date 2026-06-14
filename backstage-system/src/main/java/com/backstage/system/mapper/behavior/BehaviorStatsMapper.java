@@ -10,7 +10,11 @@ import java.util.Map;
 
 @Mapper
 public interface BehaviorStatsMapper {
-    List<Map<String, Object>> selectEventPage(@Param("query") BehaviorEventQuery query);
+    Long selectEventCount(@Param("query") BehaviorEventQuery query);
+
+    List<Map<String, Object>> selectEventPage(@Param("query") BehaviorEventQuery query,
+                                              @Param("offset") Integer offset,
+                                              @Param("limit") Integer limit);
 
     Map<String, Object> selectSummary(@Param("query") BehaviorEventQuery query);
 

@@ -1,11 +1,13 @@
 package com.backstage.system.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.backstage.common.enums.ResourceCodePrefixEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.common.async.AsyncExecutorNames;
 import com.backstage.common.async.AsyncTaskSupport;
 import com.backstage.common.threadlocal.ThreadLocalUtil;
 import com.backstage.common.utils.StringUtils;
+import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.system.controller.book.BookListReqVO;
 import com.backstage.system.domain.book.BookDO;
 import com.backstage.system.domain.BookChapter;
@@ -320,6 +322,7 @@ public class BookServiceImpl extends ServiceImpl<BookMapper, BookDO> implements 
 
         BookDO bookDO = new BookDO();
         BeanUtils.copyProperties(reqVO, bookDO);
+        bookDO.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.BOOK));
         bookDO.setOriginalPrice(reqVO.getTPrice());
         bookDO.setStatus("0");
         if (bookDO.getLevel() == null) {
