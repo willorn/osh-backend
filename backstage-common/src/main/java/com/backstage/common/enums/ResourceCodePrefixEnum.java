@@ -15,6 +15,17 @@ public enum ResourceCodePrefixEnum {
     OPEN_PROJECT("op", "开源项目"),
     WEBSITE("ws", "实用网站"),
     INFO_GAP("ig", "信息差"),
+    ANSWER("aa", "qa_answer"),
+    BBS_POST("bp", "bbs_post"),
+    BBS_COMMENT("bc", "bbs_comment"),
+    COMMENT("cm", "comment"),
+    ASSISTANT_FEEDBACK("af", "assistant_feedback"),
+    MEMBER_PLAN("mp", "member_plan"),
+    ORDER("or", "order"),
+    COUPON("cp", "coupon"),
+    GROUP("gp", "group"),
+    SECKILL("sk", "seckill"),
+    INTERNAL_RESOURCE("ir", "internal_resource"),
     ;
 
     /** 两位小写字母前缀 */

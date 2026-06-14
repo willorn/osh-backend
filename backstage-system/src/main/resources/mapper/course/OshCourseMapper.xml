@@ -819,6 +819,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <insert id="insertCourse" parameterType="com.backstage.system.domain.course.OshCourse" useGeneratedKeys="true" keyProperty="id">
         insert into osh_course
         <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="no != null and no != ''">no,</if>
             <if test="title != null and title != ''">title,</if>
             <if test="cover != null and cover != ''">cover,</if>
             <if test="intro != null and intro != ''">intro,</if>
@@ -848,6 +849,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="updateBy != null and updateBy != ''">update_by,</if>
         </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="no != null and no != ''">#{no},</if>
             <if test="title != null and title != ''">#{title},</if>
             <if test="cover != null and cover != ''">#{cover},</if>
             <if test="intro != null and intro != ''">#{intro},</if>

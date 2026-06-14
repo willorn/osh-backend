@@ -1,5 +1,7 @@
 package com.backstage.system.service.resource.impl;
 
+import com.backstage.common.enums.ResourceCodePrefixEnum;
+import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.system.domain.resource.Resource;
 import com.backstage.system.domain.resource.ResourceGroupResource;
 import com.backstage.system.domain.vo.resource.ResourceVO;
@@ -44,6 +46,9 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createResource(Resource resource, Long groupId) {
+        if (resource != null && (resource.getNo() == null || resource.getNo().isEmpty())) {
+            resource.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.INTERNAL_RESOURCE));
+        }
         this.save(resource);
         
         // 如果传入了groupId，创建资源与资源组的关联
