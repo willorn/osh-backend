@@ -52,6 +52,7 @@ public class PaymentSuccessConsumer {
             OshOrder order = orderMapper.selectByOrderNo(successMessage.getOrderNo());
             if (Objects.isNull(order) || Objects.isNull(order.getProductType())) {
                 log.warn("权益发放跳过，订单信息不完整: orderNo={}", orderNo);
+                ack.acknowledge();
                 return;
             }
 
@@ -59,6 +60,7 @@ public class PaymentSuccessConsumer {
             ProductTypeEnum productTypeEnum = ProductTypeEnum.fromCode(order.getProductType());
             if (Objects.isNull(productTypeEnum)) {
                 log.warn("权益发放跳过，未知商品类型: orderNo={}, productType={}", orderNo, order.getProductType());
+                ack.acknowledge();
                 return;
             }
             log.info("权益发放命中商品类型, orderNo={}, productType={}, bizType={}",
@@ -67,6 +69,7 @@ public class PaymentSuccessConsumer {
                 paidHandlerRegistry.handle(productTypeEnum.getName(), orderNo);
             } catch (Exception e) {
                 log.error("权益发放失败, orderNo={}, productType={}", orderNo, order.getProductType(), e);
+                return;
             }
 
             // 调用websocket 让前端发送通知告知用户支付已完成
@@ -77,7 +80,7 @@ public class PaymentSuccessConsumer {
             msg.setJumpUrl(null);
             msg.setBizId(orderNo);
             webSocketNotifyService.send(order.getUserId(), msg);
-
+            ack.acknowledge();
 
         }catch (Exception e){
             log.error("【Kafka消费者】消息处理异常：", e);

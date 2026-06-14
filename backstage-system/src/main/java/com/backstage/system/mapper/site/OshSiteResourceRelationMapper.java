@@ -3,6 +3,10 @@ package com.backstage.system.mapper.site;
 import com.backstage.system.domain.site.OshSiteResourceRelation;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * 网站资源关联 Mapper 接口
@@ -11,4 +15,5 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface OshSiteResourceRelationMapper extends BaseMapper<OshSiteResourceRelation> {
+
 }

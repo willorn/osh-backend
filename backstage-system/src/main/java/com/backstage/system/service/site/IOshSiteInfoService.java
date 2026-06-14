@@ -1,6 +1,7 @@
 package com.backstage.system.service.site;
 
 import com.backstage.system.domain.site.OshSiteInfo;
+import com.backstage.system.domain.site.OshSiteInfoListReq;
 import com.backstage.system.domain.site.OshSiteMaintainer;
 import com.backstage.system.domain.site.OshSiteResourceRelation;
 import com.backstage.system.domain.user.OshUser;
@@ -11,7 +12,6 @@ import org.springframework.util.MultiValueMap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 内部网站信息 Service 接口
@@ -34,7 +34,7 @@ public interface IOshSiteInfoService extends IService<OshSiteInfo> {
 
     void setRelatedResources(Collection<OshSiteInfo> oshSiteInfos);
 
-    List<OshSiteInfo> listSites(OshSiteInfo siteInfo);
+    List<OshSiteInfo> listSites(OshSiteInfoListReq siteInfo);
 
     MultiValueMap<Long, OshSiteMaintainer> getSiteMaintainers(Collection<Long> siteIds);
 

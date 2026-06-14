@@ -205,20 +205,12 @@ public class OshSiteInfoServiceImpl extends ServiceImpl<OshSiteInfoMapper, OshSi
     }
 
     @Override
-    public List<OshSiteInfo> listSites(OshSiteInfo siteInfo) {
-        List<OshSiteInfo> list = this.lambdaQuery().select(
-                        OshSiteInfo::getId,
-                        OshSiteInfo::getSiteName,
-                        OshSiteInfo::getCover,
-                        OshSiteInfo::getDescription,
-                        OshSiteInfo::getStatus,
-                        OshSiteInfo::getLastCheckTime,
-                        OshSiteInfo::getSiteType,
-                        OshSiteInfo::getSiteConfig
-                ).like(StringUtils.isNoneBlank(siteInfo.getSiteName()), OshSiteInfo::getSiteName, siteInfo.getSiteName())
-                .eq(siteInfo.getStatus() != null, OshSiteInfo::getStatus, siteInfo.getStatus())
-                .eq(StringUtils.isNoneBlank(siteInfo.getSiteType()), OshSiteInfo::getSiteType, siteInfo.getSiteType())
-                .list();
+    public List<OshSiteInfo> listSites(OshSiteInfoListReq siteInfo) {
+        List<OshSiteInfo> list = oshSiteInfoMapper.selectSitesList(siteInfo);
+        if (!org.springframework.util.CollectionUtils.isEmpty(siteInfo.getResourceFilters())) {
+            Set<Long> siteIds = new HashSet<>(oshSiteInfoMapper.selectSiteIdsByResourceFilter(siteInfo.getResourceFilters()));
+            list.removeIf(site -> !siteIds.contains(site.getId()));
+        }
         // 填充网站类型名称
         for (OshSiteInfo info : list) {
             SiteTypeEnum siteTypeEnum = SiteTypeEnum.fromCode(info.getSiteType());
