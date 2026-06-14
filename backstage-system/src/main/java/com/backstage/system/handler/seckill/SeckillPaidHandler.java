@@ -64,12 +64,18 @@ public class SeckillPaidHandler implements OrderPaidHandler {
             return;
         }
 
-        // 更新订单状态为已支付
-        OshSeckillOrder update = new OshSeckillOrder();
-        update.setId(order.getId());
-        update.setStatus(1);
-        update.setPayTime(new Date());
-        seckillOrderMapper.updateOrder(update);
+        int updated = seckillOrderMapper.updateOrderStatusWithCheck(
+                order.getId(),
+                0,
+                1,
+                new Date(),
+                null,
+                null
+        );
+        if (updated == 0) {
+            logger.warn("【支付回调】订单状态更新失败，可能已被取消或超时，orderNo={}", orderNo);
+            return;
+        }
 
         // 支付成功后释放流程状态 Key，允许用户在限购数量内继续购买
         // orderKey 的职责是防并发重复提交，不应跨越订单生命周期
@@ -96,7 +102,7 @@ public class SeckillPaidHandler implements OrderPaidHandler {
 
     /**
      * 根据 userId 查询用户，构建脱敏用户名
-     * 昵称优先，昵称为空则用登录名，取前2位 + **
+     * 当前实现使用登录名，取前2位 + **
      */
     private String buildMaskedUsername(Long userId) {
         if (userId == null) {

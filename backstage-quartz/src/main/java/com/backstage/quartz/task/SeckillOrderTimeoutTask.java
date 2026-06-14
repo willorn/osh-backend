@@ -61,8 +61,13 @@ public class SeckillOrderTimeoutTask {
             "local cur = tonumber(redis.call('GET', KEYS[1])) or 0 " +
             "local total = tonumber(ARGV[2]) " +
             "local qty   = tonumber(ARGV[1]) " +
+            "local ttl   = redis.call('PTTL', KEYS[1]) " +
             "local newVal = math.min(cur + qty, total) " +
-            "redis.call('SET', KEYS[1], tostring(newVal)) " +
+            "if ttl ~= nil and ttl > 0 then " +
+            "  redis.call('PSETEX', KEYS[1], ttl, tostring(newVal)) " +
+            "else " +
+            "  redis.call('SET', KEYS[1], tostring(newVal)) " +
+            "end " +
             "return newVal",
             Long.class
     );
@@ -85,13 +90,18 @@ public class SeckillOrderTimeoutTask {
         int success = 0, fail = 0;
         for (OshSeckillOrder order : timeoutOrders) {
             try {
-                // 1. 更新订单状态为已超时（status=3，与用户主动取消 status=2 区分）
-                OshSeckillOrder update = new OshSeckillOrder();
-                update.setId(order.getId());
-                update.setStatus(3);
-                update.setCancelTime(new Date());
-                update.setCancelReason("pay_timeout");
-                orderMapper.updateOrder(update);
+                int updated = orderMapper.updateOrderStatusWithCheck(
+                        order.getId(),
+                        0,
+                        3,
+                        null,
+                        new Date(),
+                        "pay_timeout"
+                );
+                if (updated == 0) {
+                    logger.info("【超时取消】订单状态已变更，跳过本次处理，seckillNo={}", order.getSeckillNo());
+                    continue;
+                }
 
                 // 2. 归还 Redis 库存（Lua 原子操作，归还后不超过 totalStock）
                 String stockKey     = SECKILL_STOCK_KEY     + order.getActivityId() + ":" + order.getItemId();

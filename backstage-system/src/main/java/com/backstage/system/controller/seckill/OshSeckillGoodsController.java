@@ -76,7 +76,7 @@ public class OshSeckillGoodsController extends BaseController {
     @PreAuthorize("hasAuthority('seckill:goods:add')")
     @Log(title = "秒杀商品", businessType = BusinessType.INSERT)
     @PostMapping("/add")
-    public R add(@Validated @RequestBody SeckillGoodsAddDTO dto) {
+    public R<String> add(@Validated @RequestBody SeckillGoodsAddDTO dto) {
         seckillGoodsService.insertSeckillGoods(dto);
         return R.ok();
     }
@@ -87,7 +87,7 @@ public class OshSeckillGoodsController extends BaseController {
     @PreAuthorize("hasAuthority('seckill:goods:status')")
     @Log(title = "秒杀商品", businessType = BusinessType.UPDATE)
     @PostMapping("/status")
-    public R updateStatus(@Validated @RequestBody SeckillGoodsStatusDTO dto) {
+    public R<String> updateStatus(@Validated @RequestBody SeckillGoodsStatusDTO dto) {
         seckillGoodsService.updateSeckillGoodsStatus(dto.getIds(), dto.getStatus());
         return R.ok();
     }
@@ -98,7 +98,7 @@ public class OshSeckillGoodsController extends BaseController {
     @PreAuthorize("hasAuthority('seckill:goods:edit')")
     @Log(title = "秒杀商品", businessType = BusinessType.UPDATE)
     @PostMapping("/update")
-    public R edit(@Validated @RequestBody SeckillGoodsUpdateDTO dto) {
+    public R<String> edit(@Validated @RequestBody SeckillGoodsUpdateDTO dto) {
         seckillGoodsService.updateSeckillGoods(dto);
         return R.ok();
     }

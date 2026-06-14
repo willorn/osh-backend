@@ -35,6 +35,8 @@ public class SeckillCacheConstants {
      * TTL 建议 8 秒，仅防同一请求并发重复点击，与订单生命周期无关
      */
     public static final String SECKILL_SUBMIT_LOCK_KEY = "seckill:submit_lock:";
+    /** 防重复提交短锁 TTL：8 秒 */
+    public static final long SECKILL_SUBMIT_LOCK_EXPIRE_SECONDS = 8L;
 
     // ==================== 过期时间（秒） ====================
 
