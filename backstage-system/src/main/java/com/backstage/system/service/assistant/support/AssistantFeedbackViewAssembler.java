@@ -2,31 +2,24 @@ package com.backstage.system.service.assistant.support;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.backstage.system.domain.assistant.AssistantFeedback;
 import com.backstage.system.domain.assistant.AssistantFeedbackCategory;
 import com.backstage.system.domain.assistant.AssistantTicketStatus;
-import com.backstage.system.domain.assistant.vo.AssistantFeedbackDetailVO;
-import com.backstage.system.domain.assistant.vo.AssistantFeedbackListVO;
-import com.backstage.system.domain.assistant.vo.AssistantFeedbackProcessRecordVO;
-import com.backstage.system.domain.assistant.vo.AssistantFeedbackTagVO;
-import com.backstage.system.domain.assistant.vo.AssistantFeedbackVO;
+import com.backstage.system.domain.assistant.vo.*;
 import com.backstage.system.domain.user.OshUser;
 import com.backstage.system.mapper.user.OshUserMapper;
 import com.backstage.system.service.assistant.IAssistantFeedbackCategoryService;
 import com.backstage.system.service.assistant.IAssistantFeedbackProcessRecordService;
 import com.backstage.system.service.assistant.IAssistantFeedbackTagService;
+import com.backstage.system.service.common.OssService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -68,14 +61,21 @@ public class AssistantFeedbackViewAssembler {
      */
     private final OshUserMapper oshUserMapper;
 
+    /**
+     * OSS服务，用于生成图片临时访问URL
+     */
+    private final OssService ossService;
+
     public AssistantFeedbackViewAssembler(IAssistantFeedbackCategoryService categoryService,
                                          IAssistantFeedbackProcessRecordService processRecordService,
                                          IAssistantFeedbackTagService feedbackTagService,
-                                         OshUserMapper oshUserMapper) {
+                                          OshUserMapper oshUserMapper,
+                                          OssService ossService) {
         this.categoryService = categoryService;
         this.processRecordService = processRecordService;
         this.feedbackTagService = feedbackTagService;
         this.oshUserMapper = oshUserMapper;
+        this.ossService = ossService;
     }
 
     /**
@@ -192,6 +192,25 @@ public class AssistantFeedbackViewAssembler {
                                                         List<AssistantFeedbackProcessRecordVO> processRecords,
                                                         int currentViewCount) {
         AssistantFeedbackDetailVO detailVO = BeanUtil.copyProperties(feedback, AssistantFeedbackDetailVO.class);
+
+        // 解析图片JSON数组并转换为可访问的URL
+        if (StrUtil.isNotBlank(feedback.getImages())) {
+            try {
+                JSONArray jsonArray = JSON.parseArray(feedback.getImages());
+                List<String> imagePaths = jsonArray.toJavaList(String.class);
+                // 将相对路径转换为临时访问URL（7天有效期）
+                List<String> imageUrls = imagePaths.stream()
+                        .map(path -> ossService.getLimitedUrl(path, 7 * 24 * 60))
+                        .collect(Collectors.toList());
+                detailVO.setImages(imageUrls);
+            } catch (Exception e) {
+                // JSON解析失败，设置为空列表
+                detailVO.setImages(Collections.emptyList());
+            }
+        } else {
+            detailVO.setImages(Collections.emptyList());
+        }
+
         fillFeedbackDetailUserInfo(detailVO, feedback.getUserId());
         fillFeedbackDetailHandlerInfo(detailVO, feedback.getHandlerId(), feedback.getHandlerName());
         detailVO.setStatus(AssistantTicketStatus.normalize(feedback.getStatus()));

@@ -7,6 +7,7 @@ import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.enums.AnnouncementChannelEnum;
 import com.backstage.common.enums.AnnouncementModuleEnum;
 import com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO;
+import com.backstage.system.domain.assistant.dto.AssistantFeedbackCommentCreateDTO;
 import com.backstage.system.domain.assistant.dto.AssistantFeedbackPageDTO;
 import com.backstage.system.domain.assistant.vo.*;
 import com.backstage.system.service.announcement.IAnnouncementMarqueeQueryService;
@@ -16,6 +17,7 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
 
 /**
@@ -150,5 +152,17 @@ public class AssistantFeedbackPublicController extends BaseController {
             @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
         List<AssistantFeedbackCommentVO> comments = commentService.listCommentsByFeedbackId(feedbackId, pageNum, pageSize);
         return R.ok(comments);
+    }
+
+    /**
+     * 发表评论
+     */
+    @ApiOperation("发表评论")
+    @PostMapping("/{id}/comment")
+    public R<Long> createComment(
+            @PathVariable("id") Long feedbackId,
+            @Valid @RequestBody AssistantFeedbackCommentCreateDTO dto) {
+        Long commentId = commentService.createComment(feedbackId, dto);
+        return R.ok(commentId);
     }
 }

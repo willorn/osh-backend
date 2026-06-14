@@ -77,6 +77,11 @@ public class AssistantFeedbackDetailVO {
     private String content;
 
     /**
+     * 反馈图片URL列表
+     */
+    private List<String> images;
+
+    /**
      * 反馈状态（PENDING、PROCESSING、RESOLVED、CLOSED）
      */
     private String status;
@@ -273,6 +278,14 @@ public class AssistantFeedbackDetailVO {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public List<String> getImages() {
+        return images;
+    }
+
+    public void setImages(List<String> images) {
+        this.images = images;
     }
 
     public String getStatus() {
