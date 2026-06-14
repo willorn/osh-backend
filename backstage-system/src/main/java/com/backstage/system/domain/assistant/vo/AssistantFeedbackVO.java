@@ -146,6 +146,11 @@ public class AssistantFeedbackVO {
      */
     private LocalDateTime updateTime;
 
+    /**
+     * 反馈图片列表（URL数组）
+     */
+    private List<String> images;
+
     public Long getId() {
         return id;
     }
@@ -356,6 +361,18 @@ public class AssistantFeedbackVO {
 
     public LocalDateTime getUpdateTime() {
         return updateTime;
+    }
+
+    public void setUpdateTime(LocalDateTime updateTime) {
+        this.updateTime = updateTime;
+    }
+
+    public List<String> getImages() {
+        return images;
+    }
+
+    public void setImages(List<String> images) {
+        this.images = images;
     }
 
 }

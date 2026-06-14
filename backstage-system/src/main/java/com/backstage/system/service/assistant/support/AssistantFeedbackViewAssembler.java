@@ -114,6 +114,25 @@ public class AssistantFeedbackViewAssembler {
     public AssistantFeedbackVO toFeedbackVO(AssistantFeedback feedback, Map<Long, List<AssistantFeedbackTagVO>> feedbackTagMap) {
         AssistantFeedbackVO feedbackVO = new AssistantFeedbackVO();
         BeanUtils.copyProperties(feedback, feedbackVO);
+
+        // 解析图片JSON数组并转换为可访问的URL
+        if (StrUtil.isNotBlank(feedback.getImages())) {
+            try {
+                JSONArray jsonArray = JSON.parseArray(feedback.getImages());
+                List<String> imagePaths = jsonArray.toJavaList(String.class);
+                // 将相对路径转换为临时访问URL（7天有效期）
+                List<String> imageUrls = imagePaths.stream()
+                        .map(path -> ossService.getLimitedUrl(path, 7 * 24 * 60))
+                        .collect(Collectors.toList());
+                feedbackVO.setImages(imageUrls);
+            } catch (Exception e) {
+                // JSON解析失败，设置为空列表
+                feedbackVO.setImages(Collections.emptyList());
+            }
+        } else {
+            feedbackVO.setImages(Collections.emptyList());
+        }
+
         fillFeedbackUserInfo(feedbackVO, feedback.getUserId());
         fillFeedbackHandlerInfo(feedbackVO, feedback.getHandlerId(), feedback.getHandlerName());
         feedbackVO.setStatus(AssistantTicketStatus.normalize(feedback.getStatus()));
