@@ -1,12 +1,14 @@
 package com.backstage.system.service.impl.course;
 
 import com.backstage.common.core.page.TableDataInfo;
+import com.backstage.common.enums.ResourceCodePrefixEnum;
 import com.backstage.common.enums.UploadPathEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.common.utils.DateUtils;
 import com.backstage.common.utils.StringUtils;
 import com.backstage.common.utils.PageUtils;
 import com.backstage.common.utils.bean.BeanUtils;
+import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.system.constants.CourseUploadConstants;
 import com.backstage.system.constants.CourseLearningConstants;
 import com.backstage.system.constants.CourseQuestionConstants;
@@ -463,6 +465,7 @@ public class CourseManageServiceImpl implements ICourseManageService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long insertCourse(OshCourse course, Long userId) {
+        ensureCourseNo(course);
         // 1. 设置课程默认值
         course.setCreateTime(DateUtils.getNowDate());
         course.setUpdateTime(DateUtils.getNowDate());
@@ -490,6 +493,12 @@ public class CourseManageServiceImpl implements ICourseManageService {
         }
         
         return courseId;
+    }
+
+    private void ensureCourseNo(OshCourse course) {
+        if (course != null && (course.getNo() == null || course.getNo().isEmpty())) {
+            course.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.COURSE));
+        }
     }
     
     /**
@@ -1669,6 +1678,7 @@ public class CourseManageServiceImpl implements ICourseManageService {
         // 2. 保存课程信息
         OshCourse course =  new OshCourse();
         BeanUtils.copyProperties(courseCreateDTO, course);
+        ensureCourseNo(course);
         course.setCreateBy(String.valueOf(userId));
         course.setCreateTime(DateUtils.getNowDate());
         course.setUpdateTime(DateUtils.getNowDate());

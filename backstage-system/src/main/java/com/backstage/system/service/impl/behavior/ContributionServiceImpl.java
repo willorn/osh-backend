@@ -9,6 +9,7 @@ import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.mapper.behavior.OshResourceContributionMapper;
 import com.backstage.system.mapper.behavior.OshResourceRevenueRecordMapper;
 import com.backstage.system.service.behavior.ContributionService;
+import com.backstage.system.service.behavior.ResourceNoResolver;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,9 @@ public class ContributionServiceImpl implements ContributionService {
     @Resource
     private OshResourceRevenueRecordMapper revenueRecordMapper;
 
+    @Resource
+    private ResourceNoResolver resourceNoResolver;
+
     @Override
     public void recordContribution(String resourceType, Long resourceId, String resourceName) {
         Long userId = ThreadLocalUtil.get(OshUserConstants.USER_ID, Long.class);
@@ -35,6 +39,7 @@ public class ContributionServiceImpl implements ContributionService {
         if (userId == null || !ContributionResourceType.contributionTracked(resourceType) || resourceId == null || !isInternalLevel(level)) {
             return;
         }
+        String resourceNo = resourceNoResolver.resolveResourceNo(resourceType, resourceId);
 
         OshResourceContribution existing = contributionMapper.selectOne(new LambdaQueryWrapper<OshResourceContribution>()
                 .eq(OshResourceContribution::getContributorUserId, userId)
@@ -45,6 +50,7 @@ public class ContributionServiceImpl implements ContributionService {
         if (existing != null) {
             existing.setContributorUsername(username);
             existing.setContributorRoleLevel(level);
+            existing.setResourceNo(resourceNo);
             existing.setResourceName(resourceName);
             existing.setStatus(1);
             existing.setDeleteFlag(0);
@@ -61,6 +67,7 @@ public class ContributionServiceImpl implements ContributionService {
         contribution.setContributorRoleLevel(level);
         contribution.setResourceType(resourceType);
         contribution.setResourceId(resourceId);
+        contribution.setResourceNo(resourceNo);
         contribution.setResourceName(resourceName);
         contribution.setStatus(1);
         contribution.setCreateBy(userId);

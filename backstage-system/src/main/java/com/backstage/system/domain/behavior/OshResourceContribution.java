@@ -15,6 +15,7 @@ public class OshResourceContribution {
     private Integer contributorRoleLevel;
     private String resourceType;
     private Long resourceId;
+    private String resourceNo;
     private String resourceName;
     private Long sourceEventId;
     private Integer status;
@@ -36,6 +37,8 @@ public class OshResourceContribution {
     public void setResourceType(String resourceType) { this.resourceType = resourceType; }
     public Long getResourceId() { return resourceId; }
     public void setResourceId(Long resourceId) { this.resourceId = resourceId; }
+    public String getResourceNo() { return resourceNo; }
+    public void setResourceNo(String resourceNo) { this.resourceNo = resourceNo; }
     public String getResourceName() { return resourceName; }
     public void setResourceName(String resourceName) { this.resourceName = resourceName; }
     public Long getSourceEventId() { return sourceEventId; }
