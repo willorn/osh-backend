@@ -100,7 +100,11 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-bootstrap</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>net.peihuan</groupId>
+            <artifactId>baidu-pan-starter</artifactId>
+            <version>1.3.0</version>
+        </dependency>
     </dependencies>
 
     <build>

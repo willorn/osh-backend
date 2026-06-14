@@ -31,6 +31,12 @@ public class Resource extends OSHBaseEntity implements Serializable {
     private String name;
 
     /**
+     * 资源名称
+     */
+    @TableField("no")
+    private String no;
+
+    /**
      * 资源类型（doc/video/image/code/other）
      */
     @TableField("type")
@@ -44,6 +50,9 @@ public class Resource extends OSHBaseEntity implements Serializable {
 
     @TableField("file_path")
     private String filePath;
+
+    @TableField("file_platform")
+    private String filePlatform;
 
     public Long getId() {
         return id;
@@ -83,5 +92,21 @@ public class Resource extends OSHBaseEntity implements Serializable {
 
     public void setFilePath(String filePath) {
         this.filePath = filePath;
+    }
+
+    public String getNo() {
+        return no;
+    }
+
+    public void setNo(String no) {
+        this.no = no;
+    }
+
+    public String getFilePlatform() {
+        return filePlatform;
+    }
+
+    public void setFilePlatform(String filePlatform) {
+        this.filePlatform = filePlatform;
     }
 }
