@@ -2,15 +2,18 @@ package com.backstage.system.controller.seckill;
 
 import com.backstage.common.annotation.Anonymous;
 import com.backstage.common.annotation.RateLimiter;
+import com.backstage.common.constant.HttpStatus;
 import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
+import com.backstage.common.core.page.PageDomain;
+import com.backstage.common.core.page.TableSupport;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.enums.LimitType;
 import com.backstage.common.exception.ServiceException;
+import com.backstage.common.response.PageResponse;
 import com.backstage.system.config.properties.SearchEsProperties;
 import com.backstage.system.domain.vo.seckill.SeckillActivityUserVO;
 import com.backstage.system.domain.vo.seckill.SeckillAnnouncementVO;
-import com.backstage.system.domain.vo.seckill.SeckillRecentOrderVO;
 import com.backstage.system.domain.vo.seckill.SeckillResultVO;
 import com.backstage.system.service.announcement.ISeckillAnnouncementService;
 import com.backstage.system.service.seckill.IOshSeckillActivityService;
@@ -23,17 +26,18 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import java.util.List;
-
 import static com.backstage.system.utils.UserContextUtil.getCurrentUser;
 
 /**
  * 秒杀用户端 Controller
- * 接口8：用户端活动列表（仅进行中）
- * 接口9：用户端活动详情（仅进行中）
+ * 接口8：用户端活动列表（按当前时间窗口）
+ * 接口9：用户端活动详情（按当前时间窗口）
  * 接口10：执行秒杀
  * 接口11：查询秒杀结果
  * 接口12：取消秒杀订单
+ * 接口14：通过秒杀尝试号查询订单状态
+ * 接口15：查询秒杀动态栏
+ * 接口16：查询秒杀公告栏
  *
  * @author backstage
  * @date 2026-04-28
@@ -60,7 +64,7 @@ public class SeckillUserController extends BaseController {
     private SearchEsProperties searchEsProperties;
 
     /**
-     * 接口8：查询进行中的秒杀活动列表（用户端）
+     * 接口8：查询当前时间窗口内的秒杀活动列表（用户端）
      * 优先走 ES 搜索，ES 不可用时降级到 MySQL
      * 两条路径统一返回活动维度结构（活动 + 嵌套 items），前端无需区分
      */
@@ -73,26 +77,29 @@ public class SeckillUserController extends BaseController {
         if (searchEsProperties.isEnabled()) {
             try {
                 log.info("使用 ES 查询秒杀活动列表, keyword={}, goodsType={}, tagNameList={}", title, goodsType, tagNameList);
-                com.backstage.common.core.page.PageDomain pageDomain =
-                        com.backstage.common.core.page.TableSupport.buildPageRequest();
+                PageDomain pageDomain = TableSupport.buildPageRequest();
                 int pageNum = pageDomain.getPageNum() != null ? pageDomain.getPageNum() : 1;
                 int pageSize = pageDomain.getPageSize() != null ? pageDomain.getPageSize() : 10;
-                com.backstage.common.response.PageResponse<com.backstage.system.domain.vo.seckill.SeckillActivityUserVO> page =
+                PageResponse<SeckillActivityUserVO> page =
                         seckillItemEsService.searchActivities(title, goodsType, tagNameList, pageNum, pageSize);
-                TableDataInfo rsp = new TableDataInfo();
-                rsp.setCode(com.backstage.common.constant.HttpStatus.SUCCESS);
-                rsp.setMsg("查询成功");
-                rsp.setRows(page.getRows());
-                rsp.setTotal(page.getTotal());
-                return rsp;
+                if (!shouldFallbackAfterEsQuery(page)) {
+                    return buildEsTableData(page);
+                }
+
+                TableDataInfo mysqlData = loadActivitiesFromMysql(title, goodsType, tagNameList);
+                if (mysqlData.getTotal() > 0) {
+                    log.warn("秒杀 ES 返回空结果，但 MySQL 存在活动数据，已自动回退, keyword={}, goodsType={}, tagNameList={}",
+                            title, goodsType, tagNameList);
+                } else {
+                    log.info("秒杀 ES 与 MySQL 均无活动数据, keyword={}, goodsType={}, tagNameList={}",
+                            title, goodsType, tagNameList);
+                }
+                return mysqlData;
             } catch (Exception ex) {
                 log.warn("秒杀 ES 查询失败，降级到 MySQL, keyword={}, goodsType={}", title, goodsType, ex);
             }
         }
-        // 降级：MySQL 路径，原有逻辑不变，返回结构与 ES 路径一致
-        startPage();
-        List<SeckillActivityUserVO> list = activityService.selectActiveActivityList(title, goodsType, tagNameList);
-        return getDataTable(list);
+        return loadActivitiesFromMysql(title, goodsType, tagNameList);
     }
 
     /**
@@ -105,7 +112,7 @@ public class SeckillUserController extends BaseController {
     }
 
     /**
-     * 接口9：查询秒杀活动详情（用户端）
+     * 接口9：查询当前时间窗口内的秒杀活动详情（用户端）
      */
     @Anonymous
     @GetMapping("/activity/detail/{id}")
@@ -152,7 +159,7 @@ public class SeckillUserController extends BaseController {
      * userId 从登录 Token 中获取，无需前端传参
      */
     @PostMapping("/order/cancel/{seckillNo}")
-    public R cancelOrder(@PathVariable String seckillNo) {
+    public R<String> cancelOrder(@PathVariable String seckillNo) {
         try {
             Long userId = getCurrentUser().getId();
             orderService.cancelOrder(seckillNo, userId);
@@ -174,7 +181,7 @@ public class SeckillUserController extends BaseController {
     }
     /**
      * 接口15：查询秒杀动态栏（最近成交记录）
-     * 数据来源：osh_announcement（biz_type='seckill_dynamic'）
+     * 数据来源：osh_announcement（module='seckill' and channel=2）
      * 不需要登录，匿名可访问
      */
     @Anonymous
@@ -186,7 +193,7 @@ public class SeckillUserController extends BaseController {
 
     /**
      * 接口16：查询秒杀公告栏
-     * 数据来源：osh_announcement（biz_type='seckill_notice'）
+     * 数据来源：osh_announcement（module='seckill' and channel=1）
      * 不需要登录，匿名可访问
      */
     @Anonymous
@@ -194,5 +201,24 @@ public class SeckillUserController extends BaseController {
     public R<List<SeckillAnnouncementVO>> seckillNotices(
             @RequestParam(required = false, defaultValue = "10") int limit) {
         return R.ok(seckillAnnouncementService.getSeckillNotices(limit));
+    }
+
+    private TableDataInfo buildEsTableData(PageResponse<SeckillActivityUserVO> page) {
+        TableDataInfo rsp = new TableDataInfo();
+        rsp.setCode(HttpStatus.SUCCESS);
+        rsp.setMsg("查询成功");
+        rsp.setRows(page.getRows());
+        rsp.setTotal(page.getTotal());
+        return rsp;
+    }
+
+    private TableDataInfo loadActivitiesFromMysql(String title, Integer goodsType, List<String> tagNameList) {
+        startPage();
+        List<SeckillActivityUserVO> list = activityService.selectActiveActivityList(title, goodsType, tagNameList);
+        return getDataTable(list);
+    }
+
+    private boolean shouldFallbackAfterEsQuery(PageResponse<SeckillActivityUserVO> page) {
+        return page == null || page.getTotal() <= 0;
     }
 }

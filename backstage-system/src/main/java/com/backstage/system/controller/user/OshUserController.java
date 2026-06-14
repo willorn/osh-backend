@@ -39,7 +39,7 @@ public class OshUserController extends BaseController {
 
     @ApiOperation("账号登录")
     @PostMapping("/login")
-    @OshUserEvent(module = "用户模块", actionType = "登录", description = "用户登录")
+    @OshUserEvent(module = "用户模块", actionType = "登录", description = "用户登录", recordAnonymous = true, successOnly = true)
     @Anonymous
     public R<OshUserLoginVO> login(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
@@ -113,7 +113,9 @@ public class OshUserController extends BaseController {
     public R<String> updateInfo(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
             @RequestBody UserUpdateInfoDTO userUpdateInfoDTO) {
-        return userService.updateInfo(userUpdateInfoDTO.getUsername(),userUpdateInfoDTO.getSex(),userUpdateInfoDTO.getIntroduction());
+        return userService.updateInfo(userUpdateInfoDTO.getUsername(), userUpdateInfoDTO.getSex(),
+                userUpdateInfoDTO.getIntroduction(), userUpdateInfoDTO.getGithubAccount(),
+                userUpdateInfoDTO.getWechatName());
     }
 
     @ApiOperation("上传头像")

@@ -1,5 +1,6 @@
 package com.backstage.system.request;
 
+import com.backstage.common.annotation.OshResourceId;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +17,7 @@ public class CourseTextSectionCreateRequest {
 
     @ApiModelProperty(value = "课程ID", required = true, example = "100")
     @NotNull(message = "课程ID不能为空")
+    @OshResourceId
     private Long courseId;
 
     @ApiModelProperty(value = "父章节ID，必须是一级章节ID", required = true, example = "10")

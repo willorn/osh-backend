@@ -1,5 +1,6 @@
 package com.backstage.system.request.tool;
 
+import com.backstage.common.annotation.OshResourceId;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
@@ -13,6 +14,7 @@ public class ToolVoteRequest {
 
     @NotNull(message = "工具ID不能为空")
     @ApiModelProperty(value = "工具ID", required = true, example = "10001")
+    @OshResourceId
     private Long toolId;
 
     public Long getToolId() {

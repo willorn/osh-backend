@@ -6,6 +6,9 @@ import com.backstage.system.controller.tool.ToolPurchaseController;
 import com.backstage.system.domain.user.OshUser;
 import com.backstage.system.domain.vo.pay.OrderCheckoutRespVO;
 import com.backstage.system.domain.vo.tool.ToolPurchaseDetailVO;
+import com.backstage.system.domain.vo.tool.ToolQuotaPackageVO;
+import com.backstage.system.request.tool.ToolQuotaPackageDeleteRequest;
+import com.backstage.system.request.tool.ToolQuotaPackageSaveRequest;
 import com.backstage.system.request.tool.ToolPurchaseCreateRequest;
 import com.backstage.system.service.order.OrderService;
 import com.backstage.system.service.tool.ToolPurchaseService;
@@ -51,18 +54,31 @@ public class ToolPurchaseControllerTest {
     @Test
     public void shouldReturnPurchaseDetail() throws Exception {
         ToolPurchaseDetailVO detailVO = new ToolPurchaseDetailVO();
-        detailVO.setToolId(1001L);
-        detailVO.setToolName("AI海报生成器");
+        detailVO.setRemainingCount(12);
 
-        when(toolPurchaseService.getPurchaseDetail(eq(1001L), eq(null))).thenReturn(detailVO);
+        when(toolPurchaseService.getPurchaseDetail(eq(null))).thenReturn(detailVO);
 
-        mockMvc.perform(get("/pc/tool/purchase/detail").param("toolId", "1001"))
+        mockMvc.perform(get("/pc/tool/purchase/detail"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.toolId").value(1001))
-                .andExpect(jsonPath("$.data.toolName").value("AI海报生成器"));
+                .andExpect(jsonPath("$.data.remainingCount").value(12));
 
-        verify(toolPurchaseService).getPurchaseDetail(eq(1001L), eq(null));
+        verify(toolPurchaseService).getPurchaseDetail(eq(null));
+    }
+
+    @Test
+    public void shouldReturnQuotaPackages() throws Exception {
+        ToolQuotaPackageVO packageVO = new ToolQuotaPackageVO();
+        packageVO.setPackageId(1001L);
+        packageVO.setPackageName("基础包");
+
+        when(toolPurchaseService.listQuotaPackages()).thenReturn(java.util.Collections.singletonList(packageVO));
+
+        mockMvc.perform(get("/pc/tool/purchase/packages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].packageId").value(1001))
+                .andExpect(jsonPath("$.data[0].packageName").value("基础包"));
     }
 
     @Test
@@ -82,7 +98,7 @@ public class ToolPurchaseControllerTest {
 
         mockMvc.perform(post("/pc/tool/purchase/create")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"toolId\":1001,\"packageId\":2001,\"payType\":1,\"channel\":\"wxpay\"}"))
+                        .content("{\"packageId\":2001,\"payType\":1,\"channel\":\"wxpay\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.orderNo").value("O20260517003"))
@@ -115,13 +131,48 @@ public class ToolPurchaseControllerTest {
         user.setUsername("normal");
         ThreadLocalUtil.set(OshUserConstants.USER_INFO, user);
 
-        mockMvc.perform(post("/pc/tool/purchase/cancel")
+                mockMvc.perform(post("/pc/tool/purchase/cancel")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"orderNo\":\"O20260517003\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.msg").value("关单成功"));
+                .andExpect(jsonPath("$.msg").value("操作成功"));
 
         verify(orderService).cancelPaymentByOrderNo("O20260517003");
+    }
+
+    @Test
+    public void shouldSaveQuotaPackageWhenLevelIsEnough() throws Exception {
+        OshUser user = new OshUser();
+        user.setId(9L);
+        user.setUsername("normal");
+        ThreadLocalUtil.set(OshUserConstants.USER_INFO, user);
+        ThreadLocalUtil.set(OshUserConstants.LEVEL, "5");
+
+        when(toolPurchaseService.saveQuotaPackage(eq("normal"), any(ToolQuotaPackageSaveRequest.class))).thenReturn(1001L);
+
+        mockMvc.perform(post("/pc/tool/purchase/package/save")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"packageName\":\"基础包\",\"useCount\":100,\"price\":9.90,\"payType\":1,\"status\":1,\"sortOrder\":1}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data").value(1001));
+    }
+
+    @Test
+    public void shouldDeleteQuotaPackageWhenLevelIsEnough() throws Exception {
+        OshUser user = new OshUser();
+        user.setId(9L);
+        user.setUsername("normal");
+        ThreadLocalUtil.set(OshUserConstants.USER_INFO, user);
+        ThreadLocalUtil.set(OshUserConstants.LEVEL, "5");
+
+        mockMvc.perform(post("/pc/tool/purchase/package/delete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"packageId\":1001}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(toolPurchaseService).deleteQuotaPackage(eq("normal"), any(ToolQuotaPackageDeleteRequest.class));
     }
 }

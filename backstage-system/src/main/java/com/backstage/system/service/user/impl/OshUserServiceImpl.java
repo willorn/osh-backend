@@ -95,6 +95,8 @@ public class OshUserServiceImpl implements IOshUserService {
         }
         String token = createToken(oshUser);
         OshUserLoginVO userLoginVo = new OshUserLoginVO();
+        userLoginVo.setUserId(oshUser.getId());
+        userLoginVo.setUsername(oshUser.getUsername());
         userLoginVo.setToken(token);
         List<Integer> roleIds = oshRoleMapper.getRoleIdsByUserId(oshUser.getId());
         Map<String, String> asset = getAsset(oshUser.getId());
@@ -104,6 +106,8 @@ public class OshUserServiceImpl implements IOshUserService {
         userLoginVo.setRole(role);
         userLoginVo.setPermissionList(permissionList);
         Map<String, Object> map = new HashMap<>();
+        map.put(OshUserConstants.USER_ID, oshUser.getId());
+        map.put(OshUserConstants.USERNAME, oshUser.getUsername());
         map.put(OshUserConstants.ASSET, asset);
         map.put(OshUserConstants.ROLE, role);
         map.put(OshUserConstants.PERMISSION, permissionList);
@@ -310,7 +314,7 @@ public class OshUserServiceImpl implements IOshUserService {
     }
 
     @Override
-    public R<String> updateInfo(String username, String sex, String introduction) {
+    public R<String> updateInfo(String username, String sex, String introduction, String githubAccount, String wechatName) {
         Long userId = ThreadLocalUtil.get(OshUserConstants.USER_ID,Long.class);
         if (StringUtils.isEmpty(username)) {
             return R.fail(ResultCode.FAILED_USER_USERNAME_NOT_IN_RANGE.getMsg());
@@ -337,9 +341,38 @@ public class OshUserServiceImpl implements IOshUserService {
         }
         oshUser.setUsername(trimmedUsername);
         oshUser.setSex(sex);
-        oshUser.setIntroduction(introduction);
+        oshUser.setIntroduction(trimToMax(introduction, 500));
+        oshUser.setGithubAccount(normalizeGithubAccount(githubAccount));
+        oshUser.setWechatName(trimToMax(wechatName, 100));
         oshUserMapper.update(oshUser, wrapper);
         return R.ok(ResultCode.SUCCESS.getMsg());
+    }
+
+    private String normalizeGithubAccount(String githubAccount) {
+        String normalized = trimToMax(githubAccount, 100);
+        if (StringUtils.isEmpty(normalized)) {
+            return null;
+        }
+        normalized = normalized.replace("https://github.com/", "")
+                .replace("http://github.com/", "")
+                .replace("github.com/", "");
+        int slashIndex = normalized.indexOf('/');
+        if (slashIndex >= 0) {
+            normalized = normalized.substring(0, slashIndex);
+        }
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        return trimToMax(normalized, 100);
+    }
+
+    private String trimToMax(String value, int maxLength) {
+        if (StringUtils.isEmpty(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
     }
 
     @Autowired

@@ -1,5 +1,6 @@
 package com.backstage.system.request;
 
+import com.backstage.common.annotation.OshResourceId;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.validation.constraints.NotBlank;
@@ -14,6 +15,7 @@ import javax.validation.constraints.NotNull;
 public class CourseSectionQuestionRequest {
 
     @NotNull(message = "课程ID不能为空")
+    @OshResourceId
     private Long courseId;
     @NotNull(message = "课程小节ID不能为空")
     private Long sectionId;

@@ -38,6 +38,8 @@ public class OshUserEvent extends OSHBaseEntity {
      */
     @TableField("role")
     private String role;
+    @TableField("role_level")
+    private Integer roleLevel;
     /**
      * 模块名称
      */
@@ -56,11 +58,17 @@ public class OshUserEvent extends OSHBaseEntity {
     /**
      * 资源id
      */
+    @TableField("resource_id")
     private String ResourceId;
+    @TableField("resource_no")
+    private String resourceNo;
     /**
      * 资源类型
      */
+    @TableField("resource_type")
     private String resourceType;
+    @TableField("resource_name")
+    private String resourceName;
     /**
      * 描述
      */
@@ -76,6 +84,22 @@ public class OshUserEvent extends OSHBaseEntity {
      */
     @TableField("exception")
     private String exception;
+    @TableField("request_uri")
+    private String requestUri;
+    @TableField("request_method")
+    private String requestMethod;
+    @TableField("ip")
+    private String ip;
+    @TableField("user_agent")
+    private String userAgent;
+    @TableField("duration_ms")
+    private Long durationMs;
+    @TableField("result_code")
+    private String resultCode;
+    @TableField("trace_id")
+    private String traceId;
+    @TableField("contribution")
+    private Integer contribution;
     /**
      * 当前积分
      */
@@ -121,6 +145,14 @@ public class OshUserEvent extends OSHBaseEntity {
         this.role = role;
     }
 
+    public Integer getRoleLevel() {
+        return roleLevel;
+    }
+
+    public void setRoleLevel(Integer roleLevel) {
+        this.roleLevel = roleLevel;
+    }
+
     public String getModule() {
         return module;
     }
@@ -153,12 +185,28 @@ public class OshUserEvent extends OSHBaseEntity {
         ResourceId = resourceId;
     }
 
+    public String getResourceNo() {
+        return resourceNo;
+    }
+
+    public void setResourceNo(String resourceNo) {
+        this.resourceNo = resourceNo;
+    }
+
     public String getResourceType() {
         return resourceType;
     }
 
     public void setResourceType(String resourceType) {
         this.resourceType = resourceType;
+    }
+
+    public String getResourceName() {
+        return resourceName;
+    }
+
+    public void setResourceName(String resourceName) {
+        this.resourceName = resourceName;
     }
 
     public String getDescription() {
@@ -185,6 +233,70 @@ public class OshUserEvent extends OSHBaseEntity {
         this.exception = exception;
     }
 
+    public String getRequestUri() {
+        return requestUri;
+    }
+
+    public void setRequestUri(String requestUri) {
+        this.requestUri = requestUri;
+    }
+
+    public String getRequestMethod() {
+        return requestMethod;
+    }
+
+    public void setRequestMethod(String requestMethod) {
+        this.requestMethod = requestMethod;
+    }
+
+    public String getIp() {
+        return ip;
+    }
+
+    public void setIp(String ip) {
+        this.ip = ip;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
+
+    public Long getDurationMs() {
+        return durationMs;
+    }
+
+    public void setDurationMs(Long durationMs) {
+        this.durationMs = durationMs;
+    }
+
+    public String getResultCode() {
+        return resultCode;
+    }
+
+    public void setResultCode(String resultCode) {
+        this.resultCode = resultCode;
+    }
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
+    }
+
+    public Integer getContribution() {
+        return contribution;
+    }
+
+    public void setContribution(Integer contribution) {
+        this.contribution = contribution;
+    }
+
     public Long getCurrentPoint() {
         return currentPoint;
     }
@@ -208,12 +320,24 @@ public class OshUserEvent extends OSHBaseEntity {
                 ", userId=" + userId +
                 ", username='" + username + '\'' +
                 ", role='" + role + '\'' +
+                ", roleLevel=" + roleLevel +
                 ", module='" + module + '\'' +
                 ", methodName='" + methodName + '\'' +
                 ", actionType='" + actionType + '\'' +
+                ", resourceId='" + ResourceId + '\'' +
+                ", resourceNo='" + resourceNo + '\'' +
+                ", resourceType='" + resourceType + '\'' +
+                ", resourceName='" + resourceName + '\'' +
                 ", description='" + description + '\'' +
                 ", status='" + status + '\'' +
                 ", exception='" + exception + '\'' +
+                ", requestUri='" + requestUri + '\'' +
+                ", requestMethod='" + requestMethod + '\'' +
+                ", ip='" + ip + '\'' +
+                ", durationMs=" + durationMs +
+                ", resultCode='" + resultCode + '\'' +
+                ", traceId='" + traceId + '\'' +
+                ", contribution=" + contribution +
                 ", currentPoint=" + currentPoint +
                 ", happenTime='" + happenTime + '\'' +
                 '}';
@@ -240,5 +364,15 @@ public class OshUserEvent extends OSHBaseEntity {
         this.exception = exception;
         this.currentPoint = currentPoint;
         this.happenTime = happenTime;
+    }
+
+    public OshUserEvent(Long id, Long userId, String username, String role, Integer roleLevel, String module,
+                        String methodName, String actionType, String resourceId, String resourceType,
+                        String resourceName, String description, String status, String exception,
+                        Long currentPoint, LocalDateTime happenTime) {
+        this(id, userId, username, role, module, methodName, actionType, resourceId, resourceType,
+                description, status, exception, currentPoint, happenTime);
+        this.roleLevel = roleLevel;
+        this.resourceName = resourceName;
     }
 }

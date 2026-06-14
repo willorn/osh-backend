@@ -5,10 +5,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.backstage.system.domain.website.OshUserFavoriteWebsite;
 
 /**
-* @author 24333
-* @description 针对表【osh_user_favorite_website(用户收藏网站表)】的数据库操作Service
-* @createDate 2026-04-01 15:01:09
-*/
+ * 用户收藏网站 Service 接口
+ */
 public interface OshUserFavoriteWebsiteService extends IService<OshUserFavoriteWebsite> {
     /**
      * 用户收藏网站

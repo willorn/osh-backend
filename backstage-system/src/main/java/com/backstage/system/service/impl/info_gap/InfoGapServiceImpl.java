@@ -1,14 +1,18 @@
 package com.backstage.system.service.impl.info_gap;
 
+import com.backstage.common.enums.ResourceCodePrefixEnum;
 import com.backstage.common.exception.ServiceException;
+import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.system.domain.dto.info_gap.InfoGapCreateDTO;
 import com.backstage.system.domain.dto.info_gap.InfoGapSearchReqDTO;
 import com.backstage.system.domain.dto.info_gap.InfoGapUpdateReqDTO;
 import com.backstage.system.domain.info_gap.*;
 import com.backstage.system.domain.user.risk.OshUserRiskProfile;
 import com.backstage.system.domain.vo.info_gap.InfoGapVO;
+import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.mapper.info_gap.*;
 import com.backstage.system.mapper.user.OshUserMapper;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.info_gap.InfoGapAnnoService;
 import com.backstage.system.service.info_gap.InfoGapService;
 import com.backstage.system.service.info_gap.InfoGapUniqueService;
@@ -44,6 +48,8 @@ public class InfoGapServiceImpl implements InfoGapService {
     private InfoGapUniqueService infoGapUniqueService;
     @Autowired
     private InfoGapAnnoService infoGapAnnoService;
+    @Autowired
+    private ContributionService contributionService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -98,6 +104,7 @@ public class InfoGapServiceImpl implements InfoGapService {
         entity.setTitle(dto.getTitle());
         entity.setContent(dto.getContent());
         entity.setTag(dto.getTag());
+        entity.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.INFO_GAP));
         entity.setStatus(2);
         entity.setUserName(userName);
 
@@ -105,6 +112,7 @@ public class InfoGapServiceImpl implements InfoGapService {
         infoGapMapper.insertInfoGap(entity);
 
         Long infoGapId = entity.getId();
+        contributionService.recordContribution(ContributionResourceType.INFO_GAP.getCode(), infoGapId, dto.getTitle());
         // 为当前信息差生成并保存唯一标签记录
         String no = infoGapUniqueService.createUniqueRecord(infoGapId);
         infoGapAnnoService.publishUserNotice(infoGapId, dto.getTitle(), userName, no);

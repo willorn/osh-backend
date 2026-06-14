@@ -1,19 +1,16 @@
 package com.backstage.system.service.tool;
 
 import com.backstage.system.domain.tool.OshTool;
-import com.backstage.system.domain.tool.OshToolPackage;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.user.OshUser;
 import com.backstage.common.enums.ResourceCodePrefixEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.mapper.tool.OshToolCollectionMapper;
 import com.backstage.system.mapper.tool.OshToolMapper;
-import com.backstage.system.mapper.tool.OshToolPackageMapper;
 import com.backstage.system.mapper.tool.OshToolTagMapper;
 import com.backstage.system.mapper.tool.OshToolVoteMapper;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.service.OutboxEventService;
-import com.backstage.system.request.tool.ToolPackageSaveRequest;
 import com.backstage.system.request.tool.ToolSaveRequest;
 import com.backstage.system.service.impl.tool.OshToolServiceImpl;
 import org.junit.Test;
@@ -48,9 +45,6 @@ public class OshToolServiceImplTest {
 
     @Mock
     private OshToolTagMapper oshToolTagMapper;
-
-    @Mock
-    private OshToolPackageMapper oshToolPackageMapper;
 
     @Mock
     private OshToolCollectionMapper oshToolCollectionMapper;
@@ -102,42 +96,6 @@ public class OshToolServiceImplTest {
     }
 
     @Test
-    public void shouldCreateToolPackagesWhenCreatingToolWithPackages() {
-        ToolPackageSaveRequest packageRequest = new ToolPackageSaveRequest();
-        packageRequest.setPackageName("10次体验包");
-        packageRequest.setUseCount(10);
-        packageRequest.setPrice(new BigDecimal("9.90"));
-        packageRequest.setSortOrder(10);
-
-        ToolSaveRequest request = new ToolSaveRequest();
-        request.setToolName("测试工具");
-        request.setRoutePath("/test/test");
-        request.setResourceType("CASH_ONLY");
-        request.setPackages(Collections.singletonList(packageRequest));
-
-        OshUser operator = new OshUser();
-        operator.setUsername("admin");
-
-        when(oshToolMapper.insertTool(any(OshTool.class))).thenAnswer(invocation -> {
-            OshTool tool = invocation.getArgument(0);
-            tool.setId(10002L);
-            return 1;
-        });
-        when(resourceNoGenerator.generateUniqueNo(eq(ResourceCodePrefixEnum.TOOL), any())).thenReturn("tlCd34Ef");
-        when(oshToolPackageMapper.insertToolPackage(any(OshToolPackage.class))).thenReturn(1);
-
-        Long toolId = toolService.createTool(request, operator);
-
-        assertEquals(Long.valueOf(10002L), toolId);
-        verify(oshToolPackageMapper).insertToolPackage(argThat(toolPackage ->
-                Integer.valueOf(0).equals(toolPackage.getPointCost())
-                        && Integer.valueOf(1).equals(toolPackage.getPayType())
-        ));
-        verify(oshToolMapper).insertTool(argThat(tool -> Integer.valueOf(2).equals(tool.getStatus())));
-        verify(oshToolEsService).buildIndexMessage(eq(10002L), eq(ToolIndexEventType.TOOL_INDEX_CREATE));
-    }
-
-    @Test
     public void shouldAlwaysCreateInternalToolAndClearPointCostWhenSavingTool() {
         ToolSaveRequest request = new ToolSaveRequest();
         request.setToolName("测试工具");
@@ -161,7 +119,7 @@ public class OshToolServiceImplTest {
                         && "/test/test".equals(tool.getRoutePath())
                         && tool.getIframeUrl() == null
                         && "tlGh56Ij".equals(tool.getNo())
-                        && Integer.valueOf(0).equals(tool.getPointCost())
+                        && Integer.valueOf(0).equals(tool.getQuotaCost())
                         && Integer.valueOf(1).equals(tool.getLevel())
                         && Integer.valueOf(2).equals(tool.getStatus())
         ));
@@ -169,9 +127,35 @@ public class OshToolServiceImplTest {
     }
 
     @Test
+    public void shouldPersistConsumeCountForQuotaTool() {
+        ToolSaveRequest request = new ToolSaveRequest();
+        request.setToolName("测试工具");
+        request.setRoutePath("/test/test");
+        request.setResourceType("CASH_POINT");
+        request.setQuotaCost(3);
+
+        OshUser operator = new OshUser();
+        operator.setUsername("admin");
+
+        when(oshToolMapper.insertTool(any(OshTool.class))).thenAnswer(invocation -> {
+            OshTool tool = invocation.getArgument(0);
+            tool.setId(10002L);
+            return 1;
+        });
+        when(resourceNoGenerator.generateUniqueNo(eq(ResourceCodePrefixEnum.TOOL), any())).thenReturn("tlCd34Ef");
+
+        Long toolId = toolService.createTool(request, operator);
+
+        assertEquals(Long.valueOf(10002L), toolId);
+        verify(oshToolMapper).insertTool(argThat(tool ->
+                Integer.valueOf(3).equals(tool.getQuotaCost())
+                        && Integer.valueOf(3).equals(tool.getLevel())
+        ));
+    }
+
+    @Test
     public void shouldMapLevelFromResourceTypeWhenCreatingTool() {
         assertResourceTypeLevel("FREE", 1, 11001L, "tlFree01");
-        assertResourceTypeLevel("CASH_ONLY", 2, 11002L, "tlCash02");
         assertResourceTypeLevel("CASH_POINT", 3, 11003L, "tlPoint03");
         assertResourceTypeLevel("VIP", 4, 11004L, "tlVip004");
         assertResourceTypeLevel("SMALL_CLASS", 5, 11005L, "tlSmall5");
@@ -192,28 +176,20 @@ public class OshToolServiceImplTest {
     }
 
     @Test
-    public void shouldReturnToolDetailWithoutConvertingLogoUrl() {
+    public void shouldReturnToolDetailWithUserStateAndTags() {
         OshTool tool = new OshTool();
         tool.setId(10001L);
-        tool.setLogoUrl("common/image/tool/logo.png");
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
         when(oshToolTagMapper.selectTagNamesByToolId(10001L)).thenReturn(Collections.singletonList("PDF工具"));
         when(oshToolCollectionMapper.selectActiveToolIdsByUserIdAndToolIds(9L, Collections.singletonList(10001L)))
                 .thenReturn(Collections.singletonList(10001L));
-        OshToolPackage toolPackage = new OshToolPackage();
-        toolPackage.setId(1L);
-        toolPackage.setToolId(10001L);
-        toolPackage.setPackageName("10次体验包");
-        when(oshToolPackageMapper.selectPackagesByToolId(10001L)).thenReturn(Collections.singletonList(toolPackage));
-        when(oshToolMapper.selectUserRemainingCount(10001L, 9L)).thenReturn(8);
+        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(8);
         OshTool result = toolService.getToolDetail(10001L, 9L);
 
-        assertEquals("common/image/tool/logo.png", result.getLogoUrl());
         assertEquals(Integer.valueOf(1), result.getCollectionFlag());
         assertEquals(Integer.valueOf(8), result.getRemainingCount());
         assertEquals(Integer.valueOf(1), result.getPurchasedFlag());
-        assertEquals("10次体验包", result.getPackages().get(0).getPackageName());
         assertEquals(Collections.singletonList("PDF工具"), result.getTags());
     }
 
@@ -221,17 +197,18 @@ public class OshToolServiceImplTest {
     public void shouldConsumeUsageWhenToolIsPaidResourceType() {
         OshTool tool = new OshTool();
         tool.setId(10001L);
-        tool.setResourceType("CASH_ONLY");
+        tool.setResourceType("CASH_POINT");
+        tool.setQuotaCost(2);
         tool.setLevel(1);
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
-        when(oshToolMapper.consumeUserToolQuota(10001L, 9L, "normal")).thenReturn(1);
-        when(oshToolMapper.selectUserRemainingCount(10001L, 9L)).thenReturn(8, 7);
+        when(oshToolMapper.consumeUserGlobalQuota(9L, 2, "normal")).thenReturn(1);
+        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(8, 7);
 
         Integer remainingCount = toolService.consumeToolUsage(9L, 1, "normal", 10001L);
 
         assertEquals(Integer.valueOf(7), remainingCount);
-        verify(oshToolMapper).consumeUserToolQuota(10001L, 9L, "normal");
+        verify(oshToolMapper).consumeUserGlobalQuota(9L, 2, "normal");
         verify(oshToolMapper).increaseTotalUsage(10001L);
         verify(oshToolEsService).buildIndexMessage(eq(10001L), eq(ToolIndexEventType.TOOL_INDEX_COUNTER));
     }
@@ -248,23 +225,24 @@ public class OshToolServiceImplTest {
         Integer remainingCount = toolService.consumeToolUsage(9L, 1, "normal", 10001L);
 
         assertEquals(Integer.valueOf(0), remainingCount);
-        verify(oshToolMapper, times(0)).consumeUserToolQuota(any(Long.class), any(Long.class), any(String.class));
+        verify(oshToolMapper, times(0)).consumeUserGlobalQuota(any(Long.class), any(Integer.class), any(String.class));
     }
 
     @Test(expected = ServiceException.class)
     public void shouldRejectConsumeUsageBeforeDeductingWhenPaidToolHasNoRemainingCount() {
         OshTool tool = new OshTool();
         tool.setId(10001L);
-        tool.setResourceType("CASH_ONLY");
+        tool.setResourceType("CASH_POINT");
+        tool.setQuotaCost(2);
         tool.setLevel(1);
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
-        when(oshToolMapper.selectUserRemainingCount(10001L, 9L)).thenReturn(0);
+        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(0);
 
         try {
             toolService.consumeToolUsage(9L, 1, "normal", 10001L);
         } finally {
-            verify(oshToolMapper, never()).consumeUserToolQuota(any(Long.class), any(Long.class), any(String.class));
+            verify(oshToolMapper, never()).consumeUserGlobalQuota(any(Long.class), any(Integer.class), any(String.class));
             verify(oshToolMapper, never()).increaseTotalUsage(any(Long.class));
         }
     }
@@ -273,11 +251,12 @@ public class OshToolServiceImplTest {
     public void shouldReturnToolUsagePermissionWithQuotaStateForPaidTool() {
         OshTool tool = new OshTool();
         tool.setId(10001L);
-        tool.setResourceType("CASH_ONLY");
+        tool.setResourceType("CASH_POINT");
+        tool.setQuotaCost(2);
         tool.setLevel(1);
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
-        when(oshToolMapper.selectUserRemainingCount(10001L, 9L)).thenReturn(0);
+        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(0);
 
         ToolUsagePermission permission = toolService.checkToolUsagePermission(9L, 1, 10001L);
 
@@ -342,6 +321,9 @@ public class OshToolServiceImplTest {
         request.setToolName("测试工具-" + resourceType);
         request.setRoutePath("/test/" + resourceType.toLowerCase());
         request.setResourceType(resourceType);
+        if ("CASH_POINT".equals(resourceType)) {
+            request.setQuotaCost(1);
+        }
 
         OshUser operator = new OshUser();
         operator.setUsername("admin");

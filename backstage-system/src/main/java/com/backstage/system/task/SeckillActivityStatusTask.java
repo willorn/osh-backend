@@ -132,7 +132,7 @@ public class SeckillActivityStatusTask {
         msg.setUpdateTime(item.getUpdateTime());
         // 写入标签
         if (item.getSeckillGoodsId() != null) {
-            java.util.List<String> tagNames = seckillGoodsTagMapper.selectTagNamesBySeckillGoodsId(item.getSeckillGoodsId());
+            List<String> tagNames = seckillGoodsTagMapper.selectTagNamesBySeckillGoodsId(item.getSeckillGoodsId());
             msg.setTagNames(tagNames);
             msg.setTagNamesText(tagNames == null || tagNames.isEmpty() ? "" : String.join(" ", tagNames));
         }

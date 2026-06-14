@@ -45,7 +45,7 @@ public class OshPracticalWebsite {
     private String logoUrl;
 
     /**
-     * 状态：0-待审核，1-已通过，2-已拒绝
+     * 状态：2-待审核，4-已发布（审核通过），6-已拒绝
      */
     private Integer status;
 
@@ -207,14 +207,14 @@ public class OshPracticalWebsite {
     }
 
     /**
-     * 状态：0-待审核，1-已通过，2-已拒绝
+     * 状态：2-待审核，4-已发布（审核通过），6-已拒绝
      */
     public Integer getStatus() {
         return status;
     }
 
     /**
-     * 状态：0-待审核，1-已通过，2-已拒绝
+     * 状态：2-待审核，4-已发布（审核通过），6-已拒绝
      */
     public void setStatus(Integer status) {
         this.status = status;

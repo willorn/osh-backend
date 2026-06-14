@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 内部网站信息 Mapper 接口
@@ -27,4 +28,14 @@ public interface OshSiteInfoMapper extends BaseMapper<OshSiteInfo> {
   int insertUsage(@Param("oshSiteUsage") OshSiteUsage oshSiteUsage);
 
   List<OshSiteMaintainer> selectMaintainersBySiteIds(@Param("siteIds") Collection<Long> siteIds);
+
+  /**
+   * 查询网站列表
+   *
+   * @param siteInfo 查询条件
+   * @return 网站列表
+   */
+  List<OshSiteInfo> selectSitesList(@Param("siteInfo") OshSiteInfo siteInfo);
+
+  Set<Long> selectSiteIdsByResourceFilter(@Param("resourceFilters") List<String> resourceFilters);
 }

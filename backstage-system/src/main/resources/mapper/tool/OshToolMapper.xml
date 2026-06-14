@@ -9,14 +9,11 @@
         <result property="toolName" column="tool_name"/>
         <result property="no" column="no"/>
         <result property="description" column="description"/>
-        <result property="logoUrl" column="logo_url"/>
         <result property="accessType" column="access_type"/>
         <result property="routePath" column="route_path"/>
         <result property="iframeUrl" column="iframe_url"/>
         <result property="githubUrl" column="github_url"/>
-        <result property="price" column="price"/>
-        <result property="originalPrice" column="original_price"/>
-        <result property="pointCost" column="point_cost"/>
+        <result property="quotaCost" column="quota_cost"/>
         <result property="status" column="status"/>
         <result property="goodCount" column="good_count"/>
         <result property="neutralCount" column="neutral_count"/>
@@ -40,8 +37,8 @@
 
     <select id="pageQuerySearchTool" resultMap="OshToolResult">
         select distinct
-               t.id, t.tool_name, t.no, t.description, t.logo_url, t.access_type, t.route_path, t.iframe_url, t.github_url,
-               t.price, t.original_price, t.point_cost, t.status, t.good_count, t.neutral_count, t.bad_count,
+               t.id, t.tool_name, t.no, t.description, t.access_type, t.route_path, t.iframe_url, t.github_url,
+               t.quota_cost, t.status, t.good_count, t.neutral_count, t.bad_count,
                t.view_count, t.total_usage, t.collection_count, t.remark, t.resource_type, t.level, t.create_by,
                t.create_time, t.update_by, t.update_time, t.delete_flag,
                case when c.id is null then 0 else 1 end as collection_flag,
@@ -61,8 +58,7 @@
             left join osh_tool_collection c on c.tool_id = t.id
                 and c.user_id = #{userId}
                 and c.delete_flag = 0
-            left join osh_user_tool_quota q on q.tool_id = t.id
-                and q.user_id = #{userId}
+            left join osh_user_tool_quota q on q.user_id = #{userId}
                 and q.delete_flag = 0
             left join osh_tool_vote v on v.tool_id = t.id
                 and v.user_id = #{userId}
@@ -107,8 +103,8 @@
 
     <select id="selectAllToolsForEsSync" resultMap="OshToolResult">
         select
-               t.id, t.tool_name, t.no, t.description, t.logo_url, t.access_type, t.route_path, t.iframe_url, t.github_url,
-               t.price, t.original_price, t.point_cost, t.status, t.good_count, t.neutral_count, t.bad_count,
+               t.id, t.tool_name, t.no, t.description, t.access_type, t.route_path, t.iframe_url, t.github_url,
+               t.quota_cost, t.status, t.good_count, t.neutral_count, t.bad_count,
                t.view_count, t.total_usage, t.collection_count, t.remark, t.resource_type, t.level, t.create_by,
                t.create_time, t.update_by, t.update_time, t.delete_flag,
                0 as collection_flag,
@@ -121,8 +117,8 @@
 
     <select id="selectRecommendTools" resultMap="OshToolResult">
         select
-               t.id, t.tool_name, t.no, t.description, t.logo_url, t.access_type, t.route_path, t.iframe_url, t.github_url,
-               t.price, t.original_price, t.point_cost, t.status, t.good_count, t.neutral_count, t.bad_count,
+               t.id, t.tool_name, t.no, t.description, t.access_type, t.route_path, t.iframe_url, t.github_url,
+               t.quota_cost, t.status, t.good_count, t.neutral_count, t.bad_count,
                t.view_count, t.total_usage, t.collection_count, t.remark, t.resource_type, t.level, t.create_by,
                t.create_time, t.update_by, t.update_time, t.delete_flag,
                case when c.id is null then 0 else 1 end as collection_flag,
@@ -134,8 +130,7 @@
             left join osh_tool_collection c on c.tool_id = t.id
                 and c.user_id = #{userId}
                 and c.delete_flag = 0
-            left join osh_user_tool_quota q on q.tool_id = t.id
-                and q.user_id = #{userId}
+            left join osh_user_tool_quota q on q.user_id = #{userId}
                 and q.delete_flag = 0
             left join osh_tool_vote v on v.tool_id = t.id
                 and v.user_id = #{userId}
@@ -159,8 +154,8 @@
     </select>
 
     <select id="selectToolById" resultMap="OshToolResult">
-        select id, tool_name, no, description, logo_url, access_type, route_path, iframe_url, github_url,
-               price, original_price, point_cost, status, good_count, neutral_count, bad_count,
+        select id, tool_name, no, description, access_type, route_path, iframe_url, github_url,
+               quota_cost, status, good_count, neutral_count, bad_count,
                view_count, total_usage, collection_count, remark, resource_type, level, create_by, create_time,
                update_by, update_time, delete_flag,
                0 as remaining_count,
@@ -173,8 +168,8 @@
     </select>
 
     <select id="selectToolsWithMissingNo" resultMap="OshToolResult">
-        select id, tool_name, no, description, logo_url, access_type, route_path, iframe_url, github_url,
-               price, original_price, point_cost, status, good_count, neutral_count, bad_count,
+        select id, tool_name, no, description, access_type, route_path, iframe_url, github_url,
+               quota_cost, status, good_count, neutral_count, bad_count,
                view_count, total_usage, collection_count, remark, resource_type, level, create_by, create_time,
                update_by, update_time, delete_flag,
                0 as collection_flag,
@@ -188,25 +183,23 @@
         order by id asc
     </select>
 
-    <select id="selectUserRemainingCount" resultType="java.lang.Integer">
+    <select id="selectUserGlobalRemainingCount" resultType="java.lang.Integer">
         select coalesce(remaining_count, 0)
         from osh_user_tool_quota
-        where tool_id = #{toolId}
-          and user_id = #{userId}
+        where user_id = #{userId}
           and delete_flag = 0
         limit 1
     </select>
 
-    <update id="consumeUserToolQuota">
+    <update id="consumeUserGlobalQuota">
         update osh_user_tool_quota
-        set remaining_count = remaining_count - 1,
-            used_count = used_count + 1,
+        set remaining_count = remaining_count - #{quotaCost},
+            used_count = used_count + #{quotaCost},
             last_use_time = now(),
             update_by = #{operator},
             update_time = now()
-        where tool_id = #{toolId}
-          and user_id = #{userId}
-          and remaining_count > 0
+        where user_id = #{userId}
+          and remaining_count >= #{quotaCost}
           and delete_flag = 0
     </update>
 
@@ -255,12 +248,12 @@
     <insert id="insertTool" parameterType="com.backstage.system.domain.tool.OshTool"
             useGeneratedKeys="true" keyProperty="id">
         insert into osh_tool (
-            tool_name, no, description, logo_url, access_type, route_path, iframe_url, github_url,
-            price, original_price, point_cost, status, remark, resource_type, level,
+            tool_name, no, description, access_type, route_path, iframe_url, github_url,
+            quota_cost, status, remark, resource_type, level,
             create_by, create_time, update_by, update_time, delete_flag
         ) values (
-            #{toolName}, #{no}, #{description}, #{logoUrl}, #{accessType}, #{routePath}, #{iframeUrl}, #{githubUrl},
-            #{price}, #{originalPrice}, #{pointCost}, #{status}, #{remark}, #{resourceType}, #{level},
+            #{toolName}, #{no}, #{description}, #{accessType}, #{routePath}, #{iframeUrl}, #{githubUrl},
+            #{quotaCost}, #{status}, #{remark}, #{resourceType}, #{level},
             #{createBy}, now(), #{updateBy}, now(), 0
         )
     </insert>
@@ -271,12 +264,9 @@
             <if test="toolName != null">tool_name = #{toolName},</if>
             <if test="no != null">no = #{no},</if>
             <if test="description != null">description = #{description},</if>
-            <if test="logoUrl != null">logo_url = #{logoUrl},</if>
             <if test="accessType != null">access_type = #{accessType}, route_path = #{routePath}, iframe_url = #{iframeUrl},</if>
             <if test="githubUrl != null">github_url = #{githubUrl},</if>
-            <if test="price != null">price = #{price},</if>
-            <if test="originalPrice != null">original_price = #{originalPrice},</if>
-            <if test="pointCost != null">point_cost = #{pointCost},</if>
+            <if test="quotaCost != null">quota_cost = #{quotaCost},</if>
             <if test="status != null">status = #{status},</if>
             <if test="remark != null">remark = #{remark},</if>
             <if test="resourceType != null">resource_type = #{resourceType},</if>

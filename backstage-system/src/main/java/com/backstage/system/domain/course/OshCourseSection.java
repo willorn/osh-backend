@@ -26,6 +26,7 @@ public class OshCourseSection {
     private Long fileSize;
     private String subtitleUrl;
     private String type;
+    private Long linkedCourseId;
     private Integer status;
     private Long examId;
     private Integer deleteFlag;
@@ -179,6 +180,14 @@ public class OshCourseSection {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public Long getLinkedCourseId() {
+        return linkedCourseId;
+    }
+
+    public void setLinkedCourseId(Long linkedCourseId) {
+        this.linkedCourseId = linkedCourseId;
     }
 
     public Integer getStatus() {

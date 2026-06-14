@@ -53,4 +53,38 @@
             </foreach>
         </where>
     </select>
+
+    <select id="selectSitesList" resultType="com.backstage.system.domain.site.OshSiteInfo">
+        select id, site_name, cover, description, status, last_check_time, site_type, site_config
+        from osh_site_info
+        <where>
+            delete_flag = 0
+            <if test="siteInfo.siteName != null and siteInfo.siteName != ''">
+                and site_name like concat('%', #{siteInfo.siteName}, '%')
+            </if>
+            <if test="siteInfo.status != null">
+                and status = #{siteInfo.status}
+            </if>
+            <if test="siteInfo.siteType != null and siteInfo.siteType != ''">
+                and site_type = #{siteInfo.siteType}
+            </if>
+        </where>
+    </select>
+
+    <select id="selectSiteIdsByResourceFilter" resultType="long">
+        select distinct id from (
+            select s.id, concat(sr.resource_type, '|', sr.resource_id) as resource_filter
+            from osh_site_info s
+                left join osh_site_resource_relation sr on s.id = sr.site_id
+            where s.delete_flag = 0 and sr.delete_flag = 0
+        ) t
+        <where>
+            <if test="resourceFilters != null and resourceFilters.size() > 0">
+                and resource_filter in
+                <foreach collection="resourceFilters" item="item" open="(" close=")" separator=",">
+                    #{item}
+                </foreach>
+            </if>
+        </where>
+    </select>
 </mapper>

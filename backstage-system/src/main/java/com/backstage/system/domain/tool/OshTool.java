@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,9 +27,6 @@ public class OshTool {
     @ApiModelProperty("工具描述")
     private String description;
 
-    @ApiModelProperty("工具图标相对路径或访问URL")
-    private String logoUrl;
-
     @ApiModelProperty("访问类型：1-站内工具，2-iframe第三方工具")
     private Integer accessType;
 
@@ -43,14 +39,8 @@ public class OshTool {
     @ApiModelProperty("GitHub地址")
     private String githubUrl;
 
-    @ApiModelProperty("当前价格")
-    private BigDecimal price;
-
-    @ApiModelProperty("原价/市场价")
-    private BigDecimal originalPrice;
-
-    @ApiModelProperty("单次消耗积分/余额")
-    private Integer pointCost;
+    @ApiModelProperty("单次消耗工具点数")
+    private Integer quotaCost;
 
     @ApiModelProperty("状态：2-待审核，4-上架，6-下架")
     private Integer status;
@@ -76,7 +66,7 @@ public class OshTool {
     @ApiModelProperty("备注")
     private String remark;
 
-    @ApiModelProperty("资源类型：FREE,CASH_ONLY,CASH_POINT,VIP,SMALL_CLASS,INTERNAL")
+    @ApiModelProperty("资源类型：FREE,CASH_POINT")
     private String resourceType;
 
     @ApiModelProperty("资源等级")
@@ -114,9 +104,6 @@ public class OshTool {
     @ApiModelProperty("当前用户评价类型：0-未评价，1-点赞，3-差评")
     private Integer voteType;
 
-    @ApiModelProperty("工具售卖套餐列表")
-    private List<OshToolPackage> packages;
-
     public Long getId() {
         return id;
     }
@@ -147,14 +134,6 @@ public class OshTool {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getLogoUrl() {
-        return logoUrl;
-    }
-
-    public void setLogoUrl(String logoUrl) {
-        this.logoUrl = logoUrl;
     }
 
     public Integer getAccessType() {
@@ -189,28 +168,12 @@ public class OshTool {
         this.githubUrl = githubUrl;
     }
 
-    public BigDecimal getPrice() {
-        return price;
+    public Integer getQuotaCost() {
+        return quotaCost;
     }
 
-    public void setPrice(BigDecimal price) {
-        this.price = price;
-    }
-
-    public BigDecimal getOriginalPrice() {
-        return originalPrice;
-    }
-
-    public void setOriginalPrice(BigDecimal originalPrice) {
-        this.originalPrice = originalPrice;
-    }
-
-    public Integer getPointCost() {
-        return pointCost;
-    }
-
-    public void setPointCost(Integer pointCost) {
-        this.pointCost = pointCost;
+    public void setQuotaCost(Integer quotaCost) {
+        this.quotaCost = quotaCost;
     }
 
     public Integer getStatus() {
@@ -373,11 +336,4 @@ public class OshTool {
         this.voteType = voteType;
     }
 
-    public List<OshToolPackage> getPackages() {
-        return packages;
-    }
-
-    public void setPackages(List<OshToolPackage> packages) {
-        this.packages = packages;
-    }
 }

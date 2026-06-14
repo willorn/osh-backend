@@ -1,6 +1,7 @@
 package com.backstage.system.mapper.tool;
 
 import com.backstage.system.domain.tool.OshToolPackage;
+import com.backstage.system.domain.vo.tool.ToolQuotaPackageVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -9,15 +10,15 @@ import java.util.List;
 @Mapper
 public interface OshToolPackageMapper {
 
-    List<OshToolPackage> selectPackagesByToolId(@Param("toolId") Long toolId);
-
     OshToolPackage selectPackageById(@Param("id") Long id);
 
-    List<OshToolPackage> selectPackagesByToolIds(@Param("toolIds") List<Long> toolIds);
+    List<OshToolPackage> selectEnabledPackages();
 
-    int insertToolPackage(OshToolPackage toolPackage);
+    List<ToolQuotaPackageVO> selectAllPackageVos();
 
-    int updateToolPackage(OshToolPackage toolPackage);
+    int insertPackage(OshToolPackage toolPackage);
 
-    int softDeletePackagesByToolId(@Param("toolId") Long toolId, @Param("operator") String operator);
+    int updatePackage(OshToolPackage toolPackage);
+
+    int softDeletePackage(@Param("id") Long id, @Param("operator") String operator);
 }

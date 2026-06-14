@@ -2,7 +2,10 @@ package com.backstage.system.controller.course;
 
 import com.backstage.common.annotation.Anonymous;
 import com.backstage.common.annotation.DistributeLock;
+import com.backstage.common.annotation.OshResourceId;
+import com.backstage.common.annotation.OshUserEvent;
 import com.backstage.common.annotation.OshUserLevel;
+import com.backstage.common.constant.ResourceType;
 import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.common.response.PageResponse;
@@ -12,10 +15,12 @@ import com.backstage.system.domain.course.OshCourse;
 import com.backstage.system.domain.course.OshCourseMaterial;
 import com.backstage.system.domain.course.vo.*;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.enums.behavior.ContributionResourceType;
 import com.backstage.system.request.*;
 import com.backstage.system.service.IOshCourseCollectionService;
 import com.backstage.system.service.IOshCourseQuestionService;
 import com.backstage.system.service.IOshCourseService;
+import com.backstage.system.service.behavior.ContributionService;
 import com.backstage.system.service.course.IOshCourseEsService;
 import com.backstage.system.utils.UserContextUtil;
 import com.github.pagehelper.PageInfo;
@@ -64,11 +69,15 @@ public class OshCourseController extends BaseController {
     @Autowired
     private SearchEsProperties searchEsProperties;
 
+    @Autowired
+    private ContributionService contributionService;
+
 
     // TODO 后续追加 ES 查课
     // 免费,
     @ApiOperation("课程搜索")
     @PostMapping("/search")
+    @OshUserEvent(module = "课程模块", actionType = "搜索", resourceType = ResourceType.COURSE_TYPE, description = "搜索课程", recordAnonymous = true)
 //    @PreAuthorize("hasAuthority('course:list')")
     @Anonymous
     public R<PageResponse<CourseSearchLoginVo>> courseSearch(@RequestBody CourseSearchRequest request) {
@@ -134,6 +143,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("ES课程搜索")
     @PostMapping("/esSearch")
+    @OshUserEvent(module = "课程模块", actionType = "搜索", resourceType = ResourceType.COURSE_TYPE, description = "ES搜索课程")
     @PreAuthorize("hasAuthority('course:list')")
     public R esCourseSearch(@RequestBody CourseSearchRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -160,6 +170,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("登录态课程搜索")
     @PostMapping("/loginSearch/")
+    @OshUserEvent(module = "课程模块", actionType = "搜索", resourceType = ResourceType.COURSE_TYPE, description = "登录态搜索课程", recordAnonymous = true)
     @Anonymous
     public R<PageResponse<CourseSearchLoginVo>> loginCourseSearch(@RequestBody CourseSearchRequest request) {
         Long userId = UserContextUtil.getCurrentUserIdSafely();
@@ -173,6 +184,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("收藏课程搜索")
     @PostMapping("/search/collection")
+    @OshUserEvent(module = "课程模块", actionType = "搜索", resourceType = ResourceType.COURSE_TYPE, description = "搜索收藏课程", recordAnonymous = true)
     @Anonymous
     public R<PageResponse<OshCourse>> collectionCourseSearch(@RequestBody CourseSearchRequest request) {
         Long userId = UserContextUtil.getCurrentUserIdSafely();
@@ -189,8 +201,9 @@ public class OshCourseController extends BaseController {
     // TODO  后续需要 调用苍鳞方法去拿可访问性
     @ApiOperation("课程详情")
     @GetMapping("/detail/{id}")
+    @OshUserEvent(module = "课程模块", actionType = "浏览", resourceType = ResourceType.COURSE_TYPE, description = "浏览课程详情", recordAnonymous = true)
     @Anonymous
-    public R<OshCourseDetailVo> getCourseDetail(@NotNull @PathVariable("id") Long id) {
+    public R<OshCourseDetailVo> getCourseDetail(@OshResourceId @NotNull @PathVariable("id") Long id) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
         Long userId = UserContextUtil.getCurrentUserIdSafely();
         boolean includeUnpublished = canViewUnpublishedDetail(currentOshUser);
@@ -230,8 +243,9 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("获取小节内容 videoUrl or text")
     @GetMapping("/section/content/{courseId}/{sectionId}")
+    @OshUserEvent(module = "课程模块", actionType = "学习", resourceType = ResourceType.COURSE_TYPE, description = "获取课程小节内容", recordAnonymous = true)
     @Anonymous
-    public R<String> getCourseSectionContent(@NotNull @PathVariable Long courseId, @NotNull @PathVariable Long sectionId) {
+    public R<String> getCourseSectionContent(@OshResourceId @NotNull @PathVariable Long courseId, @NotNull @PathVariable Long sectionId) {
         Long userId = UserContextUtil.getCurrentUserIdSafely();
         if (!oshCourseService.canUserAccessSectionContent(courseId, sectionId, userId)) {
             return R.fail("您没有获取课程内容的权限，请购买后观看");
@@ -242,7 +256,8 @@ public class OshCourseController extends BaseController {
     @ApiOperation("获取课程资料数组")
     @Anonymous
     @GetMapping("/section/materials/{courseId}")
-    public R<List<OshCourseMaterial>> getCourseMaterials(@NotNull @PathVariable Long courseId) {
+    @OshUserEvent(module = "课程模块", actionType = "查询", resourceType = ResourceType.COURSE_TYPE, description = "查询课程资料", recordAnonymous = true)
+    public R<List<OshCourseMaterial>> getCourseMaterials(@OshResourceId @NotNull @PathVariable Long courseId) {
         Long userId = UserContextUtil.getCurrentUserIdSafely();
         if (userId == null) {
             return R.fail("请先登录");
@@ -254,8 +269,9 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("课程章节内容")
     @GetMapping("/section/outline/{courseId}")
+    @OshUserEvent(module = "课程模块", actionType = "查询", resourceType = ResourceType.COURSE_TYPE, description = "查询课程大纲", recordAnonymous = true)
     @Anonymous
-    public R<List<OshCourseSectionVo>> getSectionOutline(@NotNull @PathVariable Long courseId) {
+    public R<List<OshCourseSectionVo>> getSectionOutline(@OshResourceId @NotNull @PathVariable Long courseId) {
         Long userId = UserContextUtil.getCurrentUserIdSafely();
         return R.ok(oshCourseService.getCourseSectionOutline(courseId, userId));
     }
@@ -263,6 +279,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("课程提问提交")
     @PostMapping("/section/submit")
+    @OshUserEvent(module = "课程模块", actionType = "提交", resourceType = ResourceType.COURSE_TYPE, description = "提交课程提问")
     @PreAuthorize("hasAuthority('course:question:submit')")
     public R<Long> submitCourseSectionQuestion(@Validated @RequestBody CourseSectionQuestionRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -280,6 +297,7 @@ public class OshCourseController extends BaseController {
     // TODO 需要校验只有购买了课程以及服务角色才能回答和追问, 部分免费的课程 没买课的也不能提问
     @ApiOperation("课程问题回答")
     @PostMapping("/question/answer")
+    @OshUserEvent(module = "课程模块", actionType = "回答", resourceType = ResourceType.COURSE_TYPE, description = "回答课程问题")
     @PreAuthorize("hasAuthority('course:question:answer')")
     public R<Long> answerCourseQuestion(@Validated @RequestBody CourseQuestionAnswerRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -291,6 +309,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("新增/修改课程")
     @PostMapping("/save")
+    @OshUserEvent(module = "课程模块", actionType = "新增", resourceType = ResourceType.COURSE_TYPE, resourceIdExpression = "#result.data", resourceNameExpression = "#p0.title", description = "新增或修改课程")
     @PreAuthorize("hasAuthority('course:create') or hasAuthority('course:update')")
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> save(@RequestBody CourseCreateRequest request) {
@@ -319,6 +338,7 @@ public class OshCourseController extends BaseController {
             // 新增逻辑
             courseId = oshCourseService.createCourse(request, currentOshUser);
             if (courseId == null) return R.fail("新增课程失败");
+            contributionService.recordContribution(ContributionResourceType.COURSE.getCode(), courseId, request.getTitle());
         }
         return R.ok(courseId);
     }
@@ -352,6 +372,7 @@ public class OshCourseController extends BaseController {
     // TODO 暂时只管控创建人可修改
     @ApiOperation("修改课程")
     @PostMapping("/update")
+    @OshUserEvent(module = "课程模块", actionType = "修改", resourceType = ResourceType.COURSE_TYPE, resourceIdExpression = "#result.data", resourceNameExpression = "#p0.title", description = "修改课程")
     @PreAuthorize("hasAuthority('course:update')")
     @DistributeLock(scene = "resource", key = "operation", expireTime = 10000, waitTime = 3000, releaseImmediately = true)
     public R<Long> update(@Validated @RequestBody CourseUpdateRequest request) {
@@ -369,6 +390,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("审核课程")
     @PostMapping("/audit")
+    @OshUserEvent(module = "课程模块", actionType = "审核", resourceType = ResourceType.COURSE_TYPE, resourceIdExpression = "#p0.courseId", description = "审核课程")
     @PreAuthorize("hasAuthority('course:update')")
     @DistributeLock(scene = "course:audit", key = "api", expireTime = 60000, waitTime = 0, releaseImmediately = false)
     public R<Long> audit(@Validated @RequestBody CourseAuditRequest request) {
@@ -385,6 +407,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("章节新增/修改")
     @PostMapping("/section/chapter/save")
+    @OshUserEvent(module = "课程模块", actionType = "新增", resourceType = ResourceType.COURSE_TYPE, description = "新增或修改课程章节")
     @PreAuthorize("hasAuthority('course:chapter:save')")
     public R<Long> saveChapterSection(@Validated @RequestBody CourseChapterCreateRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -410,9 +433,26 @@ public class OshCourseController extends BaseController {
         }
     }
 
+    @ApiOperation("章/节拖拽排序")
+    @PostMapping("/section/reorder")
+    @PreAuthorize("hasAuthority('course:chapter:save')")
+    public R<Void> reorderSections(@Validated @RequestBody CourseSectionReorderRequest request) {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        try {
+            oshCourseService.reorderSections(request, currentOshUser);
+            return R.ok();
+        } catch (IllegalArgumentException ex) {
+            return R.fail(ex.getMessage());
+        }
+    }
+
 
     @ApiOperation("视频小节添加")
     @PostMapping("/section/video/save")
+    @OshUserEvent(module = "课程模块", actionType = "新增", resourceType = ResourceType.COURSE_TYPE, description = "新增课程视频小节")
     @PreAuthorize("hasAuthority('course:section:video')")
     public R<Long> saveVideoSection(@Validated @RequestBody CourseVideoSectionCreateRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -429,6 +469,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("文本内容小节添加")
     @PostMapping("/section/textContent/save")
+    @OshUserEvent(module = "课程模块", actionType = "新增", resourceType = ResourceType.COURSE_TYPE, description = "新增课程文本小节")
     @PreAuthorize("hasAuthority('course:section:text')")
     public R<Long> saveTextSection(@Validated @RequestBody CourseTextSectionCreateRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -443,9 +484,26 @@ public class OshCourseController extends BaseController {
         }
     }
 
+    @ApiOperation("引入课程作为小节")
+    @PostMapping("/section/courseLink/save")
+    @PreAuthorize("hasAuthority('course:section:video')")
+    public R<Long> saveCourseLinkSection(@Validated @RequestBody CourseLinkSectionCreateRequest request) {
+        OshUser currentOshUser = UserContextUtil.getCurrentUser();
+        if (currentOshUser == null) {
+            return R.fail("请先登录");
+        }
+        try {
+            Long sectionId = oshCourseService.createCourseLinkSection(request, currentOshUser);
+            return sectionId == null ? R.fail("引入课程作为小节失败") : R.ok(sectionId);
+        } catch (IllegalArgumentException ex) {
+            return R.fail(ex.getMessage());
+        }
+    }
+
 
     @ApiOperation("获取章节提问列表")
     @PostMapping("/section/questions/list")
+    @OshUserEvent(module = "课程模块", actionType = "查询", resourceType = ResourceType.COURSE_TYPE, description = "查询章节提问", recordAnonymous = true)
     @Anonymous
     public R<List<CourseQuestionListItemVo>> getSectionQuestions(@Validated @RequestBody CourseSectionQuestionListRequest request) {
         Long userId = UserContextUtil.getCurrentUserIdSafely();
@@ -455,13 +513,15 @@ public class OshCourseController extends BaseController {
     // TODO 需要校验用户是否有权限对整个课程
     @ApiOperation("获取问题回答列表")
     @GetMapping("/question/answers/{questionId}")
+    @OshUserEvent(module = "课程模块", actionType = "查询", resourceType = ResourceType.QA_QUESTION_TYPE, description = "查询课程问题回答", recordAnonymous = true)
     @Anonymous
-    public R<List<CourseQuestionAnswerItemVo>> getQuestionAnswers(@NotNull @PathVariable Long questionId) {
+    public R<List<CourseQuestionAnswerItemVo>> getQuestionAnswers(@OshResourceId @NotNull @PathVariable Long questionId) {
         return R.ok(oshCourseQuestionService.listQuestionAnswers(questionId));
     }
 
     @ApiOperation("收藏课程")
     @PostMapping("/collection/add")
+    @OshUserEvent(module = "课程模块", actionType = "收藏", resourceType = ResourceType.COURSE_TYPE, description = "收藏课程")
     @Anonymous
 //    @PreAuthorize("hasAuthority('course:collection:add')")
     public R collectCourse(@Validated @RequestBody CourseCollectionRequest request) {
@@ -475,6 +535,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("取消收藏课程")
     @PostMapping("/collection/remove")
+    @OshUserEvent(module = "课程模块", actionType = "取消收藏", resourceType = ResourceType.COURSE_TYPE, description = "取消收藏课程")
     @Anonymous
 //    @PreAuthorize("hasAuthority('course:collection:remove')")
     public R removeCourseCollection(@Validated @RequestBody CourseCollectionRequest request) {
@@ -488,6 +549,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("删除章节/小节")
     @PostMapping("/sectionDelete")
+    @OshUserEvent(module = "课程模块", actionType = "删除", resourceType = ResourceType.COURSE_TYPE, description = "删除课程章节")
     @PreAuthorize("hasAuthority('course:delete')")
     @Anonymous // 建议根据实际权限调整
     public R<String> deleteSection(@Validated @RequestBody CourseSectionDeleteRequest request) {
@@ -500,6 +562,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("批量隐藏课程（下架，创始人专属）")
     @PostMapping("/hide")
+    @OshUserEvent(module = "课程模块", actionType = "修改", resourceType = ResourceType.COURSE_TYPE, description = "隐藏课程")
     @OshUserLevel(value = 6)
     public R<String> hideCourses(@RequestBody CourseDeleteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();
@@ -515,6 +578,7 @@ public class OshCourseController extends BaseController {
 
     @ApiOperation("批量删除课程")
     @PostMapping("/delete")
+    @OshUserEvent(module = "课程模块", actionType = "删除", resourceType = ResourceType.COURSE_TYPE, description = "删除课程")
     @PreAuthorize("hasAuthority('course:delete')")
     public R<String> deleteCourses(@RequestBody CourseDeleteRequest request) {
         OshUser currentOshUser = UserContextUtil.getCurrentUser();

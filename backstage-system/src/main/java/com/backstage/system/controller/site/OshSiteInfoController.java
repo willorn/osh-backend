@@ -62,8 +62,8 @@ public class OshSiteInfoController extends BaseController {
      */
     @Anonymous
     @ApiOperation("查询网站列表")
-    @GetMapping("/list")
-    public R<TableDataInfo> list(OshSiteInfo siteInfo) {
+    @PostMapping("/list")
+    public R<TableDataInfo> list(@RequestBody OshSiteInfoListReq siteInfo) {
         List<OshSiteInfo> list = oshSiteInfoService.listSites(siteInfo);
         // 获取封面图片访问
         for (OshSiteInfo oshSiteInfo : list) {
@@ -72,14 +72,16 @@ public class OshSiteInfoController extends BaseController {
                 oshSiteInfo.setCover(ossService.getLimitedUrl(oshSiteInfo.getCover(), 30));
             }
         }
-        Set<Long> siteIds = list.stream().map(OshSiteInfo::getId).collect(Collectors.toSet());
-        Map<Long, List<OshSiteTag>> siteTagMap = oshSiteTagsService.getAllTag(siteIds)
-                .stream()
-                .collect(Collectors.groupingBy(OshSiteTag::getSiteId));
-        for (OshSiteInfo oshSiteInfo : list) {
-            oshSiteInfo.setTagList(siteTagMap.get(oshSiteInfo.getId()));
+        if (!CollectionUtils.isEmpty(list)) {
+            Set<Long> siteIds = list.stream().map(OshSiteInfo::getId).collect(Collectors.toSet());
+            Map<Long, List<OshSiteTag>> siteTagMap = oshSiteTagsService.getAllTag(siteIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(OshSiteTag::getSiteId));
+            for (OshSiteInfo oshSiteInfo : list) {
+                oshSiteInfo.setTagList(siteTagMap.get(oshSiteInfo.getId()));
+            }
+            oshSiteInfoService.setRelatedResources(list);
         }
-        oshSiteInfoService.setRelatedResources(list);
         return R.ok(getDataTable(list));
     }
 
