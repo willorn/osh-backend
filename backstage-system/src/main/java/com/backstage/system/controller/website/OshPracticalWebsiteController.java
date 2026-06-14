@@ -344,7 +344,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @ApiOperation("普通用户批量导入网站（待审核）")
     @PostMapping("/import")
     @OshUserEvent(module = "实用网站", actionType = "批量导入", description = "普通用户批量导入网站")
-    @Anonymous // TODO: 测试完成后恢复 @PreAuthorize("hasAuthority('website:import')")
+    @PreAuthorize("hasAuthority('website:import')")
     public R<WebsiteImportResultVO> importWebsites(@RequestParam("file") MultipartFile file) {
         try {
             String operator = getCurrentUser().getUsername();
@@ -365,7 +365,7 @@ public class OshPracticalWebsiteController extends BaseController {
     @ApiOperation("管理员批量导入网站（直接发布）")
     @PostMapping("/import/admin")
     @OshUserEvent(module = "实用网站", actionType = "批量导入", description = "管理员批量导入网站并直接发布")
-    @Anonymous // TODO: 测试完成后恢复 @PreAuthorize("hasAuthority('website:import:admin')")
+    @PreAuthorize("hasAuthority('website:import:admin')")
     public R<WebsiteImportResultVO> adminImportWebsites(@RequestParam("file") MultipartFile file) {
         try {
             String operator = getCurrentUser().getUsername();
