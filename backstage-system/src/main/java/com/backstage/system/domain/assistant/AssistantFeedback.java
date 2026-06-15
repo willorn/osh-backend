@@ -48,6 +48,11 @@ public class AssistantFeedback extends OSHBaseEntity {
     private String content;
 
     /**
+     * 反馈图片JSON数组（最多9张）
+     */
+    private String images;
+
+    /**
      * 反馈状态（PENDING、PROCESSING、RESOLVED、CLOSED）
      */
     private String status;
@@ -168,6 +173,14 @@ public class AssistantFeedback extends OSHBaseEntity {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getImages() {
+        return images;
+    }
+
+    public void setImages(String images) {
+        this.images = images;
     }
 
     public String getStatus() {

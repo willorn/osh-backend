@@ -60,6 +60,8 @@ public class OshUserEvent extends OSHBaseEntity {
      */
     @TableField("resource_id")
     private String ResourceId;
+    @TableField("resource_no")
+    private String resourceNo;
     /**
      * 资源类型
      */
@@ -181,6 +183,14 @@ public class OshUserEvent extends OSHBaseEntity {
 
     public void setResourceId(String resourceId) {
         ResourceId = resourceId;
+    }
+
+    public String getResourceNo() {
+        return resourceNo;
+    }
+
+    public void setResourceNo(String resourceNo) {
+        this.resourceNo = resourceNo;
     }
 
     public String getResourceType() {
@@ -315,6 +325,7 @@ public class OshUserEvent extends OSHBaseEntity {
                 ", methodName='" + methodName + '\'' +
                 ", actionType='" + actionType + '\'' +
                 ", resourceId='" + ResourceId + '\'' +
+                ", resourceNo='" + resourceNo + '\'' +
                 ", resourceType='" + resourceType + '\'' +
                 ", resourceName='" + resourceName + '\'' +
                 ", description='" + description + '\'' +

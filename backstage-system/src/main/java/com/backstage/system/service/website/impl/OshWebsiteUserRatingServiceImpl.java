@@ -16,15 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 
 /**
-* @author 24333
-* @description 针对表【osh_website_user_rating(网站用户评价记录表)】的数据库操作Service实现
-* @createDate 2026-04-11 20:36:12
-*/
+ * 网站用户评价 Service 实现
+ */
 @Service
 public class OshWebsiteUserRatingServiceImpl extends ServiceImpl<OshWebsiteUserRatingMapper, OshWebsiteUserRating>
-    implements OshWebsiteUserRatingService{
+        implements OshWebsiteUserRatingService {
     private static final Logger log = LoggerFactory.getLogger(OshWebsiteUserRatingServiceImpl.class);
-
 
     @Autowired
     private OshWebsiteUserRatingMapper ratingMapper;
@@ -113,7 +110,3 @@ public class OshWebsiteUserRatingServiceImpl extends ServiceImpl<OshWebsiteUserR
         return insertCount;
     }
 }
-
-
-
-

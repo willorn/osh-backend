@@ -8,7 +8,6 @@ import com.backstage.system.mapper.announcement.OshAnnouncementMapper;
 import com.backstage.system.mapper.seckill.OshSeckillActivityItemMapper;
 import com.backstage.system.mapper.seckill.OshSeckillActivityMapper;
 import com.backstage.system.mapper.seckill.OshSeckillOrderMapper;
-import com.backstage.system.mapper.user.OshUserMapper;
 import com.backstage.system.service.announcement.ISeckillAnnouncementService;
 import com.backstage.system.service.websocket.WebSocketNotifyService;
 import org.slf4j.Logger;
@@ -23,12 +22,12 @@ import java.util.List;
  *
  * <p>表字段说明（osh_announcement 新结构）：</p>
  * <ul>
- *   <li>channel=1  系统动态（公告栏，对应原 biz_type='seckill_notice'）</li>
- *   <li>channel=2  业务动态（动态栏，对应原 biz_type='seckill_dynamic'）</li>
- *   <li>module='seckill'  归属模块（对应原 scene='seckill'）</li>
- *   <li>source='system'   来源（对应原 trigger_type='auto'）</li>
- *   <li>color             图标颜色（对应原 icon_color）</li>
- *   <li>status=4          已发布（对应原 status=1 启用）</li>
+ *   <li>channel=1  系统动态（公告栏）</li>
+ *   <li>channel=2  业务动态（动态栏）</li>
+ *   <li>module='seckill'  归属模块</li>
+ *   <li>source='system'   来源</li>
+ *   <li>color             图标颜色</li>
+ *   <li>status=4          已发布</li>
  * </ul>
  *
  * @author backstage
@@ -66,9 +65,6 @@ public class SeckillAnnouncementServiceImpl implements ISeckillAnnouncementServi
 
     @Autowired
     private OshSeckillOrderMapper orderMapper;
-
-    @Autowired
-    private OshUserMapper userMapper;
 
     @Autowired
     private WebSocketNotifyService webSocketNotifyService;

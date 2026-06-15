@@ -3,7 +3,7 @@ package com.backstage.system.domain.vo.tool;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
-@ApiModel(description = "全局次数购买详情")
+@ApiModel(description = "工具点数购买详情")
 public class ToolPurchaseDetailVO {
 
     @ApiModelProperty(value = "当前用户剩余次数", example = "12")

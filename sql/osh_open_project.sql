@@ -7,7 +7,7 @@ CREATE TABLE `osh_open_project` (
     `project_url`      varchar(500) NOT NULL COMMENT '项目链接（Gitee/GitHub）',
     `author_name`      varchar(100) DEFAULT NULL COMMENT '作者名称',
     `project_cover`    varchar(500) DEFAULT NULL COMMENT '封面图片URL',
-    `status`           tinyint      NOT NULL DEFAULT 0 COMMENT '状态：0-待审核，1-已通过，2-已拒绝',
+    `status`           tinyint      NOT NULL DEFAULT 1 COMMENT '状态：1-可见',
     `click_count`      int          NOT NULL DEFAULT 0 COMMENT '点击次数',
     `reject_reason`    varchar(500) DEFAULT NULL COMMENT '拒绝原因',
 

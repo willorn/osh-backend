@@ -24,6 +24,9 @@ public class OshCourse {
     @ApiModelProperty("课程 ID")
     private Long id;
 
+    @ApiModelProperty("资源编号")
+    private String no;
+
     @Excel(name = "课程标题")
     @ApiModelProperty("课程标题")
     private String title;
@@ -146,8 +149,11 @@ public class OshCourse {
     @ApiModelProperty("服务周期（月）")
     private Integer servicePeriod;
 
-    @ApiModelProperty("课程等级")
+    @ApiModelProperty("资源等级/适用人群（VIP、小班等受众区分，非课程难度）")
     private Integer level;
+
+    @ApiModelProperty("课程难度：1-新手入门 2-基础巩固 3-能力提升")
+    private Integer difficulty;
 
     @ApiModelProperty("试看内容/试用内容")
     private String tryContent;
@@ -203,12 +209,28 @@ public class OshCourse {
         this.level = level;
     }
 
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
+    }
+
     public Long getId() {
         return id;
     }
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getNo() {
+        return no;
+    }
+
+    public void setNo(String no) {
+        this.no = no;
     }
 
     public String getTitle() {
@@ -457,6 +479,7 @@ public class OshCourse {
     public String toString() {
         return "OshCourse{" +
                 "id=" + id +
+                ", no='" + no + '\'' +
                 ", title='" + title + '\'' +
                 ", cover='" + cover + '\'' +
                 ", intro='" + intro + '\'' +

@@ -184,7 +184,7 @@ public class OshToolServiceImplTest {
         when(oshToolTagMapper.selectTagNamesByToolId(10001L)).thenReturn(Collections.singletonList("PDF工具"));
         when(oshToolCollectionMapper.selectActiveToolIdsByUserIdAndToolIds(9L, Collections.singletonList(10001L)))
                 .thenReturn(Collections.singletonList(10001L));
-        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(8);
+        when(oshToolMapper.selectUserRemainingCount(9L)).thenReturn(8);
         OshTool result = toolService.getToolDetail(10001L, 9L);
 
         assertEquals(Integer.valueOf(1), result.getCollectionFlag());
@@ -202,13 +202,13 @@ public class OshToolServiceImplTest {
         tool.setLevel(1);
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
-        when(oshToolMapper.consumeUserGlobalQuota(9L, 2, "normal")).thenReturn(1);
-        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(8, 7);
+        when(oshToolMapper.consumeUserQuota(9L, 2, "normal")).thenReturn(1);
+        when(oshToolMapper.selectUserRemainingCount(9L)).thenReturn(8, 7);
 
         Integer remainingCount = toolService.consumeToolUsage(9L, 1, "normal", 10001L);
 
         assertEquals(Integer.valueOf(7), remainingCount);
-        verify(oshToolMapper).consumeUserGlobalQuota(9L, 2, "normal");
+        verify(oshToolMapper).consumeUserQuota(9L, 2, "normal");
         verify(oshToolMapper).increaseTotalUsage(10001L);
         verify(oshToolEsService).buildIndexMessage(eq(10001L), eq(ToolIndexEventType.TOOL_INDEX_COUNTER));
     }
@@ -225,7 +225,7 @@ public class OshToolServiceImplTest {
         Integer remainingCount = toolService.consumeToolUsage(9L, 1, "normal", 10001L);
 
         assertEquals(Integer.valueOf(0), remainingCount);
-        verify(oshToolMapper, times(0)).consumeUserGlobalQuota(any(Long.class), any(Integer.class), any(String.class));
+        verify(oshToolMapper, times(0)).consumeUserQuota(any(Long.class), any(Integer.class), any(String.class));
     }
 
     @Test(expected = ServiceException.class)
@@ -237,12 +237,12 @@ public class OshToolServiceImplTest {
         tool.setLevel(1);
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
-        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(0);
+        when(oshToolMapper.selectUserRemainingCount(9L)).thenReturn(0);
 
         try {
             toolService.consumeToolUsage(9L, 1, "normal", 10001L);
         } finally {
-            verify(oshToolMapper, never()).consumeUserGlobalQuota(any(Long.class), any(Integer.class), any(String.class));
+            verify(oshToolMapper, never()).consumeUserQuota(any(Long.class), any(Integer.class), any(String.class));
             verify(oshToolMapper, never()).increaseTotalUsage(any(Long.class));
         }
     }
@@ -256,14 +256,14 @@ public class OshToolServiceImplTest {
         tool.setLevel(1);
 
         when(oshToolMapper.selectToolById(10001L)).thenReturn(tool);
-        when(oshToolMapper.selectUserGlobalRemainingCount(9L)).thenReturn(0);
+        when(oshToolMapper.selectUserRemainingCount(9L)).thenReturn(0);
 
         ToolUsagePermission permission = toolService.checkToolUsagePermission(9L, 1, 10001L);
 
         assertEquals(Boolean.TRUE, permission.getUseAllowed());
         assertEquals(Boolean.FALSE, permission.getDeductAllowed());
         assertEquals(Integer.valueOf(0), permission.getRemainingCount());
-        assertEquals("工具使用次数不足", permission.getMessage());
+        assertEquals("工具点数不足", permission.getMessage());
     }
 
     @Test

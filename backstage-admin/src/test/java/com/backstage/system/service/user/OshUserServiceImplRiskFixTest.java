@@ -69,7 +69,7 @@ public class OshUserServiceImplRiskFixTest {
     public void updateInfoRejectsInvalidUsername() {
         ThreadLocalUtil.set(OshUserConstants.USER_ID, USER_ID);
 
-        R<String> result = userService.updateInfo("1bad", "男", "intro");
+        R<String> result = userService.updateInfo("1bad", "男", "intro", null, null);
 
         assertEquals(R.FAIL, result.getCode());
         assertEquals(ResultCode.FAILED_USER_USERNAME_NOT_IN_RANGE.getMsg(), result.getMsg());
@@ -85,7 +85,7 @@ public class OshUserServiceImplRiskFixTest {
         when(oshUserMapper.selectOne(any(Wrapper.class))).thenReturn(current);
         when(oshUserMapper.selectCount(any(Wrapper.class))).thenReturn(1L);
 
-        R<String> result = userService.updateInfo("newName", "男", "intro");
+        R<String> result = userService.updateInfo("newName", "男", "intro", null, null);
 
         assertEquals(R.FAIL, result.getCode());
         assertEquals(ResultCode.AILED_USER_EXISTS.getMsg(), result.getMsg());

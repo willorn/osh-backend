@@ -362,6 +362,7 @@ public class OshCourseController extends BaseController {
         update.setRemark(req.getRemark());
         update.setResourceType(req.getResourceType());
         update.setLevel(req.getLevel());
+        update.setDifficulty(req.getDifficulty());
         update.setServicePeriod(req.getServicePeriod());
         update.setTags(req.getTags());
         update.setMaterial(req.getMaterial());

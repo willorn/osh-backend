@@ -1,6 +1,8 @@
 package com.backstage.system.service.impl.info_gap;
 
+import com.backstage.common.enums.ResourceCodePrefixEnum;
 import com.backstage.common.exception.ServiceException;
+import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.system.domain.dto.info_gap.InfoGapCreateDTO;
 import com.backstage.system.domain.dto.info_gap.InfoGapSearchReqDTO;
 import com.backstage.system.domain.dto.info_gap.InfoGapUpdateReqDTO;
@@ -102,6 +104,7 @@ public class InfoGapServiceImpl implements InfoGapService {
         entity.setTitle(dto.getTitle());
         entity.setContent(dto.getContent());
         entity.setTag(dto.getTag());
+        entity.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.INFO_GAP));
         entity.setStatus(2);
         entity.setUserName(userName);
 

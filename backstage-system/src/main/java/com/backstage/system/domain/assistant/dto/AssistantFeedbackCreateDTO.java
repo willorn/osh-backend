@@ -33,6 +33,12 @@ public class AssistantFeedbackCreateDTO {
     private String content;
 
     /**
+     * 反馈图片URL列表（最多9张）
+     */
+    @Size(max = 9, message = "最多上传9张图片")
+    private List<String> images;
+
+    /**
      * 反馈来源页面路径
      */
     @Size(max = 255, message = "页面路径不能超过255个字符")
@@ -66,6 +72,14 @@ public class AssistantFeedbackCreateDTO {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public List<String> getImages() {
+        return images;
+    }
+
+    public void setImages(List<String> images) {
+        this.images = images;
     }
 
     public String getPagePath() {

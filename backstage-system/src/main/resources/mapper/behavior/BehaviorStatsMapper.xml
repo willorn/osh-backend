@@ -6,6 +6,7 @@
 
     <sql id="eventWhere">
         <where>
+            delete_flag = 0
             <if test="query.userId != null">
                 and user_id = #{query.userId}
             </if>
@@ -36,34 +37,93 @@
         </where>
     </sql>
 
+    <sql id="eventWhereWithAlias">
+        <where>
+            e.delete_flag = 0
+            <if test="query.userId != null">
+                and e.user_id = #{query.userId}
+            </if>
+            <if test="query.username != null and query.username != ''">
+                and e.username like concat('%', #{query.username}, '%')
+            </if>
+            <if test="query.roleLevel != null">
+                and e.role_level = #{query.roleLevel}
+            </if>
+            <if test="query.module != null and query.module != ''">
+                and e.module = #{query.module}
+            </if>
+            <if test="query.actionType != null and query.actionType != ''">
+                and e.action_type = #{query.actionType}
+            </if>
+            <if test="query.resourceType != null and query.resourceType != ''">
+                and e.resource_type = #{query.resourceType}
+            </if>
+            <if test="query.status != null and query.status != ''">
+                and e.status = #{query.status}
+            </if>
+            <if test="query.startTime != null and query.startTime != ''">
+                and e.happen_time &gt;= #{query.startTime}
+            </if>
+            <if test="query.endTime != null and query.endTime != ''">
+                and e.happen_time &lt;= #{query.endTime}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectEventCount" resultType="java.lang.Long">
+        select count(1)
+        from osh_user_action_event e
+        <include refid="eventWhereWithAlias"/>
+    </select>
+
     <select id="selectEventPage" resultType="java.util.LinkedHashMap">
         select
-            id,
-            user_id as userId,
-            username,
-            role,
-            role_level as roleLevel,
-            module,
-            method_name as methodName,
-            action_type as actionType,
-            resource_id as resourceId,
-            resource_type as resourceType,
-            resource_name as resourceName,
-            description,
-            status,
-            exception,
-            request_uri as requestUri,
-            request_method as requestMethod,
-            ip,
-            user_agent as userAgent,
-            duration_ms as durationMs,
-            result_code as resultCode,
-            current_point as currentPoint,
-            contribution,
-            happen_time as happenTime
-        from osh_user_action_event
-        <include refid="eventWhere"/>
-        order by happen_time desc, id desc
+            e.id,
+            concat(e.id, '-', date_format(e.happen_time, '%Y%m%d%H%i%s%f'), '-', row_number() over (order by e.happen_time desc, e.id desc)) as rowKey,
+            e.user_id as userId,
+            e.username,
+            e.role,
+            e.role_level as roleLevel,
+            e.module,
+            e.method_name as methodName,
+            e.action_type as actionType,
+            e.resource_id as resourceId,
+            coalesce(
+                convert(e.resource_no using utf8mb4) collate utf8mb4_general_ci,
+                case
+                    when e.resource_type = 'course' and e.resource_id regexp '^[0-9]+$'
+                        then (select convert(c.no using utf8mb4) collate utf8mb4_general_ci from osh_course c where c.id = cast(e.resource_id as unsigned) limit 1)
+                    when e.resource_type = 'book' and e.resource_id regexp '^[0-9]+$'
+                        then (select convert(b.no using utf8mb4) collate utf8mb4_general_ci from osh_book b where b.id = cast(e.resource_id as unsigned) limit 1)
+                    when e.resource_type = 'tool' and e.resource_id regexp '^[0-9]+$'
+                        then (select convert(t.no using utf8mb4) collate utf8mb4_general_ci from osh_tool t where t.id = cast(e.resource_id as unsigned) limit 1)
+                    when e.resource_type = 'info_gap' and e.resource_id regexp '^[0-9]+$'
+                        then (select convert(g.no using utf8mb4) collate utf8mb4_general_ci from osh_info_gap g where g.id = cast(e.resource_id as unsigned) limit 1)
+                    when e.resource_type = 'website' and e.resource_id regexp '^[0-9]+$'
+                        then (select convert(w.no using utf8mb4) collate utf8mb4_general_ci from osh_practical_website w where w.id = cast(e.resource_id as unsigned) limit 1)
+                    when e.resource_type = 'open_project' and e.resource_id regexp '^[0-9]+$'
+                        then (select convert(p.no using utf8mb4) collate utf8mb4_general_ci from osh_open_project p where p.id = cast(e.resource_id as unsigned) limit 1)
+                    else null
+                end
+            ) as resourceNo,
+            e.resource_type as resourceType,
+            e.resource_name as resourceName,
+            e.description,
+            e.status,
+            e.exception,
+            e.request_uri as requestUri,
+            e.request_method as requestMethod,
+            e.ip,
+            e.user_agent as userAgent,
+            e.duration_ms as durationMs,
+            e.result_code as resultCode,
+            e.current_point as currentPoint,
+            e.contribution,
+            e.happen_time as happenTime
+        from osh_user_action_event e
+        <include refid="eventWhereWithAlias"/>
+        order by e.happen_time desc, e.id desc
+        limit #{offset}, #{limit}
     </select>
 
     <select id="selectSummary" resultType="java.util.LinkedHashMap">
@@ -273,6 +333,7 @@
             c.contributor_role_level as contributorRoleLevel,
             c.resource_type as resourceType,
             c.resource_id as resourceId,
+            c.resource_no as resourceNo,
             c.resource_name as resourceName,
             c.status,
             c.create_time as createTime,
@@ -300,6 +361,7 @@
             c.contributor_username as contributorUsername,
             c.resource_type as resourceType,
             c.resource_id as resourceId,
+            c.resource_no as resourceNo,
             c.resource_name as resourceName,
             r.order_id as orderId,
             r.order_no as orderNo,

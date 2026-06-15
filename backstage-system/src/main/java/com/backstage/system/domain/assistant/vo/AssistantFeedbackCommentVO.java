@@ -41,6 +41,11 @@ public class AssistantFeedbackCommentVO {
     private String content;
 
     /**
+     * 评论图片列表
+     */
+    private List<String> images;
+
+    /**
      * 父评论 ID（0 表示一级评论）
      */
     private Long parentId;
@@ -126,6 +131,14 @@ public class AssistantFeedbackCommentVO {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public List<String> getImages() {
+        return images;
+    }
+
+    public void setImages(List<String> images) {
+        this.images = images;
     }
 
     public Long getParentId() {

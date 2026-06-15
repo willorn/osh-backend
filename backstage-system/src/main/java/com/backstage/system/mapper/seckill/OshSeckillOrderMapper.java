@@ -28,7 +28,14 @@ public interface OshSeckillOrderMapper {
      * 用于 getSeckillResult() 兜底查询（Redis Key 过期后的降级路径）
      */
     OshSeckillOrder selectPendingOrderByItemUser(@Param("itemId") Long itemId,
-                                                  @Param("userId") Long userId);
+                                                 @Param("userId") Long userId);
+
+    /**
+     * 用于 getSeckillResult() 在 orderKey 已释放后的兜底查询
+     * 只查询最近一笔有效订单（待支付/已支付），避免支付成功后立即轮询返回“查不到结果”
+     */
+    OshSeckillOrder selectLatestEffectiveOrderByItemUser(@Param("itemId") Long itemId,
+                                                         @Param("userId") Long userId);
 
     /** 管理端列表查询（支持多条件筛选） */
     List<OshSeckillOrder> selectOrderList(OshSeckillOrder order);
@@ -38,6 +45,16 @@ public interface OshSeckillOrderMapper {
 
     /** 修改秒杀订单 */
     int updateOrder(OshSeckillOrder order);
+
+    /**
+     * CAS 方式更新订单状态，避免支付成功/用户取消/超时取消并发覆盖状态
+     */
+    int updateOrderStatusWithCheck(@Param("id") Long id,
+                                   @Param("oldStatus") Integer oldStatus,
+                                   @Param("newStatus") Integer newStatus,
+                                   @Param("payTime") java.util.Date payTime,
+                                   @Param("cancelTime") java.util.Date cancelTime,
+                                   @Param("cancelReason") String cancelReason);
 
     /** 查询支付超时的待支付订单（status=0 且 pay_expire_time < now） */
     List<OshSeckillOrder> selectTimeoutOrders();

@@ -19,8 +19,8 @@
 
 - 工具基础信息表：`osh_tool`
 - 工具套餐表：`osh_tool_package`
-- 用户工具余额表：`osh_user_tool_quota`
-- 工具使用时通过 `osh_user_tool_quota.remaining_count` 判断是否可扣减
+- 用户工具余额表：`osh_tool_user_quota`
+- 工具使用时通过 `osh_tool_user_quota.remaining_count` 判断是否可扣减
 - 支付统一走订单模块：
   - 订单：`osh_order`
   - 支付流水：`osh_payment`
@@ -29,7 +29,7 @@
 
 当前不足：
 
-- `osh_user_tool_quota` 只能表达某个用户在某个工具上的汇总剩余次数，无法表达买的是哪个套餐
+- `osh_tool_user_quota` 只能表达某个用户在某个工具上的汇总剩余次数，无法表达买的是哪个套餐
 - 统一订单表中的 `productId` 只能稳定记录 `toolId`，无法承载套餐快照
 - 如果只依赖 `packageId` 回查当前套餐配置，会在套餐改价或改次数后导致历史订单与真实成交事实不一致
 
@@ -43,7 +43,7 @@
 - 工具购买扩展信息单独落表：`osh_tool_purchase_record`
 - 支付成功后，由工具类型的支付后置处理器负责：
   - 幂等校验
-  - 发放工具次数到 `osh_user_tool_quota`
+  - 发放工具次数到 `osh_tool_user_quota`
   - 更新购买记录发放状态
 
 职责边界如下：
@@ -56,7 +56,7 @@
   - 保存支付流水
 - `osh_tool_purchase_record`
   - 保存工具购买业务扩展信息与套餐快照
-- `osh_user_tool_quota`
+- `osh_tool_user_quota`
   - 保存用户在某个工具上的汇总剩余次数与已使用次数
 
 ## 4. 页面设计
@@ -256,7 +256,7 @@ CREATE TABLE `osh_tool_purchase_record`
 返回说明：
 
 - 套餐列表仅返回启用状态套餐
-- `remainingCount` 从 `osh_user_tool_quota` 中获取
+- `remainingCount` 从 `osh_tool_user_quota` 中获取
 - 若用户未登录，`remainingCount` 返回 0
 
 ### 8.2 创建工具购买订单
@@ -384,7 +384,7 @@ CREATE TABLE `osh_tool_purchase_record`
 
 ## 11. 用户工具次数发放逻辑
 
-发放目标表：`osh_user_tool_quota`
+发放目标表：`osh_tool_user_quota`
 
 处理规则：
 
@@ -498,7 +498,7 @@ CREATE TABLE `osh_tool_purchase_record`
 
 - 新增 `osh_tool_purchase_record` 保存工具购买事实与套餐快照
 - 统一订单继续只记录 `toolId`
-- `osh_user_tool_quota` 继续做汇总余额
+- `osh_tool_user_quota` 继续做汇总余额
 - 支付成功后通过 `TOOL` 类型处理器为用户发放次数
 - 页面侧围绕“选套餐 -> 选支付方式 -> 立即支付”构建最小闭环
 

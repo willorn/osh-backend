@@ -102,6 +102,32 @@ public class OshQAQuestionServiceImpl implements IOshQAQuestionService {
     }
 
     @Override
+    public R<String> addToolQuestion(Long userId, Long toolId, String content, List<String> tags) {
+        if (userId == null) return R.fail(ResultCode.FAILED_NOT_LOGIN.getMsg());
+        if (toolId == null || !StringUtils.isNotEmpty(content)) {
+            return R.fail(ResultCode.FAILED_PARAMS_VALIDATE.getMsg());
+        }
+        Question question = new Question();
+        question.setUserId(userId);
+        question.setResourceNo(toolId);
+        question.setResourceType("tool");
+        question.setContent(content);
+        question.setIsPaidOnly((byte) 0);
+        question.setCreateBy(userId);
+        question.setUpdateBy(userId);
+        oshQaQuestionMapper.insert(question);
+        if (tags != null && !tags.isEmpty()) {
+            for (String tagName : tags) {
+                Long tagId = resolveQATagId(tagName, userId);
+                if (tagId != null) {
+                    oshQaQuestionMapper.addQuestionTags(question.getId(), tagId, userId);
+                }
+            }
+        }
+        return R.ok(ResultCode.SUCCESS.getMsg());
+    }
+
+    @Override
     public R<String> publishQuestion(Long userId, Long questionId) {
         if (userId == null) return R.fail(ResultCode.FAILED_NOT_LOGIN.getMsg());
         if (questionId == null) return R.fail(ResultCode.FAILED_PARAMS_VALIDATE.getMsg());

@@ -171,7 +171,7 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
         List<Long> collectedIds = oshToolCollectionMapper.selectActiveToolIdsByUserIdAndToolIds(userId, toolIds);
         for (OshTool row : rows) {
             row.setCollectionFlag(collectedIds.contains(row.getId()) ? 1 : 0);
-            Integer remainingCount = oshToolMapper.selectUserGlobalRemainingCount(userId);
+            Integer remainingCount = oshToolMapper.selectUserRemainingCount(userId);
             int value = remainingCount == null ? 0 : remainingCount;
             row.setRemainingCount(value);
             row.setPurchasedFlag(value > 0 ? 1 : 0);

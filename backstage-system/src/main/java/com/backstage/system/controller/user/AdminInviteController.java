@@ -67,6 +67,51 @@ public class AdminInviteController {
     @PostMapping("/create")
     @OshUserLevel(value = 6)
     public R createInvite(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+        return createSingleInvite(params, request);
+    }
+
+    @PostMapping("/batch")
+    @OshUserLevel(value = 6)
+    public R createBatchInvite(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+        List<Map<String, Object>> inviteItems = parseInviteItems(params);
+        if (inviteItems.isEmpty()) {
+            return R.fail("邮箱不能为空");
+        }
+
+        List<LinkedHashMap<String, Object>> items = new ArrayList<>();
+        int successCount = 0;
+        for (Map<String, Object> inviteItem : inviteItems) {
+            String email = String.valueOf(inviteItem.get("email"));
+            Map<String, Object> singleParams = new HashMap<>(params);
+            singleParams.putAll(inviteItem);
+            singleParams.remove("emails");
+            singleParams.remove("items");
+
+            R singleResult = createSingleInvite(singleParams, request);
+            boolean success = R.SUCCESS == singleResult.getCode();
+            if (success) {
+                successCount++;
+            }
+
+            LinkedHashMap<String, Object> item = new LinkedHashMap<>();
+            item.put("email", email);
+            item.put("success", success);
+            item.put("message", singleResult.getMsg());
+            if (success) {
+                item.put("data", singleResult.getData());
+            }
+            items.add(item);
+        }
+
+        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
+        data.put("total", inviteItems.size());
+        data.put("successCount", successCount);
+        data.put("failCount", inviteItems.size() - successCount);
+        data.put("items", items);
+        return R.ok(data);
+    }
+
+    private R createSingleInvite(Map<String, Object> params, HttpServletRequest request) {
         String email = (String) params.get("email");
         Integer roleId = Integer.valueOf(params.get("roleId").toString());
         // 自定义积分，默认188
@@ -169,6 +214,71 @@ public class AdminInviteController {
         data.put("inviteLink", inviteLink);
         data.put("expireDays", INVITE_EXPIRE_DAYS);
         return R.ok(data);
+    }
+
+    private List<String> parseInviteEmails(Map<String, Object> params) {
+        LinkedHashSet<String> emails = new LinkedHashSet<>();
+        Object emailsObj = params.get("emails");
+        if (emailsObj instanceof Collection) {
+            for (Object item : (Collection<?>) emailsObj) {
+                addInviteEmail(emails, item);
+            }
+        } else {
+            addInviteEmail(emails, emailsObj);
+        }
+        addInviteEmail(emails, params.get("email"));
+        return new ArrayList<>(emails);
+    }
+
+    private List<Map<String, Object>> parseInviteItems(Map<String, Object> params) {
+        List<Map<String, Object>> inviteItems = new ArrayList<>();
+        Object itemsObj = params.get("items");
+        if (itemsObj instanceof Collection) {
+            for (Object itemObj : (Collection<?>) itemsObj) {
+                if (!(itemObj instanceof Map)) {
+                    continue;
+                }
+                Map<?, ?> source = (Map<?, ?>) itemObj;
+                Object emailObj = source.get("email");
+                if (emailObj == null || StringUtils.isEmpty(emailObj.toString().trim())) {
+                    continue;
+                }
+                Map<String, Object> item = new HashMap<>();
+                item.put("email", emailObj.toString().trim());
+                copyInviteItemValue(source, item, "roleId");
+                copyInviteItemValue(source, item, "points");
+                copyInviteItemValue(source, item, "permanent");
+                copyInviteItemValue(source, item, "expireTime");
+                inviteItems.add(item);
+            }
+            return inviteItems;
+        }
+
+        for (String email : parseInviteEmails(params)) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("email", email);
+            inviteItems.add(item);
+        }
+        return inviteItems;
+    }
+
+    private void copyInviteItemValue(Map<?, ?> source, Map<String, Object> target, String key) {
+        if (source.containsKey(key)) {
+            target.put(key, source.get(key));
+        }
+    }
+
+    private void addInviteEmail(Set<String> emails, Object value) {
+        if (value == null) {
+            return;
+        }
+        String[] parts = value.toString().split("[\\s,;，；]+");
+        for (String part : parts) {
+            String email = part == null ? "" : part.trim();
+            if (StringUtils.isNotEmpty(email)) {
+                emails.add(email);
+            }
+        }
     }
 
     /**
