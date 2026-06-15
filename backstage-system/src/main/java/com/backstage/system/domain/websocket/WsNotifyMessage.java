@@ -37,6 +37,9 @@ public class WsNotifyMessage extends OSHBaseEntity implements Serializable {
     /** 业务 ID（可选，供前端跳转或二次请求使用） */
     private String bizId;
 
+    /** 是否需要认证/登录才能接收此消息（默认false） */
+    private boolean requireAuth = false;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -57,4 +60,7 @@ public class WsNotifyMessage extends OSHBaseEntity implements Serializable {
 
     public String getBizId() { return bizId; }
     public void setBizId(String bizId) { this.bizId = bizId; }
+
+    public boolean isRequireAuth() { return requireAuth; }
+    public void setRequireAuth(boolean requireAuth) { this.requireAuth = requireAuth; }
 }
