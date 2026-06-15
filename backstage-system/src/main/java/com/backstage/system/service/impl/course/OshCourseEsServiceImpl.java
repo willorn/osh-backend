@@ -327,6 +327,7 @@ public class OshCourseEsServiceImpl implements IOshCourseEsService {
         document.setAfterServiceDays(row.getAfterServiceDays());
         document.setResourceType(row.getResourceType());
         document.setLevel(row.getLevel());
+        document.setDifficulty(row.getDifficulty());
         document.setStatus(row.getStatus());
         document.setExamId(row.getExamId());
         document.setDeleteFlag(row.getDeleteFlag() == null ? 0 : row.getDeleteFlag());

@@ -76,6 +76,9 @@ public class OshCourseDetailVo {
 
     private String level; // 或者 Integer level，根据你数据库类型来
 
+    /** 课程难度：1-新手入门 2-基础巩固 3-能力提升 */
+    private Integer difficulty;
+
     /** 服务周期（月） */
     private Integer servicePeriod;
 
@@ -105,6 +108,14 @@ public class OshCourseDetailVo {
 
     public String getLevel() {
         return level;
+    }
+
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
     }
 
     public Integer getServicePeriod() {
