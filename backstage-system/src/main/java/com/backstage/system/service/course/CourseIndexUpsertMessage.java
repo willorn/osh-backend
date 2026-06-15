@@ -35,6 +35,7 @@ public class CourseIndexUpsertMessage {
     private Integer afterServiceDays;
     private String resourceType;
     private Integer level;
+    private Integer difficulty;
     private Integer status;
     private Integer examId;
     private Integer deleteFlag;
@@ -272,6 +273,14 @@ public class CourseIndexUpsertMessage {
 
     public void setLevel(Integer level) {
         this.level = level;
+    }
+
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
     }
 
     public Integer getStatus() {

@@ -33,6 +33,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         c.after_service_days,
         c.resource_type,
         c.level,
+        c.difficulty,
         c.status,
         c.delete_flag,
         c.exam_id,
@@ -73,6 +74,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         c.resource_type,
         c.service_period,
         c.level,
+        c.difficulty,
         c.status,
         c.exam_id,
         c.create_by,
@@ -110,6 +112,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="afterServiceDays"   column="after_service_days"    />
         <result property="resourceType" column="resource_type" />
         <result property="level" column="level" />
+        <result property="difficulty" column="difficulty" />
         <result property="status"   column="status"    />
         <result property="examId" column="exam_id"/>
         <result property="deleteFlag" column="delete_flag"/>
@@ -143,6 +146,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="afterServiceDays" column="after_service_days"/>
         <result property="resourceType" column="resource_type"/>
         <result property="level" column="level"/>
+        <result property="difficulty" column="difficulty"/>
         <result property="status" column="status"/>
         <result property="deleteFlag" column="delete_flag"/>
         <result property="examId" column="exam_id"/>
@@ -178,6 +182,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="resourceType" column="resource_type"/>
         <result property="servicePeriod" column="service_period"/>
         <result property="level" column="level"/>
+        <result property="difficulty" column="difficulty"/>
         <result property="status" column="status"/>
         <result property="examId" column="exam_id"/>
         <result property="createBy" column="create_by"/>
@@ -299,6 +304,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
                after_service_days,
                resource_type,
                level,
+               difficulty,
                status,
                exam_id
         from osh_course
@@ -843,6 +849,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="resourceType != null">resource_type,</if>
             <if test="servicePeriod != null">service_period,</if>
             <if test="level != null">level,</if>
+            <if test="difficulty != null">difficulty,</if>
             status,
             <if test="examId != null">exam_id,</if>
             <if test="createBy != null and createBy != ''">create_by,</if>
@@ -873,6 +880,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="resourceType != null">#{resourceType},</if>
             <if test="servicePeriod != null">#{servicePeriod},</if>
             <if test="level != null">#{level},</if>
+            <if test="difficulty != null">#{difficulty},</if>
             #{status},
             <if test="examId != null">#{examId},</if>
             <if test="createBy != null and createBy != ''">#{createBy},</if>
@@ -960,6 +968,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="resourceType != null">resource_type = #{resourceType},</if>
             <if test="servicePeriod != null">service_period = #{servicePeriod},</if>
             <if test="level != null">level = #{level},</if>
+            <if test="difficulty != null">difficulty = #{difficulty},</if>
             <if test="status != null">status = #{status},</if>
             <if test="examId != null">exam_id = #{examId},</if>
             <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
