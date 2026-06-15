@@ -249,6 +249,7 @@ public class OshCourseEsServiceImpl implements IOshCourseEsService {
         collectionSearchRequest.setTags(request.getTags());
         collectionSearchRequest.setKeyword(request.getKeyword());
         collectionSearchRequest.setResourceType(request.getResourceType());
+        collectionSearchRequest.setDifficulty(request.getDifficulty());
         collectionSearchRequest.setCollectionFlag(request.getCollectionFlag());
         collectionSearchRequest.setCourseNo(request.getCourseNo());
         collectionSearchRequest.setIncludeUnpublished(request.getIncludeUnpublished());
