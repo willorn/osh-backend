@@ -173,6 +173,9 @@ public class OshCourseEsMapper {
         if (request != null && StringUtils.isNotEmpty(request.getResourceType())) {
             boolQuery.filter(QueryBuilders.termQuery("resourceType", request.getResourceType()));
         }
+        if (request != null && request.getDifficulty() != null) {
+            boolQuery.filter(QueryBuilders.termQuery("difficulty", request.getDifficulty()));
+        }
         if (request != null && request.getCourseIdFilter() != null) {
             boolQuery.filter(QueryBuilders.termQuery("id", request.getCourseIdFilter()));
         }

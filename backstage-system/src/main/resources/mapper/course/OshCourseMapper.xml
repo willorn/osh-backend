@@ -425,6 +425,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="request.resourceType != null and request.resourceType != ''">
                 and c.resource_type = #{request.resourceType}
             </if>
+            <if test="request.difficulty != null">
+                and c.difficulty = #{request.difficulty}
+            </if>
             <if test="request.courseIdFilter != null">
                 and c.id = #{request.courseIdFilter}
             </if>
@@ -489,6 +492,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="request.resourceType != null and request.resourceType != ''">
                 and c.resource_type = #{request.resourceType}
             </if>
+            <if test="request.difficulty != null">
+                and c.difficulty = #{request.difficulty}
+            </if>
             <if test="request.courseIdFilter != null">
                 and c.id = #{request.courseIdFilter}
             </if>
@@ -531,6 +537,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             </if>
             <if test="request.resourceType != null and request.resourceType != ''">
                 and c.resource_type = #{request.resourceType}
+            </if>
+            <if test="request.difficulty != null">
+                and c.difficulty = #{request.difficulty}
             </if>
             <if test="request.courseIdFilter != null">
                 and c.id = #{request.courseIdFilter}

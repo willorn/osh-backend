@@ -16,6 +16,10 @@ public class CourseSearchRequest extends PageRequest {
     private List<String> tags;
     private String keyword;
     private String resourceType;
+    /**
+     * 课程难度：1-新手入门 2-基础巩固 3-能力提升；null 表示不限
+     */
+    private Integer difficulty;
     private Boolean isFollowing;
     private Integer collectionFlag;
     /**
@@ -71,6 +75,14 @@ public class CourseSearchRequest extends PageRequest {
 
     public void setResourceType(String resourceType) {
         this.resourceType = StringUtils.trimToNull(resourceType);
+    }
+
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
     }
 
     public Boolean getIsFollowing() {
