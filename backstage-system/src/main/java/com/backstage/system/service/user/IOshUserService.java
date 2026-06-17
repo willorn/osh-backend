@@ -2,6 +2,7 @@ package com.backstage.system.service.user;
 
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.user.vo.OshUserCardVO;
 import com.backstage.system.domain.user.vo.OshUserLoginVO;
 import com.backstage.system.request.UserListRequest;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,6 +41,8 @@ public interface IOshUserService {
     R<String> updatePassword(String opassword, String password, String repassword);
 
     R<OshUser> getUserInfo();
+
+    R<OshUserCardVO> getUserCard(Long userId, String githubAccount);
 
     R<?> getUserRoles();
 

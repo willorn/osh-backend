@@ -145,6 +145,16 @@ public class OshUserController extends BaseController {
         return userService.getUserInfo();
     }
 
+    @ApiOperation("获取用户名片")
+    @GetMapping("/card")
+    @Anonymous
+    public R<?> getUserCard(
+            @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "githubAccount", required = false) String githubAccount) {
+        return userService.getUserCard(userId, githubAccount);
+    }
+
     @ApiOperation("获取当前用户角色列表（含有效期）")
     @GetMapping("/roles")
     public R<?> getUserRoles(
