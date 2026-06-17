@@ -2,23 +2,38 @@ package com.backstage.system.service.openproject.impl;
 
 import com.backstage.system.domain.openproject.OshOpenProject;
 import com.backstage.system.domain.openproject.OshOpenProjectContributor;
+import com.backstage.system.domain.openproject.OshOpenProjectModule;
+import com.backstage.system.domain.openproject.OshOpenProjectModuleMember;
 import com.backstage.system.domain.openproject.OshOpenProjectResourceRel;
 import com.backstage.system.domain.openproject.OshOpenProjectTag;
 import com.backstage.system.domain.openproject.OshOpenProjectTagRel;
+import com.backstage.system.domain.openproject.OshOpenProjectTechComponent;
+import com.backstage.system.domain.openproject.OshOpenProjectTechComponentRel;
 import com.backstage.system.domain.openproject.dto.OpenProjectContributorDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectEditDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectLeaderTransferDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectModuleDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectModuleMemberDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectQueryDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectResourceDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectTechComponentDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectVO;
+import com.backstage.system.domain.openproject.vo.OpenProjectModuleVO;
 import com.backstage.system.domain.openproject.vo.OpenProjectResourceOptionVO;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.user.OshRole;
 import com.backstage.system.mapper.openproject.OshOpenProjectContributorMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectMapper;
+import com.backstage.system.mapper.openproject.OshOpenProjectModuleMapper;
+import com.backstage.system.mapper.openproject.OshOpenProjectModuleMemberMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectResourceRelMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectResourceSearchMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectTagMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectTagRelMapper;
+import com.backstage.system.mapper.openproject.OshOpenProjectTechComponentMapper;
+import com.backstage.system.mapper.openproject.OshOpenProjectTechComponentRelMapper;
 import com.backstage.system.mapper.user.OshUserMapper;
+import com.backstage.system.mapper.user.OshRoleMapper;
 import com.backstage.system.service.openproject.IOshOpenProjectFavoriteService;
 import com.backstage.system.service.openproject.IOshOpenProjectService;
 import com.backstage.system.utils.UserContextUtil;
@@ -59,6 +74,10 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
     private static final int MAX_CUSTOM_TAG_LENGTH = 30;
     private static final int MAX_RESOURCE_COUNT = 20;
     private static final int MAX_CONTRIBUTOR_COUNT = 30;
+    private static final int MAX_MODULE_COUNT = 30;
+    private static final int MAX_MODULE_MEMBER_COUNT = 20;
+    private static final int MAX_TECH_COMPONENT_COUNT = 30;
+    private static final int FOUNDER_LEVEL = 6;
     private static final Set<String> ALLOWED_RESOURCE_TYPES =
             new HashSet<>(Arrays.asList("course", "book", "tool"));
 
@@ -81,7 +100,22 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
     private OshOpenProjectContributorMapper contributorMapper;
 
     @Autowired
+    private OshOpenProjectModuleMapper moduleMapper;
+
+    @Autowired
+    private OshOpenProjectModuleMemberMapper moduleMemberMapper;
+
+    @Autowired
+    private OshOpenProjectTechComponentMapper techComponentMapper;
+
+    @Autowired
+    private OshOpenProjectTechComponentRelMapper techComponentRelMapper;
+
+    @Autowired
     private OshUserMapper userMapper;
+
+    @Autowired
+    private OshRoleMapper roleMapper;
 
     @Autowired
     private IOshOpenProjectFavoriteService favoriteService;
@@ -165,6 +199,7 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         if (project.getGithubRepoId() == null && !StringUtils.hasText(project.getGithubOwner())) {
             throw new IllegalArgumentException("只能编辑从 GitHub 数据源同步的开源项目");
         }
+        assertCanEditProject(project);
 
         String projectName = trimToMax(dto.getProjectName(), MAX_NAME_LENGTH);
         if (StringUtils.hasText(projectName)) {
@@ -179,6 +214,38 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         replaceProjectTags(project.getId(), dto.getTagIds(), dto.getCustomTags());
         replaceProjectResources(project.getId(), dto.getResources());
         replaceProjectContributors(project.getId(), dto.getContributors());
+        replaceProjectModules(project.getId(), dto.getModules());
+        replaceProjectTechComponents(project.getId(), dto.getTechComponents());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void transferLeader(OpenProjectLeaderTransferDTO dto) {
+        if (dto == null || dto.getProjectId() == null) {
+            throw new IllegalArgumentException("项目ID不能为空");
+        }
+        OshOpenProject project = projectMapper.selectOne(new LambdaQueryWrapper<OshOpenProject>()
+                .eq(OshOpenProject::getId, dto.getProjectId())
+                .eq(OshOpenProject::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+        if (project == null) {
+            throw new IllegalArgumentException("项目不存在");
+        }
+        assertCanEditProject(project);
+        OshOpenProjectContributor newLeader = findTargetContributor(project.getId(), dto.getContributorId(), dto.getGithubAccount());
+        if (newLeader == null) {
+            throw new IllegalArgumentException("目标开发者不存在");
+        }
+        contributorMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, project.getId())
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0)
+                .set(OshOpenProjectContributor::getContributorType, "contributor"));
+        newLeader.setContributorType("primary");
+        newLeader.setDeleted(false);
+        contributorMapper.updateById(newLeader);
+
+        project.setLeaderLocked(1);
+        projectMapper.updateById(project);
     }
 
     @Override
@@ -229,6 +296,8 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         Map<Long, List<String>> projectTagNameMap = new HashMap<>();
         Map<Long, List<OshOpenProjectResourceRel>> projectResourceMap = new HashMap<>();
         Map<Long, List<OshOpenProjectContributor>> projectContributorMap = new HashMap<>();
+        Map<Long, List<OpenProjectModuleVO>> projectModuleMap = new HashMap<>();
+        Map<Long, List<OshOpenProjectTechComponentRel>> projectTechComponentMap = new HashMap<>();
 
         List<OshOpenProjectTagRel> rels = tagRelMapper.selectList(
                 new LambdaQueryWrapper<OshOpenProjectTagRel>().in(OshOpenProjectTagRel::getProjectId, projectIds));
@@ -262,6 +331,49 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             projectContributorMap.computeIfAbsent(contributor.getProjectId(), k -> new ArrayList<>()).add(contributor);
         }
 
+        List<OshOpenProjectModule> modules = moduleMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectModule>()
+                        .in(OshOpenProjectModule::getProjectId, projectIds)
+                        .eq(OshOpenProjectModule::getDeleteFlag, (byte) 0)
+                        .orderByAsc(OshOpenProjectModule::getSortOrder)
+                        .orderByAsc(OshOpenProjectModule::getId));
+        if (!CollectionUtils.isEmpty(modules)) {
+            List<Long> moduleIds = modules.stream().map(OshOpenProjectModule::getId).collect(Collectors.toList());
+            Map<Long, List<OshOpenProjectModuleMember>> moduleMemberMap = new HashMap<>();
+            List<OshOpenProjectModuleMember> moduleMembers = moduleMemberMapper.selectList(
+                    new LambdaQueryWrapper<OshOpenProjectModuleMember>()
+                            .in(OshOpenProjectModuleMember::getModuleId, moduleIds)
+                            .eq(OshOpenProjectModuleMember::getDeleteFlag, (byte) 0)
+                            .orderByAsc(OshOpenProjectModuleMember::getSortOrder)
+                            .orderByAsc(OshOpenProjectModuleMember::getId));
+            for (OshOpenProjectModuleMember member : moduleMembers) {
+                if (!StringUtils.hasText(member.getWechatName())) {
+                    member.setWechatName(resolveWechatName(member.getGithubAccount()));
+                }
+                moduleMemberMap.computeIfAbsent(member.getModuleId(), k -> new ArrayList<>()).add(member);
+            }
+            for (OshOpenProjectModule module : modules) {
+                OpenProjectModuleVO vo = new OpenProjectModuleVO();
+                vo.setId(module.getId());
+                vo.setProjectId(module.getProjectId());
+                vo.setModuleName(module.getModuleName());
+                vo.setModuleDesc(module.getModuleDesc());
+                vo.setSortOrder(module.getSortOrder());
+                vo.setMembers(moduleMemberMap.getOrDefault(module.getId(), Collections.emptyList()));
+                projectModuleMap.computeIfAbsent(module.getProjectId(), k -> new ArrayList<>()).add(vo);
+            }
+        }
+
+        List<OshOpenProjectTechComponentRel> techComponents = techComponentRelMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectTechComponentRel>()
+                        .in(OshOpenProjectTechComponentRel::getProjectId, projectIds)
+                        .eq(OshOpenProjectTechComponentRel::getDeleteFlag, (byte) 0)
+                        .orderByAsc(OshOpenProjectTechComponentRel::getSortOrder)
+                        .orderByAsc(OshOpenProjectTechComponentRel::getId));
+        for (OshOpenProjectTechComponentRel rel : techComponents) {
+            projectTechComponentMap.computeIfAbsent(rel.getProjectId(), k -> new ArrayList<>()).add(rel);
+        }
+
         Set<Long> userFavoriteIds = favoriteService.getFavoriteProjectIds(currentUserId);
         return projects.stream().map(project -> {
             OpenProjectVO vo = new OpenProjectVO();
@@ -282,8 +394,13 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             vo.setIsArchived(project.getIsArchived());
             vo.setLastSyncTime(project.getLastSyncTime());
             fillGithubFields(vo, project);
+            List<OshOpenProjectContributor> projectContributors = projectContributorMap.getOrDefault(project.getId(), Collections.emptyList());
             vo.setResources(projectResourceMap.getOrDefault(project.getId(), Collections.emptyList()));
-            vo.setContributors(projectContributorMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setContributors(projectContributors);
+            vo.setLeader(findPrimaryContributor(projectContributors));
+            vo.setModules(projectModuleMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setTechComponents(projectTechComponentMap.getOrDefault(project.getId(), Collections.emptyList()));
+            vo.setCanEdit(canEditProject(projectContributors));
             vo.setFavorited(userFavoriteIds.contains(project.getId()));
             return vo;
         }).collect(Collectors.toList());
@@ -438,11 +555,17 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         if (contributors == null) {
             return;
         }
+        ensureSinglePrimary(projectId);
+        int sort = 0;
+        String currentLeaderAccount = null;
+        OshOpenProjectContributor currentLeader = getPrimaryContributor(projectId);
+        if (currentLeader != null) {
+            currentLeaderAccount = normalizeGithubAccount(currentLeader.getGithubAccount());
+        }
         contributorMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectContributor>()
                 .eq(OshOpenProjectContributor::getProjectId, projectId)
                 .set(OshOpenProjectContributor::getDeleteFlag, (byte) 1));
 
-        int sort = 0;
         for (OpenProjectContributorDTO item : limitList(contributors, MAX_CONTRIBUTOR_COUNT)) {
             if (item == null || !StringUtils.hasText(item.getGithubAccount())) {
                 continue;
@@ -466,7 +589,7 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
                 wechatName = resolveWechatName(githubAccount);
             }
             contributor.setWechatName(wechatName);
-            contributor.setContributorType(normalizeContributorType(item.getContributorType(), sort));
+            contributor.setContributorType(githubAccount.equalsIgnoreCase(currentLeaderAccount) ? "primary" : normalizeNonPrimaryContributorType(item.getContributorType()));
             if (contributor.getId() == null) {
                 contributor.setContributions(0);
                 contributor.setAvatarUrl(trimToMax(item.getAvatarUrl(), MAX_URL_LENGTH));
@@ -481,6 +604,94 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             } else {
                 contributorMapper.updateById(contributor);
             }
+            sort++;
+        }
+        if (currentLeader != null && contributorMapper.selectCount(new LambdaQueryWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .eq(OshOpenProjectContributor::getGithubAccount, currentLeader.getGithubAccount())
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0)) == 0) {
+            currentLeader.setDeleted(false);
+            currentLeader.setContributorType("primary");
+            contributorMapper.updateById(currentLeader);
+        }
+        ensureSinglePrimary(projectId);
+    }
+
+    private void replaceProjectModules(Long projectId, List<OpenProjectModuleDTO> modules) {
+        if (modules == null) {
+            return;
+        }
+        moduleMemberMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectModuleMember>()
+                .eq(OshOpenProjectModuleMember::getProjectId, projectId)
+                .set(OshOpenProjectModuleMember::getDeleteFlag, (byte) 1));
+        moduleMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectModule>()
+                .eq(OshOpenProjectModule::getProjectId, projectId)
+                .set(OshOpenProjectModule::getDeleteFlag, (byte) 1));
+
+        Map<String, OshOpenProjectContributor> contributorMap = listContributorMap(projectId);
+        int moduleSort = 0;
+        for (OpenProjectModuleDTO item : limitList(modules, MAX_MODULE_COUNT)) {
+            if (item == null || !StringUtils.hasText(item.getModuleName())) {
+                continue;
+            }
+            OshOpenProjectModule module = new OshOpenProjectModule();
+            module.setProjectId(projectId);
+            module.setModuleName(trimToMax(item.getModuleName(), MAX_NAME_LENGTH));
+            module.setModuleDesc(trimToMax(item.getModuleDesc(), MAX_TEXT_LENGTH));
+            module.setSortOrder(item.getSortOrder() == null ? moduleSort : item.getSortOrder());
+            module.setDeleted(false);
+            moduleMapper.insert(module);
+
+            int memberSort = 0;
+            for (OpenProjectModuleMemberDTO memberDTO : limitList(item.getMembers(), MAX_MODULE_MEMBER_COUNT)) {
+                if (memberDTO == null) {
+                    continue;
+                }
+                OshOpenProjectContributor contributor = resolveContributorForModule(projectId, contributorMap, memberDTO);
+                if (contributor == null) {
+                    continue;
+                }
+                OshOpenProjectModuleMember member = new OshOpenProjectModuleMember();
+                member.setModuleId(module.getId());
+                member.setProjectId(projectId);
+                member.setContributorId(contributor.getId());
+                member.setGithubAccount(contributor.getGithubAccount());
+                member.setWechatName(StringUtils.hasText(memberDTO.getWechatName())
+                        ? trimToMax(memberDTO.getWechatName(), MAX_NAME_LENGTH)
+                        : contributor.getWechatName());
+                member.setMemberRole(normalizeModuleMemberRole(memberDTO.getMemberRole()));
+                member.setSortOrder(memberDTO.getSortOrder() == null ? memberSort : memberDTO.getSortOrder());
+                member.setDeleted(false);
+                moduleMemberMapper.insert(member);
+                memberSort++;
+            }
+            moduleSort++;
+        }
+    }
+
+    private void replaceProjectTechComponents(Long projectId, List<OpenProjectTechComponentDTO> techComponents) {
+        if (techComponents == null) {
+            return;
+        }
+        techComponentRelMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectTechComponentRel>()
+                .eq(OshOpenProjectTechComponentRel::getProjectId, projectId)
+                .set(OshOpenProjectTechComponentRel::getDeleteFlag, (byte) 1));
+
+        int sort = 0;
+        for (OpenProjectTechComponentDTO item : limitList(techComponents, MAX_TECH_COMPONENT_COUNT)) {
+            if (item == null || !StringUtils.hasText(item.getComponentName())) {
+                continue;
+            }
+            OshOpenProjectTechComponent component = findOrCreateTechComponent(item);
+            OshOpenProjectTechComponentRel rel = new OshOpenProjectTechComponentRel();
+            rel.setProjectId(projectId);
+            rel.setComponentId(component.getId());
+            rel.setComponentName(component.getComponentName());
+            rel.setComponentDesc(component.getComponentDesc());
+            rel.setOfficialUrl(component.getOfficialUrl());
+            rel.setSortOrder(item.getSortOrder() == null ? sort : item.getSortOrder());
+            rel.setDeleted(false);
+            techComponentRelMapper.insert(rel);
             sort++;
         }
     }
@@ -531,15 +742,184 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         return trimToMax(normalized, MAX_NAME_LENGTH);
     }
 
-    private String normalizeContributorType(String contributorType, int sort) {
+    private String normalizeNonPrimaryContributorType(String contributorType) {
         String normalized = trimToMax(contributorType, 20);
-        if ("primary".equalsIgnoreCase(normalized)) {
-            return "primary";
-        }
         if ("collaborator".equalsIgnoreCase(normalized)) {
             return "collaborator";
         }
-        return sort == 0 ? "primary" : "contributor";
+        return "contributor";
+    }
+
+    private String normalizeModuleMemberRole(String role) {
+        String normalized = trimToMax(role, 20);
+        return "primary".equalsIgnoreCase(normalized) ? "primary" : "collaborator";
+    }
+
+    private OshOpenProjectContributor findPrimaryContributor(List<OshOpenProjectContributor> contributors) {
+        if (CollectionUtils.isEmpty(contributors)) {
+            return null;
+        }
+        for (OshOpenProjectContributor contributor : contributors) {
+            if ("primary".equalsIgnoreCase(contributor.getContributorType())) {
+                return contributor;
+            }
+        }
+        return null;
+    }
+
+    private OshOpenProjectContributor getPrimaryContributor(Long projectId) {
+        return contributorMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .eq(OshOpenProjectContributor::getContributorType, "primary")
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+    }
+
+    private void ensureSinglePrimary(Long projectId) {
+        Long count = contributorMapper.selectCount(new LambdaQueryWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .eq(OshOpenProjectContributor::getContributorType, "primary")
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0));
+        if (count != null && count > 1) {
+            throw new IllegalArgumentException("开源项目只能有一个最高负责人，请先修复负责人数据");
+        }
+    }
+
+    private OshOpenProjectContributor findTargetContributor(Long projectId, Long contributorId, String githubAccount) {
+        LambdaQueryWrapper<OshOpenProjectContributor> wrapper = new LambdaQueryWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0);
+        if (contributorId != null) {
+            wrapper.eq(OshOpenProjectContributor::getId, contributorId);
+        } else {
+            String normalized = normalizeGithubAccount(githubAccount);
+            if (!StringUtils.hasText(normalized)) {
+                return null;
+            }
+            wrapper.eq(OshOpenProjectContributor::getGithubAccount, normalized);
+        }
+        return contributorMapper.selectOne(wrapper.last("limit 1"));
+    }
+
+    private boolean canEditProject(List<OshOpenProjectContributor> contributors) {
+        int level = getCurrentUserLevelForPermission();
+        if (level >= FOUNDER_LEVEL) {
+            return true;
+        }
+        if (level < 4) {
+            return false;
+        }
+        Long currentUserId = UserContextUtil.getCurrentUserIdSafely();
+        if (currentUserId == null) {
+            return false;
+        }
+        OshUser currentUser = userMapper.selectById(currentUserId);
+        if (currentUser == null) {
+            return false;
+        }
+        String currentGithub = normalizeGithubAccount(currentUser.getGithubAccount());
+        OshOpenProjectContributor leader = findPrimaryContributor(contributors);
+        return StringUtils.hasText(currentGithub)
+                && leader != null
+                && currentGithub.equalsIgnoreCase(normalizeGithubAccount(leader.getGithubAccount()));
+    }
+
+    private void assertCanEditProject(OshOpenProject project) {
+        if (project == null) {
+            throw new IllegalArgumentException("项目不存在");
+        }
+        List<OshOpenProjectContributor> contributors = contributorMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectContributor>()
+                        .eq(OshOpenProjectContributor::getProjectId, project.getId())
+                        .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0));
+        ensureSinglePrimary(project.getId());
+        if (!canEditProject(contributors)) {
+            throw new IllegalArgumentException("只有 level>=4 且是该项目最高负责人，或创始人用户，才能编辑开源项目");
+        }
+    }
+
+    private int getCurrentUserLevelForPermission() {
+        Integer level = UserContextUtil.getCurrentLevelSafely();
+        if (level != null && level > 0) {
+            return level;
+        }
+        Long userId = UserContextUtil.getCurrentUserIdSafely();
+        if (userId == null) {
+            return 0;
+        }
+        List<Integer> roleIds = roleMapper.getRoleIdsByUserId(userId);
+        if (CollectionUtils.isEmpty(roleIds)) {
+            return 0;
+        }
+        List<OshRole> roles = roleMapper.selectList(new LambdaQueryWrapper<OshRole>()
+                .in(OshRole::getId, roleIds)
+                .eq(OshRole::getDeleteFlag, (byte) 0));
+        int maxLevel = 0;
+        for (OshRole role : roles) {
+            if (role.getLevel() != null && role.getLevel() > maxLevel) {
+                maxLevel = role.getLevel();
+            }
+        }
+        return maxLevel;
+    }
+
+    private Map<String, OshOpenProjectContributor> listContributorMap(Long projectId) {
+        List<OshOpenProjectContributor> contributors = contributorMapper.selectList(
+                new LambdaQueryWrapper<OshOpenProjectContributor>()
+                        .eq(OshOpenProjectContributor::getProjectId, projectId)
+                        .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0));
+        fillContributorDisplayInfo(contributors);
+        Map<String, OshOpenProjectContributor> result = new HashMap<>();
+        for (OshOpenProjectContributor contributor : contributors) {
+            String normalized = normalizeGithubAccount(contributor.getGithubAccount());
+            if (StringUtils.hasText(normalized)) {
+                result.put(normalized.toLowerCase(Locale.ROOT), contributor);
+            }
+        }
+        return result;
+    }
+
+    private OshOpenProjectContributor resolveContributorForModule(Long projectId, Map<String, OshOpenProjectContributor> contributorMap, OpenProjectModuleMemberDTO dto) {
+        OshOpenProjectContributor contributor = null;
+        if (dto.getContributorId() != null) {
+            contributor = contributorMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectContributor>()
+                    .eq(OshOpenProjectContributor::getProjectId, projectId)
+                    .eq(OshOpenProjectContributor::getId, dto.getContributorId())
+                    .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0)
+                    .last("limit 1"));
+        }
+        if (contributor == null) {
+            String account = normalizeGithubAccount(dto.getGithubAccount());
+            if (StringUtils.hasText(account)) {
+                contributor = contributorMap.get(account.toLowerCase(Locale.ROOT));
+            }
+        }
+        return contributor;
+    }
+
+    private OshOpenProjectTechComponent findOrCreateTechComponent(OpenProjectTechComponentDTO dto) {
+        OshOpenProjectTechComponent component = dto.getComponentId() == null ? null : techComponentMapper.selectById(dto.getComponentId());
+        if (component == null) {
+            component = techComponentMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectTechComponent>()
+                    .eq(OshOpenProjectTechComponent::getComponentName, trimToMax(dto.getComponentName(), MAX_NAME_LENGTH))
+                    .eq(OshOpenProjectTechComponent::getDeleteFlag, (byte) 0)
+                    .last("limit 1"));
+        }
+        if (component == null) {
+            component = new OshOpenProjectTechComponent();
+            component.setDeleted(false);
+        }
+        component.setComponentName(trimToMax(dto.getComponentName(), MAX_NAME_LENGTH));
+        component.setComponentCode(trimToMax(dto.getComponentCode(), 100));
+        component.setComponentDesc(trimToMax(dto.getComponentDesc(), MAX_TEXT_LENGTH));
+        component.setOfficialUrl(trimToMax(dto.getOfficialUrl(), MAX_URL_LENGTH));
+        component.setSortOrder(dto.getSortOrder());
+        if (component.getId() == null) {
+            techComponentMapper.insert(component);
+        } else {
+            techComponentMapper.updateById(component);
+        }
+        return component;
     }
 
     private void fillGithubFields(OpenProjectVO vo, OshOpenProject p) {
