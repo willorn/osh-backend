@@ -37,6 +37,11 @@ public class AssistantFeedbackComment {
     private String content;
 
     /**
+     * 评论图片（JSON数组格式，存储图片URL列表，最多9张）
+     */
+    private String images;
+
+    /**
      * 父评论 ID（0 表示一级评论）
      */
     private Long parentId;
@@ -122,6 +127,14 @@ public class AssistantFeedbackComment {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public String getImages() {
+        return images;
+    }
+
+    public void setImages(String images) {
+        this.images = images;
     }
 
     public Long getParentId() {

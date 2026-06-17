@@ -1,6 +1,7 @@
 package com.backstage.system.service.assistant.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson2.JSON;
 import com.backstage.common.core.page.TableDataInfo;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.config.properties.SearchEsProperties;
@@ -119,6 +120,12 @@ public class AssistantFeedbackServiceImpl extends ServiceImpl<AssistantFeedbackM
         feedback.setTicketNo(generateTicketNo());
         feedback.setTitle(dto.getTitle().trim());
         feedback.setContent(dto.getContent().trim());
+
+        // 图片列表转JSON字符串
+        if (dto.getImages() != null && !dto.getImages().isEmpty()) {
+            feedback.setImages(JSON.toJSONString(dto.getImages()));
+        }
+
         feedback.setPagePath(StrUtil.isNotBlank(dto.getPagePath()) ? dto.getPagePath().trim() : null);
         feedback.setStatus(AssistantTicketStatus.PENDING.getCode());
         feedback.setResult("");

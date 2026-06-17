@@ -840,6 +840,7 @@ public class OshCourseServiceImpl implements IOshCourseService {
         course.setRemark(StringUtils.trimToNull(request.getRemark()));
         course.setResourceType(request.getResourceType());
         course.setLevel(request.getLevel());
+        course.setDifficulty(request.getDifficulty());
         course.setServicePeriod(request.getServicePeriod());
 
         course.setSubCount(CourseConstants.DEFAULT_COUNT);
@@ -917,6 +918,7 @@ public class OshCourseServiceImpl implements IOshCourseService {
         course.setRemark(StringUtils.trimToNull(request.getRemark()));
         course.setResourceType(request.getResourceType());
         course.setLevel(request.getLevel());
+        course.setDifficulty(request.getDifficulty());
         if (request.getServicePeriod() != null) course.setServicePeriod(request.getServicePeriod());
         String operatorName = operator == null ? null : StringUtils.trimToNull(operator.getUsername());
         course.setUpdateBy(operatorName);

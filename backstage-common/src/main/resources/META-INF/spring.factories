@@ -1,3 +1,0 @@
-# osh-secret 客户端自动注册
-org.springframework.cloud.bootstrap.BootstrapConfiguration=\
-  com.backstage.common.secret.OshSecretBootstrapConfiguration

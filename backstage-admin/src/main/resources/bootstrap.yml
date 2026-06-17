@@ -32,13 +32,3 @@ spring:
             refresh: true
           - data-id: osh-backend-xxljob-dev.yaml
             refresh: true
-
-# osh-secret 客户端配置
-# 从 osh-secret 服务拉取敏感信息，覆盖 Nacos 配置中的同名属性
-osh:
-  secret:
-    enabled: true
-    server-url: http://43.242.200.25:59100
-    access-token: change-me-in-production
-    app-id: osh-backend
-    env: ${spring.profiles.active}

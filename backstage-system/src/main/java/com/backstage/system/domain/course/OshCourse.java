@@ -149,8 +149,11 @@ public class OshCourse {
     @ApiModelProperty("服务周期（月）")
     private Integer servicePeriod;
 
-    @ApiModelProperty("课程等级")
+    @ApiModelProperty("资源等级/适用人群（VIP、小班等受众区分，非课程难度）")
     private Integer level;
+
+    @ApiModelProperty("课程难度：1-新手入门 2-基础巩固 3-能力提升")
+    private Integer difficulty;
 
     @ApiModelProperty("试看内容/试用内容")
     private String tryContent;
@@ -204,6 +207,14 @@ public class OshCourse {
 
     public void setLevel(Integer level) {
         this.level = level;
+    }
+
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
     }
 
     public Long getId() {
