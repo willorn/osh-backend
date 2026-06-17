@@ -177,7 +177,9 @@ public class OshToolEsMapper {
         tool.setToolName(document.getToolName());
         tool.setNo(document.getNo());
         tool.setDescription(document.getDescription());
+        tool.setAccessType(document.getAccessType());
         tool.setRoutePath(document.getRoutePath());
+        tool.setIframeUrl(document.getIframeUrl());
         tool.setGithubUrl(document.getGithubUrl());
         tool.setResourceType(document.getResourceType());
         tool.setQuotaCost(document.getQuotaCost());

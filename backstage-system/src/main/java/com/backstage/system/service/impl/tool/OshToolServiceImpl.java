@@ -44,6 +44,7 @@ import java.util.List;
 public class OshToolServiceImpl implements IOshToolService {
 
     private static final int ACCESS_TYPE_INTERNAL = 1;
+    private static final int ACCESS_TYPE_IFRAME = 2;
     private static final int MAX_TOOL_TAG_COUNT = 3;
     private static final String DEFAULT_RESOURCE_TYPE = "FREE";
     private static final String RESOURCE_TYPE_CASH_POINT = "CASH_POINT";
@@ -412,11 +413,12 @@ public class OshToolServiceImpl implements IOshToolService {
         validateAccessTarget(request);
         OshTool tool = new OshTool();
         String resourceType = StringUtils.defaultIfBlank(request.getResourceType(), DEFAULT_RESOURCE_TYPE);
+        Integer accessType = request.getAccessType() == null ? ACCESS_TYPE_INTERNAL : request.getAccessType();
         tool.setToolName(request.getToolName());
         tool.setDescription(request.getDescription());
-        tool.setAccessType(ACCESS_TYPE_INTERNAL);
-        tool.setRoutePath(request.getRoutePath());
-        tool.setIframeUrl(null);
+        tool.setAccessType(accessType);
+        tool.setRoutePath(accessType == ACCESS_TYPE_INTERNAL ? request.getRoutePath() : null);
+        tool.setIframeUrl(accessType == ACCESS_TYPE_IFRAME ? request.getIframeUrl() : null);
         tool.setGithubUrl(request.getGithubUrl());
         tool.setQuotaCost(resolveQuotaCost(request, resourceType));
         tool.setStatus(request.getId() == null ? 2 : request.getStatus());
@@ -459,6 +461,16 @@ public class OshToolServiceImpl implements IOshToolService {
     }
 
     private void validateAccessTarget(ToolSaveRequest request) {
+        Integer accessType = request.getAccessType() == null ? ACCESS_TYPE_INTERNAL : request.getAccessType();
+        if (accessType != ACCESS_TYPE_INTERNAL && accessType != ACCESS_TYPE_IFRAME) {
+            throw new IllegalArgumentException("访问类型不支持");
+        }
+        if (accessType == ACCESS_TYPE_IFRAME) {
+            if (StringUtils.isBlank(request.getIframeUrl())) {
+                throw new IllegalArgumentException("第三方工具 iframe 地址不能为空");
+            }
+            return;
+        }
         if (StringUtils.isBlank(request.getRoutePath())) {
             throw new IllegalArgumentException("站内工具前端路由不能为空");
         }

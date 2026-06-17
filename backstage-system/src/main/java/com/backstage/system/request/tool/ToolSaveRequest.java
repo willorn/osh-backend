@@ -24,8 +24,14 @@ public class ToolSaveRequest {
     @ApiModelProperty(value = "工具描述", example = "支持多张图片合成为PDF文件")
     private String description;
 
+    @ApiModelProperty(value = "访问类型：1-站内工具，2-iframe第三方工具", example = "1")
+    private Integer accessType;
+
     @ApiModelProperty(value = "站内工具前端路由", example = "/tool/image-to-pdf")
     private String routePath;
+
+    @ApiModelProperty(value = "第三方iframe地址", example = "https://example.com/tool")
+    private String iframeUrl;
 
     @ApiModelProperty(value = "GitHub地址", example = "https://github.com/example/tool")
     private String githubUrl;
@@ -73,8 +79,24 @@ public class ToolSaveRequest {
         return routePath;
     }
 
+    public Integer getAccessType() {
+        return accessType;
+    }
+
+    public void setAccessType(Integer accessType) {
+        this.accessType = accessType;
+    }
+
     public void setRoutePath(String routePath) {
         this.routePath = StringUtils.trimToNull(routePath);
+    }
+
+    public String getIframeUrl() {
+        return iframeUrl;
+    }
+
+    public void setIframeUrl(String iframeUrl) {
+        this.iframeUrl = StringUtils.trimToNull(iframeUrl);
     }
 
     public String getGithubUrl() {
