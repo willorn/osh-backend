@@ -8,6 +8,7 @@ import com.backstage.common.constant.ResourceType;
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.openproject.OshOpenProjectTag;
 import com.backstage.system.domain.openproject.dto.OpenProjectEditDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectLeaderTransferDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectQueryDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectRankVO;
 import com.backstage.system.domain.openproject.vo.OpenProjectResourceOptionVO;
@@ -75,6 +76,18 @@ public class OshOpenProjectController {
     public R<Void> edit(@RequestBody OpenProjectEditDTO dto) {
         try {
             openProjectService.updateProject(dto);
+            return R.ok();
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        }
+    }
+
+    @PostMapping("/leader/transfer")
+    @OshUserLevel(value = 4)
+    @OshUserEvent(module = "开源项目", actionType = "编辑", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "转交开源项目最高负责人")
+    public R<Void> transferLeader(@RequestBody OpenProjectLeaderTransferDTO dto) {
+        try {
+            openProjectService.transferLeader(dto);
             return R.ok();
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());

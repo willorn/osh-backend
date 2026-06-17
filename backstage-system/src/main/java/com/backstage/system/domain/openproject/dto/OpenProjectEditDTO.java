@@ -16,6 +16,8 @@ public class OpenProjectEditDTO {
     private List<String> customTags;
     private List<OpenProjectResourceDTO> resources;
     private List<OpenProjectContributorDTO> contributors;
+    private List<OpenProjectModuleDTO> modules;
+    private List<OpenProjectTechComponentDTO> techComponents;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -43,4 +45,10 @@ public class OpenProjectEditDTO {
 
     public List<OpenProjectContributorDTO> getContributors() { return contributors; }
     public void setContributors(List<OpenProjectContributorDTO> contributors) { this.contributors = contributors; }
+
+    public List<OpenProjectModuleDTO> getModules() { return modules; }
+    public void setModules(List<OpenProjectModuleDTO> modules) { this.modules = modules; }
+
+    public List<OpenProjectTechComponentDTO> getTechComponents() { return techComponents; }
+    public void setTechComponents(List<OpenProjectTechComponentDTO> techComponents) { this.techComponents = techComponents; }
 }

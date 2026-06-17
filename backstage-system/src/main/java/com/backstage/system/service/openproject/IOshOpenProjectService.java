@@ -2,6 +2,7 @@ package com.backstage.system.service.openproject;
 
 import com.backstage.system.domain.openproject.OshOpenProjectTag;
 import com.backstage.system.domain.openproject.dto.OpenProjectEditDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectLeaderTransferDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectQueryDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectVO;
 
@@ -13,6 +14,8 @@ public interface IOshOpenProjectService {
     Map<String, Object> listPage(OpenProjectQueryDTO queryDTO);
 
     void updateProject(OpenProjectEditDTO dto);
+
+    void transferLeader(OpenProjectLeaderTransferDTO dto);
 
     void incrementClickCount(Long id);
 

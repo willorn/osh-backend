@@ -22,8 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceService {
@@ -173,6 +175,7 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
             project.setStatus(1);
             project.setClickCount(0);
             project.setDeleted(false);
+            project.setLeaderLocked(0);
         }
         project.setSourceId(source.getId());
         project.setGithubRepoId(repo.getGithubRepoId());
@@ -194,6 +197,7 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
         project.setHomepage(trimToMax(repo.getHomepage(), MAX_URL_LENGTH));
         if (insert) {
             projectMapper.insert(project);
+            ensureOwnerLeader(project);
         } else {
             projectMapper.updateById(project);
         }
@@ -203,47 +207,128 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
     private void syncContributors(OshOpenProject project, String token) {
         try {
             List<GitHubContributorDTO> contributors = githubClient.listContributors(project.getGithubOwner(), project.getGithubRepoName(), token);
+            ensureOwnerLeader(project);
+            OshOpenProjectContributor leader = getPrimaryContributor(project.getId());
+            String leaderAccount = leader == null ? null : normalizeGithubAccount(leader.getGithubAccount());
+            Set<String> seenAccounts = new HashSet<>();
             int sort = 0;
             for (GitHubContributorDTO item : contributors) {
                 if (!StringUtils.hasText(item.getGithubAccount())) {
                     continue;
                 }
+                String githubAccount = normalizeGithubAccount(item.getGithubAccount());
+                if (!StringUtils.hasText(githubAccount)) {
+                    continue;
+                }
+                seenAccounts.add(githubAccount.toLowerCase(Locale.ROOT));
                 OshOpenProjectContributor contributor = contributorMapper.selectOne(
                         new LambdaQueryWrapper<OshOpenProjectContributor>()
                                 .eq(OshOpenProjectContributor::getProjectId, project.getId())
-                                .eq(OshOpenProjectContributor::getGithubAccount, item.getGithubAccount())
+                                .eq(OshOpenProjectContributor::getGithubAccount, githubAccount)
                                 .last("limit 1"));
                 if (contributor == null) {
                     contributor = new OshOpenProjectContributor();
                     contributor.setProjectId(project.getId());
-                    contributor.setGithubAccount(item.getGithubAccount());
+                    contributor.setGithubAccount(githubAccount);
                     contributor.setDeleted(false);
                     contributor.setEditable(1);
                 }
-                contributor.setContributorType(item.getContributorType());
+                contributor.setContributorType(githubAccount.equalsIgnoreCase(leaderAccount) ? "primary" : "contributor");
                 contributor.setContributions(item.getContributions());
                 contributor.setAvatarUrl(trimToMax(item.getAvatarUrl(), MAX_URL_LENGTH));
                 contributor.setProfileUrl(trimToMax(item.getProfileUrl(), MAX_URL_LENGTH));
                 contributor.setSource("github");
-                contributor.setSortOrder(sort++);
-                contributor.setWechatName(resolveWechatName(item.getGithubAccount()));
+                contributor.setSortOrder(githubAccount.equalsIgnoreCase(leaderAccount) ? 0 : ++sort);
+                String wechatName = resolveWechatName(githubAccount);
+                if (StringUtils.hasText(wechatName) || !StringUtils.hasText(contributor.getWechatName())) {
+                    contributor.setWechatName(wechatName);
+                }
                 if (contributor.getId() == null) {
                     contributorMapper.insert(contributor);
                 } else {
                     contributorMapper.updateById(contributor);
                 }
             }
+            if (StringUtils.hasText(project.getGithubOwner())
+                    && !seenAccounts.contains(project.getGithubOwner().toLowerCase(Locale.ROOT))) {
+                ensureOwnerLeader(project);
+            }
+            ensureSinglePrimary(project.getId());
         } catch (Exception ignored) {
             // Repository sync should not fail just because contributor sync is unavailable/rate-limited.
         }
     }
 
     private String resolveWechatName(String githubAccount) {
+        String normalizedAccount = normalizeGithubAccount(githubAccount);
         OshUser user = userMapper.selectOne(new LambdaQueryWrapper<OshUser>()
-                .eq(OshUser::getGithubAccount, githubAccount)
                 .eq(OshUser::getDeleteFlag, (byte) 0)
+                .and(wrapper -> wrapper
+                        .eq(OshUser::getGithubAccount, normalizedAccount)
+                        .or()
+                        .eq(OshUser::getGithubAccount, "https://github.com/" + normalizedAccount)
+                        .or()
+                        .eq(OshUser::getGithubAccount, "http://github.com/" + normalizedAccount)
+                        .or()
+                        .eq(OshUser::getGithubAccount, "github.com/" + normalizedAccount))
                 .last("limit 1"));
         return user == null ? null : user.getWechatName();
+    }
+
+    private void ensureOwnerLeader(OshOpenProject project) {
+        if (project == null || !StringUtils.hasText(project.getGithubOwner())) {
+            return;
+        }
+        ensureSinglePrimary(project.getId());
+        OshOpenProjectContributor existingLeader = getPrimaryContributor(project.getId());
+        if (existingLeader != null || Integer.valueOf(1).equals(project.getLeaderLocked())) {
+            return;
+        }
+        String owner = normalizeGithubAccount(project.getGithubOwner());
+        OshOpenProjectContributor ownerContributor = contributorMapper.selectOne(
+                new LambdaQueryWrapper<OshOpenProjectContributor>()
+                        .eq(OshOpenProjectContributor::getProjectId, project.getId())
+                        .eq(OshOpenProjectContributor::getGithubAccount, owner)
+                        .last("limit 1"));
+        if (ownerContributor == null) {
+            ownerContributor = new OshOpenProjectContributor();
+            ownerContributor.setProjectId(project.getId());
+            ownerContributor.setGithubAccount(owner);
+            ownerContributor.setContributions(0);
+            ownerContributor.setAvatarUrl(trimToMax(project.getProjectCover(), MAX_URL_LENGTH));
+            ownerContributor.setProfileUrl("https://github.com/" + owner);
+            ownerContributor.setSource("github");
+            ownerContributor.setEditable(1);
+        }
+        ownerContributor.setContributorType("primary");
+        ownerContributor.setWechatName(resolveWechatName(owner));
+        ownerContributor.setSortOrder(0);
+        ownerContributor.setDeleted(false);
+        if (ownerContributor.getId() == null) {
+            contributorMapper.insert(ownerContributor);
+        } else {
+            contributorMapper.updateById(ownerContributor);
+        }
+        project.setLeaderLocked(1);
+        projectMapper.updateById(project);
+    }
+
+    private OshOpenProjectContributor getPrimaryContributor(Long projectId) {
+        return contributorMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .eq(OshOpenProjectContributor::getContributorType, "primary")
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+    }
+
+    private void ensureSinglePrimary(Long projectId) {
+        Long count = contributorMapper.selectCount(new LambdaQueryWrapper<OshOpenProjectContributor>()
+                .eq(OshOpenProjectContributor::getProjectId, projectId)
+                .eq(OshOpenProjectContributor::getContributorType, "primary")
+                .eq(OshOpenProjectContributor::getDeleteFlag, (byte) 0));
+        if (count != null && count > 1) {
+            throw new IllegalArgumentException("开源项目只能有一个最高负责人，请先修复负责人数据");
+        }
     }
 
     private void updateSourceSyncResult(Long sourceId, int status, int repoCount, String message) {
@@ -281,6 +366,25 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
             value = value.substring(0, slash);
         }
         return value.trim();
+    }
+
+    private String normalizeGithubAccount(String githubAccount) {
+        String normalized = trimToMax(githubAccount, 100);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        normalized = normalized.replace("https://github.com/", "")
+                .replace("http://github.com/", "")
+                .replace("github.com/", "");
+        int slashIndex = normalized.indexOf('/');
+        if (slashIndex >= 0) {
+            normalized = normalized.substring(0, slashIndex);
+        }
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        return normalized.trim();
     }
 
     private String normalizeSourceType(String sourceType) {
