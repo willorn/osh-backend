@@ -186,7 +186,9 @@ public class OshToolEsServiceImpl implements IOshToolEsService {
         message.setToolName(tool.getToolName());
         message.setNo(tool.getNo());
         message.setDescription(tool.getDescription());
+        message.setAccessType(tool.getAccessType());
         message.setRoutePath(tool.getRoutePath());
+        message.setIframeUrl(tool.getIframeUrl());
         message.setGithubUrl(tool.getGithubUrl());
         message.setResourceType(tool.getResourceType());
         message.setQuotaCost(tool.getQuotaCost() == null ? 0 : tool.getQuotaCost());
