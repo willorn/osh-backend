@@ -2,6 +2,7 @@ package com.backstage.system.domain.openproject.vo;
 
 import com.backstage.system.domain.openproject.OshOpenProjectContributor;
 import com.backstage.system.domain.openproject.OshOpenProjectResourceRel;
+import com.backstage.system.domain.openproject.OshOpenProjectTechComponentRel;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +38,10 @@ public class OpenProjectVO {
     // 关联本站资源（课程、电子书、工具等）
     private List<OshOpenProjectResourceRel> resources;
     private List<OshOpenProjectContributor> contributors;
+    private List<OpenProjectModuleVO> modules;
+    private List<OshOpenProjectTechComponentRel> techComponents;
+    private OshOpenProjectContributor leader;
+    private Boolean canEdit;
 
     /** 当前用户是否已收藏 */
     private Boolean favorited;
@@ -113,4 +118,13 @@ public class OpenProjectVO {
     public void setResources(List<OshOpenProjectResourceRel> resources) { this.resources = resources; }
     public List<OshOpenProjectContributor> getContributors() { return contributors; }
     public void setContributors(List<OshOpenProjectContributor> contributors) { this.contributors = contributors; }
+
+    public List<OpenProjectModuleVO> getModules() { return modules; }
+    public void setModules(List<OpenProjectModuleVO> modules) { this.modules = modules; }
+    public List<OshOpenProjectTechComponentRel> getTechComponents() { return techComponents; }
+    public void setTechComponents(List<OshOpenProjectTechComponentRel> techComponents) { this.techComponents = techComponents; }
+    public OshOpenProjectContributor getLeader() { return leader; }
+    public void setLeader(OshOpenProjectContributor leader) { this.leader = leader; }
+    public Boolean getCanEdit() { return canEdit; }
+    public void setCanEdit(Boolean canEdit) { this.canEdit = canEdit; }
 }

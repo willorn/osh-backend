@@ -23,6 +23,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.bind.annotation.*;
+import javax.naming.NamingException;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.InitialDirContext;
 import javax.servlet.http.HttpServletRequest;
 import java.net.URL;
 
@@ -42,6 +45,8 @@ public class AdminInviteController {
 
     /** Redis key 前缀 */
     private static final String INVITE_KEY_PREFIX = "admin:invite:";
+    /** 邮箱待注册邀请索引前缀 */
+    private static final String INVITE_EMAIL_KEY_PREFIX = "admin:invite:email:";
     /** 邀请链接有效期：7天 */
     private static final long INVITE_EXPIRE_DAYS = 7;
 
@@ -112,7 +117,7 @@ public class AdminInviteController {
     }
 
     private R createSingleInvite(Map<String, Object> params, HttpServletRequest request) {
-        String email = (String) params.get("email");
+        String email = normalizeEmail(params.get("email"));
         Integer roleId = Integer.valueOf(params.get("roleId").toString());
         // 自定义积分，默认188
         Long points = 188L;
@@ -126,8 +131,11 @@ public class AdminInviteController {
         }
 
         // 邮箱格式校验
-        if (!email.matches("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$")) {
+        if (!isValidEmailFormat(email)) {
             return R.fail("邮箱格式不正确");
+        }
+        if (!hasMailExchange(email)) {
+            return R.fail("邮箱域名不存在或未配置邮件服务");
         }
 
         // 校验角色ID有效性（只允许 level 2~5 的角色）
@@ -159,6 +167,9 @@ public class AdminInviteController {
         if (oshUserMapper.selectOne(wrapper) != null) {
             return R.fail("邮箱已被注册");
         }
+        if (hasPendingInvite(email)) {
+            return R.fail("该邮箱已有未使用的邀请链接");
+        }
 
         // 生成邀请 token
         String inviteToken = UUID.randomUUID().toString().replace("-", "");
@@ -173,6 +184,7 @@ public class AdminInviteController {
             inviteData.put("expireTime", expireTime);
         }
         redisCache.setCacheObject(INVITE_KEY_PREFIX + inviteToken, inviteData, (int)(INVITE_EXPIRE_DAYS * 24 * 60), TimeUnit.MINUTES);
+        redisCache.setCacheObject(INVITE_EMAIL_KEY_PREFIX + email, inviteToken, (int)(INVITE_EXPIRE_DAYS * 24 * 60), TimeUnit.MINUTES);
 
         // 发送邮件通知被邀请人
         String roleName = role.getRoleName();
@@ -207,6 +219,9 @@ public class AdminInviteController {
             javaMailSender.send(mail);
         } catch (Exception e) {
             log.warn("发送邀请邮件失败, email={}", email, e);
+            redisCache.deleteObject(INVITE_KEY_PREFIX + inviteToken);
+            redisCache.deleteObject(INVITE_EMAIL_KEY_PREFIX + email);
+            return R.fail("邀请邮件发送失败");
         }
 
         LinkedHashMap<String, Object> data = new LinkedHashMap<>();
@@ -243,13 +258,17 @@ public class AdminInviteController {
                 if (emailObj == null || StringUtils.isEmpty(emailObj.toString().trim())) {
                     continue;
                 }
-                Map<String, Object> item = new HashMap<>();
-                item.put("email", emailObj.toString().trim());
-                copyInviteItemValue(source, item, "roleId");
-                copyInviteItemValue(source, item, "points");
-                copyInviteItemValue(source, item, "permanent");
-                copyInviteItemValue(source, item, "expireTime");
-                inviteItems.add(item);
+                LinkedHashSet<String> emails = new LinkedHashSet<>();
+                addInviteEmail(emails, emailObj);
+                for (String email : emails) {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("email", email);
+                    copyInviteItemValue(source, item, "roleId");
+                    copyInviteItemValue(source, item, "points");
+                    copyInviteItemValue(source, item, "permanent");
+                    copyInviteItemValue(source, item, "expireTime");
+                    inviteItems.add(item);
+                }
             }
             return inviteItems;
         }
@@ -268,13 +287,68 @@ public class AdminInviteController {
         }
     }
 
+    private String normalizeEmail(Object value) {
+        return value == null ? "" : value.toString().trim().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean isValidEmailFormat(String email) {
+        return email.matches("^[a-zA-Z0-9._%+\\-]+@([a-zA-Z0-9](?:[a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$");
+    }
+
+    private boolean hasMailExchange(String email) {
+        int atIndex = email.lastIndexOf("@");
+        if (atIndex < 0 || atIndex == email.length() - 1) {
+            return false;
+        }
+        String domain = email.substring(atIndex + 1);
+        try {
+            Attributes mx = new InitialDirContext().getAttributes("dns:/" + domain, new String[] { "MX" });
+            if (mx.get("MX") != null && mx.get("MX").size() > 0) {
+                return true;
+            }
+            Attributes a = new InitialDirContext().getAttributes("dns:/" + domain, new String[] { "A", "AAAA" });
+            return (a.get("A") != null && a.get("A").size() > 0) || (a.get("AAAA") != null && a.get("AAAA").size() > 0);
+        } catch (NamingException e) {
+            log.info("邮箱域名解析失败, email={}, domain={}", email, domain, e);
+            return false;
+        }
+    }
+
+    private boolean hasPendingInvite(String email) {
+        String inviteToken = redisCache.getCacheObject(INVITE_EMAIL_KEY_PREFIX + email);
+        if (StringUtils.isNotEmpty(inviteToken)) {
+            Map<String, String> inviteData = redisCache.getCacheObject(INVITE_KEY_PREFIX + inviteToken);
+            if (inviteData != null && email.equals(normalizeEmail(inviteData.get("email")))) {
+                return true;
+            }
+            redisCache.deleteObject(INVITE_EMAIL_KEY_PREFIX + email);
+        }
+
+        Collection<String> keys = redisCache.keys(INVITE_KEY_PREFIX + "*");
+        if (keys == null || keys.isEmpty()) {
+            return false;
+        }
+        for (String key : keys) {
+            if (key.startsWith(INVITE_EMAIL_KEY_PREFIX)) {
+                continue;
+            }
+            Map<String, String> inviteData = redisCache.getCacheObject(key);
+            if (inviteData != null && email.equals(normalizeEmail(inviteData.get("email")))) {
+                String token = key.substring(INVITE_KEY_PREFIX.length());
+                redisCache.setCacheObject(INVITE_EMAIL_KEY_PREFIX + email, token, (int)(INVITE_EXPIRE_DAYS * 24 * 60), TimeUnit.MINUTES);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void addInviteEmail(Set<String> emails, Object value) {
         if (value == null) {
             return;
         }
         String[] parts = value.toString().split("[\\s,;，；]+");
         for (String part : parts) {
-            String email = part == null ? "" : part.trim();
+            String email = normalizeEmail(part);
             if (StringUtils.isNotEmpty(email)) {
                 emails.add(email);
             }
@@ -382,6 +456,7 @@ public class AdminInviteController {
 
         // 删除 Redis 邀请数据
         redisCache.deleteObject(INVITE_KEY_PREFIX + token);
+        redisCache.deleteObject(INVITE_EMAIL_KEY_PREFIX + normalizeEmail(email));
 
         // 发送注册成功邮件
         try {

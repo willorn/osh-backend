@@ -51,20 +51,27 @@ public class GitHubOpenProjectClientImpl implements GitHubOpenProjectClient {
     @Override
     public List<GitHubContributorDTO> listContributors(String owner, String repo, String token) {
         List<GitHubContributorDTO> result = new ArrayList<>();
-        String body = httpGet(API + "/repos/" + owner + "/" + repo + "/contributors?per_page=30", token);
-        JSONArray array = JSON.parseArray(body);
-        if (array == null) {
-            return result;
-        }
-        for (int i = 0; i < array.size(); i++) {
-            JSONObject item = array.getJSONObject(i);
-            GitHubContributorDTO dto = new GitHubContributorDTO();
-            dto.setGithubAccount(item.getString("login"));
-            dto.setContributions(item.getIntValue("contributions"));
-            dto.setAvatarUrl(item.getString("avatar_url"));
-            dto.setProfileUrl(item.getString("html_url"));
-            dto.setContributorType(i == 0 ? "primary" : "contributor");
-            result.add(dto);
+        int page = 1;
+        while (page <= 10) {
+            String body = httpGet(API + "/repos/" + owner + "/" + repo + "/contributors?per_page=100&page=" + page, token);
+            JSONArray array = JSON.parseArray(body);
+            if (array == null || array.isEmpty()) {
+                break;
+            }
+            for (int i = 0; i < array.size(); i++) {
+                JSONObject item = array.getJSONObject(i);
+                GitHubContributorDTO dto = new GitHubContributorDTO();
+                dto.setGithubAccount(item.getString("login"));
+                dto.setContributions(item.getIntValue("contributions"));
+                dto.setAvatarUrl(item.getString("avatar_url"));
+                dto.setProfileUrl(item.getString("html_url"));
+                dto.setContributorType("contributor");
+                result.add(dto);
+            }
+            if (array.size() < 100) {
+                break;
+            }
+            page++;
         }
         return result;
     }

@@ -69,6 +69,7 @@ public class OshOpenProject extends OSHBaseEntity implements Serializable {
     private String language;
     private String licenseName;
     private String homepage;
+    private Integer leaderLocked;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -138,4 +139,7 @@ public class OshOpenProject extends OSHBaseEntity implements Serializable {
 
     public String getHomepage() { return homepage; }
     public void setHomepage(String homepage) { this.homepage = homepage; }
+
+    public Integer getLeaderLocked() { return leaderLocked; }
+    public void setLeaderLocked(Integer leaderLocked) { this.leaderLocked = leaderLocked; }
 }
