@@ -14,12 +14,12 @@ public class ToolPurchaseCreateRequest {
     private Long packageId;
 
     @NotNull(message = "支付方式不能为空")
-    @ApiModelProperty(value = "支付方式：1-纯现金，3-现金+积分", required = true, example = "1")
+    @ApiModelProperty(value = "套餐支付类型：1-仅现金，2-仅积分，3-现金或积分", required = true, example = "3")
     private Integer payType;
 
-    @NotBlank(message = "支付渠道不能为空")
-    @ApiModelProperty(value = "支付渠道，如 wxpay/alipay", required = true, example = "wxpay")
-    private String channel;
+    @NotBlank(message = "支付方式标识不能为空")
+    @ApiModelProperty(value = "支付方式标识：points/wxpay/alipay", required = true, example = "points")
+    private String paymentMethod;
 
     public Long getPackageId() {
         return packageId;
@@ -37,11 +37,11 @@ public class ToolPurchaseCreateRequest {
         this.payType = payType;
     }
 
-    public String getChannel() {
-        return channel;
+    public String getPaymentMethod() {
+        return paymentMethod;
     }
 
-    public void setChannel(String channel) {
-        this.channel = channel;
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
     }
 }
