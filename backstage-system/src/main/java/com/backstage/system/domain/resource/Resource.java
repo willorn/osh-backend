@@ -51,20 +51,15 @@ public class Resource extends OSHBaseEntity implements Serializable {
     @TableField("file_path")
     private String filePath;
 
+    @TableField("file_platform")
+    private String filePlatform;
+
     public Long getId() {
         return id;
     }
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    public String getNo() {
-        return no;
-    }
-
-    public void setNo(String no) {
-        this.no = no;
     }
 
     public String getName() {
@@ -97,5 +92,21 @@ public class Resource extends OSHBaseEntity implements Serializable {
 
     public void setFilePath(String filePath) {
         this.filePath = filePath;
+    }
+
+    public String getNo() {
+        return no;
+    }
+
+    public void setNo(String no) {
+        this.no = no;
+    }
+
+    public String getFilePlatform() {
+        return filePlatform;
+    }
+
+    public void setFilePlatform(String filePlatform) {
+        this.filePlatform = filePlatform;
     }
 }

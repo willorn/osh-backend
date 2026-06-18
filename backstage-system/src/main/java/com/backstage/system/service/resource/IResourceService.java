@@ -4,7 +4,9 @@ import com.backstage.system.domain.resource.Resource;
 import com.backstage.system.domain.vo.resource.ResourceVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 
 /**
@@ -61,4 +63,8 @@ public interface IResourceService extends IService<Resource> {
      * @return 资源VO集合
      */
     List<ResourceVO> listVOByIds(List<Long> ids);
+
+    Resource upload(Long resId, MultipartFile file);
+
+    void download(Long resId, HttpServletResponse response);
 }

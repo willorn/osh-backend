@@ -27,16 +27,18 @@ CREATE TABLE `osh_resource_group`
 DROP TABLE IF EXISTS `osh_resource`;
 CREATE TABLE `osh_resource`
 (
-    `id`          bigint(20)   NOT NULL AUTO_INCREMENT COMMENT '资源ID',
-    `name`        varchar(200) NOT NULL COMMENT '资源名称',
-    `type`        varchar(32)           DEFAULT NULL COMMENT '资源类型（doc/video/image/code/other）',
-    `remark`      varchar(500)          DEFAULT NULL COMMENT '备注',
-    `file_path`   varchar(500)          DEFAULT NULL COMMENT '文件连接',
-    `delete_flag` tinyint(1)   NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-正常 1-删除',
-    `create_by`   varchar(64)           DEFAULT '' COMMENT '创建者',
-    `create_time` datetime              DEFAULT NULL COMMENT '创建时间',
-    `update_by`   varchar(64)           DEFAULT '' COMMENT '更新者',
-    `update_time` datetime              DEFAULT NULL COMMENT '更新时间',
+    `id`            bigint(20)   NOT NULL AUTO_INCREMENT COMMENT '资源ID',
+    `name`          varchar(200) NOT NULL COMMENT '资源名称',
+    `no`        varchar(200) NOT NULL COMMENT '资源编号',
+    `type`          varchar(32)           DEFAULT NULL COMMENT '资源类型（doc/video/image/code/other）',
+    `remark`        varchar(500)          DEFAULT NULL COMMENT '备注',
+    `file_path`     varchar(500)          DEFAULT NULL COMMENT '文件连接',
+    `file_platform` varchar(500)          DEFAULT NULL COMMENT '文件存储平台',
+    `delete_flag`   tinyint(1)   NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-正常 1-删除',
+    `create_by`     varchar(64)           DEFAULT '' COMMENT '创建者',
+    `create_time`   datetime              DEFAULT NULL COMMENT '创建时间',
+    `update_by`     varchar(64)           DEFAULT '' COMMENT '更新者',
+    `update_time`   datetime              DEFAULT NULL COMMENT '更新时间',
     PRIMARY KEY (`id`),
     KEY `idx_type` (`type`),
     KEY `idx_delete_flag` (`delete_flag`)
