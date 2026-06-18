@@ -66,7 +66,7 @@ public class ToolPurchaseServiceImplTest {
         ToolPurchaseCreateRequest request = new ToolPurchaseCreateRequest();
         request.setPackageId(2001L);
         request.setPayType(1);
-        request.setChannel("wxpay");
+        request.setPaymentMethod("wxpay");
 
         OshToolPackage quotaPackage = new OshToolPackage();
         quotaPackage.setId(2001L);
@@ -105,7 +105,7 @@ public class ToolPurchaseServiceImplTest {
         ToolPurchaseCreateRequest request = new ToolPurchaseCreateRequest();
         request.setPackageId(2002L);
         request.setPayType(3);
-        request.setChannel("alipay");
+        request.setPaymentMethod("points");
 
         OshToolPackage quotaPackage = new OshToolPackage();
         quotaPackage.setId(2002L);
@@ -121,7 +121,7 @@ public class ToolPurchaseServiceImplTest {
         userAsset.setPoints(99L);
 
         when(oshToolPackageMapper.selectPackageById(2002L)).thenReturn(quotaPackage);
-        when(oshUserAssetMapper.selectById(9L)).thenReturn(userAsset);
+        when(oshUserAssetMapper.selectOne(any())).thenReturn(userAsset);
 
         try {
             toolPurchaseService.createPurchaseOrder(9L, "normal", request);
@@ -136,6 +136,7 @@ public class ToolPurchaseServiceImplTest {
         request.setPackageName("积分包");
         request.setUseCount(200);
         request.setPrice(new BigDecimal("9.90"));
+        request.setPointCost(1);
         request.setPayType(3);
         request.setStatus(1);
         request.setSortOrder(5);

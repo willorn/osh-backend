@@ -7,6 +7,7 @@ import com.backstage.system.domain.tool.OshTool;
 import com.backstage.system.domain.tool.OshToolTag;
 import com.backstage.system.domain.tool.ToolUsagePermission;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.user.OshUserAsset;
 import com.backstage.system.domain.vo.tool.ToolCalculatorResultVO;
 import com.backstage.system.domain.vo.tool.ToolQuotaCurrentVO;
 import com.backstage.system.mapper.tool.OshToolCollectionMapper;
@@ -15,6 +16,7 @@ import com.backstage.system.mapper.tool.OshToolQuotaMapper;
 import com.backstage.system.mapper.tool.OshToolTagMapper;
 import com.backstage.system.mapper.tool.OshToolVoteMapper;
 import com.backstage.system.domain.tool.OshToolVote;
+import com.backstage.system.mapper.user.OshUserAssetMapper;
 import com.backstage.system.request.tool.ToolCalculatorRequest;
 import com.backstage.system.request.tool.ToolRecommendRequest;
 import com.backstage.system.request.tool.ToolSaveRequest;
@@ -29,6 +31,7 @@ import com.backstage.system.service.tool.ToolIndexMessage;
 import com.backstage.system.utils.ResourcePermissionUtil;
 import com.backstage.system.utils.UserContextUtil;
 import com.github.pagehelper.PageHelper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -73,6 +76,9 @@ public class OshToolServiceImpl implements IOshToolService {
 
     @Autowired
     private OshToolQuotaMapper oshToolQuotaMapper;
+
+    @Autowired
+    private OshUserAssetMapper oshUserAssetMapper;
 
     @Autowired
     private IOshToolEsService oshToolEsService;
@@ -396,13 +402,22 @@ public class OshToolServiceImpl implements IOshToolService {
         }
         ToolQuotaCurrentVO quota = oshToolQuotaMapper.selectUserQuotaByUserId(userId);
         if (quota != null) {
+            quota.setRemainingPoints(resolveUserPoints(userId));
             return quota;
         }
         ToolQuotaCurrentVO emptyQuota = new ToolQuotaCurrentVO();
         emptyQuota.setRemainingCount(0);
         emptyQuota.setTotalBuyCount(0);
         emptyQuota.setUsedCount(0);
+        emptyQuota.setRemainingPoints(resolveUserPoints(userId));
         return emptyQuota;
+    }
+
+    private Long resolveUserPoints(Long userId) {
+        OshUserAsset userAsset = oshUserAssetMapper.selectOne(
+                new LambdaQueryWrapper<OshUserAsset>().eq(OshUserAsset::getUserId, userId)
+        );
+        return userAsset == null || userAsset.getPoints() == null ? 0L : userAsset.getPoints();
     }
 
     private String generateToolNo() {
