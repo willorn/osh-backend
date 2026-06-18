@@ -8,9 +8,9 @@ import javax.validation.constraints.DecimalMin;
 import java.math.BigDecimal;
 
 /**
- * 工具使用次数套餐保存请求
+ * 工具点数套餐保存请求
  */
-@ApiModel(description = "工具使用次数套餐保存请求")
+@ApiModel(description = "工具点数套餐保存请求")
 public class ToolPackageSaveRequest {
 
     @ApiModelProperty(value = "套餐ID，新增不传，修改传入", example = "1")

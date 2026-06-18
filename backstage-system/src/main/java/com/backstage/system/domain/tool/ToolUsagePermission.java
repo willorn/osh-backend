@@ -18,7 +18,7 @@ public class ToolUsagePermission {
     @ApiModelProperty(value = "当前用户剩余使用次数", example = "0")
     private Integer remainingCount;
 
-    @ApiModelProperty(value = "校验提示信息", example = "工具使用次数不足")
+    @ApiModelProperty(value = "校验提示信息", example = "工具点数不足")
     private String message;
 
     public Boolean getUseAllowed() {

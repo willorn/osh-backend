@@ -95,4 +95,266 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           </if>
         order by created_time desc
     </select>
+
+    <sql id="adminOrderTimeFilter">
+        o.delete_flag = 0
+        <if test="beginTime != null">
+            and o.created_time &gt;= #{beginTime}
+        </if>
+        <if test="endTime != null">
+            and o.created_time &lt;= #{endTime}
+        </if>
+    </sql>
+
+    <sql id="adminOrderPageFilter">
+        o.delete_flag = 0
+        <if test="query.keyword != null and query.keyword != ''">
+            and (
+                o.order_no like concat('%', #{query.keyword}, '%')
+                or o.product_name like concat('%', #{query.keyword}, '%')
+                or u.username like concat('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query.status != null">
+            and o.status = #{query.status}
+        </if>
+        <if test="query.productType != null">
+            and o.product_type = #{query.productType}
+        </if>
+        <if test="query.payChannel != null">
+            and p.channel = #{query.payChannel}
+        </if>
+        <if test="query.beginTime != null">
+            and o.created_time &gt;= #{query.beginTime}
+        </if>
+        <if test="query.endTime != null">
+            and o.created_time &lt;= #{query.endTime}
+        </if>
+    </sql>
+
+    <select id="selectAdminOrderSummary" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$SummaryAggregateVO">
+        select
+            count(1) as totalOrderCount,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then 1 else 0 end), 0) as paidOrderCount,
+            coalesce(sum(case when o.status = 0 and coalesce(p.status, -1) != 1 and o.paid_time is null then 1 else 0 end), 0) as pendingOrderCount,
+            coalesce(sum(case when o.status = 3 then 1 else 0 end), 0) as closedOrderCount,
+            coalesce(sum(case when o.status = 2 and coalesce(p.status, -1) != 1 and o.paid_time is null then 1 else 0 end), 0) as canceledOrderCount,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then coalesce(p.amount, o.payable_amount, 0) else 0 end), 0) as paidAmount,
+            coalesce(sum(case when o.status = 0 and coalesce(p.status, -1) != 1 and o.paid_time is null then o.payable_amount else 0 end), 0) as pendingAmount,
+            coalesce(sum(o.points_deduct_amount), 0) as pointsDeductAmount
+        from osh_order o
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderTimeFilter"/>
+    </select>
+
+    <select id="selectAdminOrderRevenueTrend" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$RevenueTrendRowVO">
+        select
+            date_format(o.created_time, '%Y-%m-%d') as day,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then coalesce(p.amount, o.payable_amount, 0) else 0 end), 0) as cashAmount,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then o.points_deduct_amount else 0 end), 0) as pointsDeductAmount,
+            coalesce(sum(case when o.status = 0 and coalesce(p.status, -1) != 1 and o.paid_time is null then o.payable_amount else 0 end), 0) as pendingAmount,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then 1 else 0 end), 0) as paidOrderCount,
+            coalesce(sum(case when o.status = 0 and coalesce(p.status, -1) != 1 and o.paid_time is null then 1 else 0 end), 0) as pendingOrderCount
+        from osh_order o
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderTimeFilter"/>
+        group by date_format(o.created_time, '%Y-%m-%d')
+        order by day asc
+    </select>
+
+    <select id="selectAdminOrderPaymentMix" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$PaymentMixRowVO">
+        select
+            cast(p.channel as char) as payType,
+            count(1) as count,
+            coalesce(sum(p.amount), 0) as amount
+        from osh_order o
+        inner join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+           and p.status = 1
+        where <include refid="adminOrderTimeFilter"/>
+        group by p.channel
+        order by count desc, p.channel asc
+    </select>
+
+    <select id="selectAdminOrderFunnel" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$FunnelAggregateVO">
+        select
+            count(distinct o.id) as createdCount,
+            count(distinct p.id) as paymentCreatedCount,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then 1 else 0 end), 0) as paidCount
+        from osh_order o
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderTimeFilter"/>
+    </select>
+
+    <select id="selectAdminOrderPointsSummary" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$PointsVO">
+        select
+            coalesce(sum(o.points_deduct_amount), 0) as deductAmount,
+            coalesce(sum(o.points_amount), 0) as usedPoints,
+            case when count(1) = 0 then 0
+                 else round(sum(case when o.points_amount &gt; 0 then 1 else 0 end) * 100 / count(1), 2)
+            end as usageRate
+        from osh_order o
+        where <include refid="adminOrderTimeFilter"/>
+    </select>
+
+    <select id="selectAdminOrderPointsSources" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$PointsSourceRowVO">
+        select
+            o.product_type as productType,
+            coalesce(sum(o.points_amount), 0) as usedPoints,
+            coalesce(sum(o.points_deduct_amount), 0) as deductAmount
+        from osh_order o
+        where <include refid="adminOrderTimeFilter"/>
+          and o.points_amount &gt; 0
+        group by o.product_type
+        order by usedPoints desc
+    </select>
+
+    <select id="selectAdminOrderTopProducts" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$ProductRankRowVO">
+        select
+            o.product_name as productName,
+            o.product_type as productType,
+            count(1) as orderCount,
+            coalesce(sum(case when p.status = 1 or o.paid_time is not null then coalesce(p.amount, o.payable_amount, 0) else 0 end), 0) as paidAmount,
+            coalesce(sum(o.points_deduct_amount), 0) as pointsDeductAmount
+        from osh_order o
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderTimeFilter"/>
+        group by o.product_name, o.product_type
+        order by paidAmount desc, orderCount desc
+        limit 10
+    </select>
+
+    <select id="selectAdminOrderRisks" resultType="com.backstage.system.domain.vo.order.AdminOrderDashboardVO$RiskAggregateVO">
+        select
+            coalesce(sum(case when o.status = 0 and o.created_time &lt;= #{timeoutTime} and coalesce(p.status, -1) != 1 and o.paid_time is null then 1 else 0 end), 0) as timeoutPendingCount,
+            coalesce(sum(case when p.id is not null and p.amount != o.payable_amount then 1 else 0 end), 0) as amountMismatchCount,
+            coalesce(sum(case when p.status = 2 then 1 else 0 end), 0) as paymentFailedCount
+        from osh_order o
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderTimeFilter"/>
+    </select>
+
+    <select id="countTimeoutPendingOrders" resultType="java.lang.Long">
+        select count(1)
+        from osh_order o
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderTimeFilter"/>
+          and o.status = 0
+          and o.paid_time is null
+          and coalesce(p.status, -1) != 1
+          and o.created_time &lt;= #{timeoutTime}
+    </select>
+
+    <select id="selectAdminOrderPage" resultType="com.backstage.system.domain.vo.order.AdminOrderPageItemVO">
+        select
+            o.id,
+            o.user_id as userId,
+            u.username,
+            o.order_no as orderNo,
+            o.status,
+            o.product_type as productType,
+            o.product_id as productId,
+            o.product_name as productName,
+            o.original_amount as originalAmount,
+            o.discount_amount as discountAmount,
+            o.payable_amount as payableAmount,
+            o.points_amount as pointsAmount,
+            o.points_deduct_amount as pointsDeductAmount,
+            p.payment_no as paymentNo,
+            p.channel as payChannel,
+            p.status as paymentStatus,
+            o.created_time as createdTime,
+            o.paid_time as paidTime,
+            o.close_time as closeTime
+        from osh_order o
+        left join osh_user u
+            on u.id = o.user_id
+           and u.delete_flag = 0
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where <include refid="adminOrderPageFilter"/>
+        order by o.created_time desc, o.id desc
+    </select>
+
+    <select id="selectAdminOrderDetail" resultType="com.backstage.system.domain.vo.order.AdminOrderPageItemVO">
+        select
+            o.id,
+            o.user_id as userId,
+            u.username,
+            o.order_no as orderNo,
+            o.status,
+            o.product_type as productType,
+            o.product_id as productId,
+            o.product_name as productName,
+            o.original_amount as originalAmount,
+            o.discount_amount as discountAmount,
+            o.payable_amount as payableAmount,
+            o.points_amount as pointsAmount,
+            o.points_deduct_amount as pointsDeductAmount,
+            p.payment_no as paymentNo,
+            p.channel as payChannel,
+            p.status as paymentStatus,
+            o.created_time as createdTime,
+            o.paid_time as paidTime,
+            o.close_time as closeTime
+        from osh_order o
+        left join osh_user u
+            on u.id = o.user_id
+           and u.delete_flag = 0
+        left join osh_payment p
+            on p.order_no = o.order_no
+           and p.delete_flag = 0
+        where o.order_no = #{orderNo}
+          and o.delete_flag = 0
+        limit 1
+    </select>
+
+    <select id="selectAdminOrderPayment" resultType="com.backstage.system.domain.vo.order.AdminOrderPaymentVO">
+        select
+            p.order_no as orderNo,
+            p.payment_no as paymentNo,
+            p.channel,
+            p.amount,
+            p.status,
+            p.platform_trade_no as platformTradeNo,
+            p.pay_url as payUrl,
+            p.qrcode,
+            p.paid_time as paidTime,
+            p.expire_time as expireTime,
+            p.created_time as createdTime
+        from osh_payment p
+        where p.order_no = #{orderNo}
+          and p.delete_flag = 0
+        order by p.created_time desc, p.id desc
+        limit 1
+    </select>
+
+    <select id="selectAdminOrderPaymentNotifyLogs" resultType="com.backstage.system.domain.vo.order.AdminOrderPaymentVO$NotifyLogVO">
+        select
+            l.payment_no as paymentNo,
+            l.order_no as orderNo,
+            l.platform_trade_no as platformTradeNo,
+            l.sign_valid as signValid,
+            l.process_status as processStatus,
+            l.error_msg as errorMsg,
+            l.created_time as createdTime
+        from osh_payment_notify_log l
+        where l.order_no = #{orderNo}
+        order by l.created_time desc, l.id desc
+        limit 20
+    </select>
 </mapper>

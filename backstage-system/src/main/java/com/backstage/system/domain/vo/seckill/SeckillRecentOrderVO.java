@@ -15,7 +15,7 @@ import java.util.Date;
 @ApiModel(description = "秒杀最近成交记录")
 public class SeckillRecentOrderVO {
 
-    @ApiModelProperty("脱敏用户名（昵称优先，昵称为空则用登录名，取前2位+**）")
+    @ApiModelProperty("脱敏用户名（当前实现取登录名前2位+**）")
     private String username;
 
     @ApiModelProperty("商品标题")

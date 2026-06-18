@@ -15,6 +15,9 @@ public class ToolQuotaCurrentVO {
     @ApiModelProperty(value = "累计消耗工具点数", example = "40")
     private Integer usedCount;
 
+    @ApiModelProperty(value = "当前剩余积分", example = "1280")
+    private Long remainingPoints;
+
     public Integer getRemainingCount() {
         return remainingCount;
     }
@@ -37,5 +40,13 @@ public class ToolQuotaCurrentVO {
 
     public void setUsedCount(Integer usedCount) {
         this.usedCount = usedCount;
+    }
+
+    public Long getRemainingPoints() {
+        return remainingPoints;
+    }
+
+    public void setRemainingPoints(Long remainingPoints) {
+        this.remainingPoints = remainingPoints;
     }
 }

@@ -40,6 +40,7 @@ public interface OshInfoGapMapper extends BaseMapper<OshInfoGap> {
     List<InfoGapVO> selectInfoGapListByIds(@Param("ids") List<Long> ids,
                                            @Param("currentUserId") Long currentUserId);
 
+    // 分页查询已发布信息差
     List<OshInfoGap> selectPublishedInfoGapPage(@Param("offset") Integer offset,
                                                 @Param("pageSize") Integer pageSize);
 

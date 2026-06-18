@@ -2,18 +2,16 @@ package com.backstage.system.service.impl.info_gap;
 
 import com.backstage.common.response.PageResponse;
 import com.backstage.system.domain.dto.info_gap.InfoGapESSearchReqDTO;
-import com.backstage.system.domain.dto.info_gap.InfoGapSearchReqDTO;
 import com.backstage.system.domain.info_gap.OshInfoGap;
 import com.backstage.system.domain.info_gap.OshInfoGapEsDocument;
 import com.backstage.system.domain.vo.info_gap.InfoGapVO;
 import com.backstage.system.mapper.info_gap.OshInfoGapEsMapper;
 import com.backstage.system.mapper.info_gap.OshInfoGapMapper;
-import com.backstage.system.service.info_gap.IInfoGapEsService;
+import com.backstage.system.service.info_gap.InfoGapEsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +19,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
-public class InfoGapEsServiceImpl implements IInfoGapEsService {
+public class InfoGapEsServiceImpl implements InfoGapEsService {
 
     private static final int DEFAULT_SYNC_PAGE_SIZE = 200;
 
@@ -40,104 +38,7 @@ public class InfoGapEsServiceImpl implements IInfoGapEsService {
             throw new IllegalStateException("search info gaps from es failed", ex);
         }
 
-        return buildSearchResponse(esResult, currentUserId, request == null ? null : request.getKeyword());
-    }
-
-    @Override
-    public PageResponse<InfoGapVO> searchInfoGaps(InfoGapSearchReqDTO request, Long currentUserId) {
-        OshInfoGapEsMapper.InfoGapEsSearchResult esResult;
-        try {
-            esResult = oshInfoGapEsMapper.searchInfoGaps(request);
-        } catch (Exception ex) {
-            throw new IllegalStateException("search info gaps from es failed", ex);
-        }
-
-        return buildSearchResponse(esResult, currentUserId, request == null ? null : request.getKeyword());
-    }
-
-    private PageResponse<InfoGapVO> buildSearchResponse(OshInfoGapEsMapper.InfoGapEsSearchResult esResult,
-                                                        Long currentUserId,
-                                                        String keyword) {
-        List<Long> ids = esResult.getIds();
-        if (ids == null || ids.isEmpty()) {
-            return PageResponse.of(Collections.emptyList(), 0L, esResult.getPageNum(), esResult.getPageSize());
-        }
-
-        List<InfoGapVO> rows = oshInfoGapMapper.selectInfoGapListByIds(ids, currentUserId);
-        Map<Long, InfoGapVO> voMap = rows.stream()
-                .collect(Collectors.toMap(InfoGapVO::getId, item -> item, (left, right) -> left));
-
-        List<InfoGapVO> sortedRows = ids.stream()
-                .map(voMap::get)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-
-        rerankRows(sortedRows, keyword);
-
-        return PageResponse.of(sortedRows, esResult.getTotal(), esResult.getPageNum(), esResult.getPageSize());
-    }
-
-    private void rerankRows(List<InfoGapVO> rows, String keyword) {
-        String normalizedKeyword = normalizeKeyword(keyword);
-        if (rows == null || rows.isEmpty() || normalizedKeyword.isEmpty()) {
-            return;
-        }
-        rows.sort(Comparator
-                .comparingLong((InfoGapVO row) -> calculateKeywordFrequencyScore(row, normalizedKeyword)).reversed()
-                .thenComparing(InfoGapVO::getUpdateTime, Comparator.nullsLast(Comparator.reverseOrder()))
-                .thenComparing(InfoGapVO::getId, Comparator.nullsLast(Comparator.reverseOrder())));
-    }
-
-    private long calculateKeywordFrequencyScore(InfoGapVO row, String keyword) {
-        if (row == null) {
-            return 0L;
-        }
-        long total = 0L;
-        total += countOccurrences(row.getTitle(), keyword) * 100L;
-        total += countOccurrences(row.getContent(), keyword) * 80L;
-        total += countOccurrences(joinTags(row), keyword) * 20L;
-        total += countOccurrences(row.getTag(), keyword) * 10L;
-        return total;
-    }
-
-    private String joinTags(InfoGapVO row) {
-        StringBuilder sb = new StringBuilder();
-        appendTag(sb, row.getTag1());
-        appendTag(sb, row.getTag2());
-        appendTag(sb, row.getTag3());
-        return sb.toString();
-    }
-
-    private void appendTag(StringBuilder sb, String tag) {
-        if (tag == null || tag.trim().isEmpty()) {
-            return;
-        }
-        if (sb.length() > 0) {
-            sb.append(' ');
-        }
-        sb.append(tag.trim());
-    }
-
-    private String normalizeKeyword(String keyword) {
-        return keyword == null ? "" : keyword.trim().toLowerCase();
-    }
-
-    private int countOccurrences(String text, String keyword) {
-        if (text == null || text.trim().isEmpty() || keyword.isEmpty()) {
-            return 0;
-        }
-        String source = text.toLowerCase();
-        int count = 0;
-        int fromIndex = 0;
-        while (true) {
-            int matchIndex = source.indexOf(keyword, fromIndex);
-            if (matchIndex < 0) {
-                break;
-            }
-            count++;
-            fromIndex = matchIndex + keyword.length();
-        }
-        return count;
+        return buildSearchResponse(esResult, currentUserId);
     }
 
     @Override
@@ -149,6 +50,8 @@ public class InfoGapEsServiceImpl implements IInfoGapEsService {
             oshInfoGapEsMapper.deleteAllInfoGaps();
             while (true) {
                 int offset = (pageNum - 1) * DEFAULT_SYNC_PAGE_SIZE;
+
+                // 查询已发布信息差列表
                 List<OshInfoGap> rows = oshInfoGapMapper.selectPublishedInfoGapPage(offset, DEFAULT_SYNC_PAGE_SIZE);
                 if (rows == null || rows.isEmpty()) {
                     break;
@@ -194,6 +97,15 @@ public class InfoGapEsServiceImpl implements IInfoGapEsService {
     }
 
     @Override
+    public void recreateSearchIndex(String indexDefinitionJson) {
+        try {
+            oshInfoGapEsMapper.recreateInfoGapSearchIndex(indexDefinitionJson);
+        } catch (Exception ex) {
+            throw new IllegalStateException("recreate info gap es index failed", ex);
+        }
+    }
+
+    @Override
     public void syncInfoGapToEs(Long infoGapId) {
         try {
             OshInfoGap infoGap = oshInfoGapMapper.selectById(infoGapId);
@@ -213,6 +125,25 @@ public class InfoGapEsServiceImpl implements IInfoGapEsService {
         } catch (Exception ex) {
             throw new IllegalStateException("delete info gap from es failed", ex);
         }
+    }
+
+    private PageResponse<InfoGapVO> buildSearchResponse(OshInfoGapEsMapper.InfoGapEsSearchResult esResult,
+                                                        Long currentUserId) {
+        List<Long> ids = esResult.getIds();
+        if (ids == null || ids.isEmpty()) {
+            return PageResponse.of(Collections.emptyList(), 0L, esResult.getPageNum(), esResult.getPageSize());
+        }
+
+        List<InfoGapVO> rows = oshInfoGapMapper.selectInfoGapListByIds(ids, currentUserId);
+        Map<Long, InfoGapVO> voMap = rows.stream()
+                .collect(Collectors.toMap(InfoGapVO::getId, item -> item, (left, right) -> left));
+
+        List<InfoGapVO> sortedRows = ids.stream()
+                .map(voMap::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        return PageResponse.of(sortedRows, esResult.getTotal(), esResult.getPageNum(), esResult.getPageSize());
     }
 
     private OshInfoGapEsDocument buildEsDocument(OshInfoGap infoGap) {
@@ -246,7 +177,6 @@ public class InfoGapEsServiceImpl implements IInfoGapEsService {
                 document.getContent(),
                 document.getCategory(),
                 document.getTagNamesText(),
-                document.getNo(),
                 document.getUserName()
         ));
         return document;

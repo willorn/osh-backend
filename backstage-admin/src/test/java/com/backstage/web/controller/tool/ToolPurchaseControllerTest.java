@@ -98,7 +98,7 @@ public class ToolPurchaseControllerTest {
 
         mockMvc.perform(post("/pc/tool/purchase/create")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"packageId\":2001,\"payType\":1,\"channel\":\"wxpay\"}"))
+                        .content("{\"packageId\":2001,\"payType\":1,\"paymentMethod\":\"wxpay\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.orderNo").value("O20260517003"))

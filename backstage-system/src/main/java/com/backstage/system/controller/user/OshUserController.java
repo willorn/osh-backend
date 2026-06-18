@@ -113,7 +113,9 @@ public class OshUserController extends BaseController {
     public R<String> updateInfo(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
             @RequestBody UserUpdateInfoDTO userUpdateInfoDTO) {
-        return userService.updateInfo(userUpdateInfoDTO.getUsername(),userUpdateInfoDTO.getSex(),userUpdateInfoDTO.getIntroduction());
+        return userService.updateInfo(userUpdateInfoDTO.getUsername(), userUpdateInfoDTO.getSex(),
+                userUpdateInfoDTO.getIntroduction(), userUpdateInfoDTO.getGithubAccount(),
+                userUpdateInfoDTO.getWechatName());
     }
 
     @ApiOperation("上传头像")
@@ -141,6 +143,16 @@ public class OshUserController extends BaseController {
     public R<OshUser> getUserInfo(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid) {
         return userService.getUserInfo();
+    }
+
+    @ApiOperation("获取用户名片")
+    @GetMapping("/card")
+    @Anonymous
+    public R<?> getUserCard(
+            @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "githubAccount", required = false) String githubAccount) {
+        return userService.getUserCard(userId, githubAccount);
     }
 
     @ApiOperation("获取当前用户角色列表（含有效期）")

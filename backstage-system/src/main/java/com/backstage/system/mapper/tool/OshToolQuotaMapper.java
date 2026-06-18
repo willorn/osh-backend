@@ -9,19 +9,19 @@ import java.util.List;
 @Mapper
 public interface OshToolQuotaMapper {
 
-    int increaseUserGlobalQuota(@Param("userId") Long userId,
-                                @Param("addCount") Integer addCount,
+    int increaseUserQuota(@Param("userId") Long userId,
+                          @Param("addCount") Integer addCount,
+                          @Param("operator") String operator);
+
+    int insertUserQuota(@Param("userId") Long userId,
+                        @Param("initCount") Integer initCount,
+                        @Param("operator") String operator);
+
+    ToolQuotaCurrentVO selectUserQuotaByUserId(@Param("userId") Long userId);
+
+    List<Long> selectUserIdsWithoutQuota();
+
+    int batchInsertInitialQuota(@Param("userIds") List<Long> userIds,
+                                @Param("initCount") Integer initCount,
                                 @Param("operator") String operator);
-
-    int insertUserGlobalQuota(@Param("userId") Long userId,
-                              @Param("initCount") Integer initCount,
-                              @Param("operator") String operator);
-
-    ToolQuotaCurrentVO selectUserGlobalQuotaByUserId(@Param("userId") Long userId);
-
-    List<Long> selectUserIdsWithoutGlobalQuota();
-
-    int batchInsertInitialGlobalQuota(@Param("userIds") List<Long> userIds,
-                                      @Param("initCount") Integer initCount,
-                                      @Param("operator") String operator);
 }

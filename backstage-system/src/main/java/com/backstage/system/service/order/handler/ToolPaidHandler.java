@@ -35,24 +35,24 @@ public class ToolPaidHandler implements OrderPaidHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(String orderNo) {
-        log.info("全局次数支付成功后置处理开始, orderNo={}", orderNo);
+        log.info("工具点数支付成功后置处理开始, orderNo={}", orderNo);
         OshToolPurchaseRecord record = oshToolPurchaseRecordMapper.selectByOrderNo(orderNo);
         if (record == null) {
-            log.warn("全局次数支付成功后置处理失败，购买记录不存在, orderNo={}", orderNo);
-            throw new ServiceException("全局次数购买记录不存在");
+            log.warn("工具点数支付成功后置处理失败，购买记录不存在, orderNo={}", orderNo);
+            throw new ServiceException("工具点数购买记录不存在");
         }
         if (Integer.valueOf(GRANT_STATUS_SUCCESS).equals(record.getGrantStatus())) {
-            log.info("全局次数支付成功后置处理跳过，额度已发放, orderNo={}, recordId={}", orderNo, record.getId());
+            log.info("工具点数支付成功后置处理跳过，工具点数余额已发放, orderNo={}, recordId={}", orderNo, record.getId());
             return;
         }
         try {
-            int updated = oshToolQuotaMapper.increaseUserGlobalQuota(
+            int updated = oshToolQuotaMapper.increaseUserQuota(
                     record.getUserId(),
                     record.getPackageUseCountSnapshot(),
                     SYSTEM_OPERATOR
             );
             if (updated <= 0) {
-                oshToolQuotaMapper.insertUserGlobalQuota(
+                oshToolQuotaMapper.insertUserQuota(
                         record.getUserId(),
                         record.getPackageUseCountSnapshot(),
                         SYSTEM_OPERATOR
@@ -61,12 +61,12 @@ public class ToolPaidHandler implements OrderPaidHandler {
             oshToolPurchaseRecordMapper.updateOrderStatusByOrderNo(orderNo, 1, SYSTEM_OPERATOR);
             int success = oshToolPurchaseRecordMapper.updateGrantSuccess(record.getId(), LocalDateTime.now(), SYSTEM_OPERATOR);
             if (success <= 0) {
-                throw new ServiceException("更新全局次数购买发放状态失败");
+                throw new ServiceException("更新工具点数购买发放状态失败");
             }
-            log.info("全局次数支付成功后置处理完成，额度发放成功, orderNo={}, userId={}, packageId={}",
+            log.info("工具点数支付成功后置处理完成，工具点数余额发放成功, orderNo={}, userId={}, packageId={}",
                     orderNo, record.getUserId(), record.getPackageId());
         } catch (Exception ex) {
-            log.error("全局次数支付成功后置处理异常, orderNo={}, error={}", orderNo, ex.getMessage(), ex);
+            log.error("工具点数支付成功后置处理异常, orderNo={}, error={}", orderNo, ex.getMessage(), ex);
             oshToolPurchaseRecordMapper.updateGrantFailed(record.getId(), ex.getMessage(), SYSTEM_OPERATOR);
             throw ex;
         }

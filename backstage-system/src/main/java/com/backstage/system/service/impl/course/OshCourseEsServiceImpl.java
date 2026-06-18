@@ -249,6 +249,7 @@ public class OshCourseEsServiceImpl implements IOshCourseEsService {
         collectionSearchRequest.setTags(request.getTags());
         collectionSearchRequest.setKeyword(request.getKeyword());
         collectionSearchRequest.setResourceType(request.getResourceType());
+        collectionSearchRequest.setDifficulty(request.getDifficulty());
         collectionSearchRequest.setCollectionFlag(request.getCollectionFlag());
         collectionSearchRequest.setCourseNo(request.getCourseNo());
         collectionSearchRequest.setIncludeUnpublished(request.getIncludeUnpublished());
@@ -327,6 +328,7 @@ public class OshCourseEsServiceImpl implements IOshCourseEsService {
         document.setAfterServiceDays(row.getAfterServiceDays());
         document.setResourceType(row.getResourceType());
         document.setLevel(row.getLevel());
+        document.setDifficulty(row.getDifficulty());
         document.setStatus(row.getStatus());
         document.setExamId(row.getExamId());
         document.setDeleteFlag(row.getDeleteFlag() == null ? 0 : row.getDeleteFlag());

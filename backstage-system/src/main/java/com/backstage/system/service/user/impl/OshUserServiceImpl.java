@@ -12,6 +12,7 @@ import com.backstage.common.utils.jwt.JwtUtil;
 import com.backstage.common.utils.SecurityUtils;
 import com.backstage.common.utils.StringUtils;
 import com.backstage.system.domain.user.*;
+import com.backstage.system.domain.user.vo.OshUserCardVO;
 import com.backstage.system.domain.user.vo.OshUserLoginVO;
 import com.backstage.system.mapper.user.*;
 import com.backstage.system.mapper.user.OshUserInvitationMapper;
@@ -314,7 +315,7 @@ public class OshUserServiceImpl implements IOshUserService {
     }
 
     @Override
-    public R<String> updateInfo(String username, String sex, String introduction) {
+    public R<String> updateInfo(String username, String sex, String introduction, String githubAccount, String wechatName) {
         Long userId = ThreadLocalUtil.get(OshUserConstants.USER_ID,Long.class);
         if (StringUtils.isEmpty(username)) {
             return R.fail(ResultCode.FAILED_USER_USERNAME_NOT_IN_RANGE.getMsg());
@@ -341,9 +342,108 @@ public class OshUserServiceImpl implements IOshUserService {
         }
         oshUser.setUsername(trimmedUsername);
         oshUser.setSex(sex);
-        oshUser.setIntroduction(introduction);
+        oshUser.setIntroduction(trimToMax(introduction, 500));
+        oshUser.setGithubAccount(normalizeGithubAccount(githubAccount));
+        oshUser.setWechatName(trimToMax(wechatName, 100));
         oshUserMapper.update(oshUser, wrapper);
         return R.ok(ResultCode.SUCCESS.getMsg());
+    }
+
+    private String normalizeGithubAccount(String githubAccount) {
+        String normalized = trimToMax(githubAccount, 100);
+        if (StringUtils.isEmpty(normalized)) {
+            return null;
+        }
+        normalized = normalized.trim();
+        if (normalized.startsWith("github.com/")) {
+            normalized = "https://" + normalized;
+        } else if (!normalized.startsWith("https://github.com/") && !normalized.startsWith("http://github.com/")) {
+            normalized = "https://github.com/" + normalized;
+        }
+        return trimToMax(normalized, 100);
+    }
+
+    @Override
+    public R<OshUserCardVO> getUserCard(Long userId, String githubAccount) {
+        OshUser user = null;
+        if (userId != null) {
+            user = oshUserMapper.selectById(userId);
+        }
+        if (user == null && StringUtils.isNotEmpty(githubAccount)) {
+            String githubLink = normalizeGithubAccount(githubAccount);
+            String githubOwner = extractGithubOwner(githubAccount);
+            LambdaQueryWrapper<OshUser> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(OshUser::getDeleteFlag, 0)
+                    .and(w -> {
+                        w.eq(OshUser::getGithubAccount, githubLink);
+                        if (StringUtils.isNotEmpty(githubOwner)) {
+                            w.or().eq(OshUser::getGithubAccount, githubOwner)
+                                    .or().eq(OshUser::getGithubAccount, "https://github.com/" + githubOwner)
+                                    .or().eq(OshUser::getGithubAccount, "http://github.com/" + githubOwner);
+                        }
+                    });
+            user = oshUserMapper.selectOne(wrapper);
+        }
+        if (user == null) {
+            return R.fail("用户不存在");
+        }
+
+        OshUserCardVO vo = new OshUserCardVO();
+        vo.setId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setAvatar(buildAvatarUrl(user.getAvatar()));
+        vo.setGithubAccount(normalizeGithubAccount(user.getGithubAccount()));
+        vo.setWechatName(user.getWechatName());
+        vo.setSex(user.getSex());
+        vo.setIntroduction(user.getIntroduction());
+        vo.setRoles(userManageMapper.selectUserRolesByUserIds(Collections.singletonList(user.getId())));
+        return R.ok(vo);
+    }
+
+    private String extractGithubOwner(String githubAccount) {
+        String value = trimToMax(githubAccount, 100);
+        if (StringUtils.isEmpty(value)) {
+            return null;
+        }
+        value = value.replace("https://github.com/", "")
+                .replace("http://github.com/", "")
+                .replace("github.com/", "");
+        int queryIndex = value.indexOf('?');
+        if (queryIndex >= 0) {
+            value = value.substring(0, queryIndex);
+        }
+        int slashIndex = value.indexOf('/');
+        if (slashIndex >= 0) {
+            value = value.substring(0, slashIndex);
+        }
+        return trimToMax(value, 100);
+    }
+
+    private String buildAvatarUrl(String avatar) {
+        if (StringUtils.isEmpty(avatar)) {
+            return null;
+        }
+        String avatarKey = avatar;
+        if (avatarKey.startsWith("http")) {
+            String publicDomain = ossUtil.getOssProperties().getPublicDomain();
+            if (StringUtils.isNotEmpty(publicDomain) && avatarKey.startsWith(publicDomain)) {
+                avatarKey = avatarKey.substring(publicDomain.length());
+                if (avatarKey.startsWith("/")) {
+                    avatarKey = avatarKey.substring(1);
+                }
+            } else {
+                return avatarKey;
+            }
+        }
+        return ossService.getLimitedUrl(avatarKey, 30);
+    }
+
+    private String trimToMax(String value, int maxLength) {
+        if (StringUtils.isEmpty(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > maxLength ? trimmed.substring(0, maxLength) : trimmed;
     }
 
     @Autowired
@@ -441,22 +541,10 @@ public class OshUserServiceImpl implements IOshUserService {
     public R<OshUser> getUserInfo() {
         OshUser oshUser = UserContextUtil.getCurrentUser();
         oshUser.setPassword(null);
+        oshUser.setGithubAccount(normalizeGithubAccount(oshUser.getGithubAccount()));
         // 将头像相对路径转为临时签名URL（有效期30分钟）
         if (StringUtils.isNotEmpty(oshUser.getAvatar())) {
-            String avatar = oshUser.getAvatar();
-            // 兼容旧数据：如果存的是完整URL（http开头），提取相对路径
-            if (avatar.startsWith("http")) {
-                // 旧数据存的是完整公开URL，尝试提取相对路径部分
-                String basePath = ossUtil.getOssProperties().getBasePath();
-                String publicDomain = ossUtil.getOssProperties().getPublicDomain();
-                if (avatar.startsWith(publicDomain)) {
-                    avatar = avatar.substring(publicDomain.length());
-                    if (avatar.startsWith("/")) {
-                        avatar = avatar.substring(1);
-                    }
-                }
-            }
-            oshUser.setAvatar(ossService.getLimitedUrl(avatar, 30));
+            oshUser.setAvatar(buildAvatarUrl(oshUser.getAvatar()));
         }
         return R.ok(oshUser);
     }

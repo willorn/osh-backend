@@ -28,6 +28,7 @@ import com.backstage.system.service.order.OrderCheckoutService;
 import com.backstage.system.service.tool.ToolPurchaseService;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,7 +46,11 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
 
     private static final int PACKAGE_STATUS_ENABLED = 1;
     private static final int PAY_TYPE_CASH = 1;
-    private static final int PAY_TYPE_CASH_POINT = 3;
+    private static final int PAY_TYPE_POINTS = 2;
+    private static final int PAY_TYPE_CASH_OR_POINTS = 3;
+    private static final String PAYMENT_METHOD_POINTS = "points";
+    private static final String PAYMENT_METHOD_WXPAY = "wxpay";
+    private static final String PAYMENT_METHOD_ALIPAY = "alipay";
     private static final int CASH_TO_POINT_RATIO = 10;
     private static final int ORDER_STATUS_PENDING = 0;
     private static final int ORDER_STATUS_CANCELLED = 2;
@@ -79,8 +84,9 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
     @Override
     public ToolPurchaseDetailVO getPurchaseDetail(Long userId) {
         ToolPurchaseDetailVO detailVO = new ToolPurchaseDetailVO();
-        Integer remainingCount = userId == null ? 0 : oshToolMapper.selectUserGlobalRemainingCount(userId);
+        Integer remainingCount = userId == null ? 0 : oshToolMapper.selectUserRemainingCount(userId);
         detailVO.setRemainingCount(remainingCount == null ? 0 : remainingCount);
+        detailVO.setRemainingPoints(resolveUserPoints(userId));
         return detailVO;
     }
 
@@ -100,15 +106,17 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         }
         OshToolPackage quotaPackage = requireValidPackage(request.getPackageId());
         validatePayType(request.getPayType(), quotaPackage);
+        String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
+        validatePaymentMethod(paymentMethod, quotaPackage);
 
-        if (PAY_TYPE_CASH_POINT == request.getPayType()) {
+        if (PAYMENT_METHOD_POINTS.equals(paymentMethod)) {
             deductUserPoints(userId, operator, quotaPackage);
         }
 
-        OrderCheckoutRespVO checkoutResult = orderCheckoutService.checkout(buildCheckoutReqVO(userId, quotaPackage, request.getChannel()));
-        OshToolPurchaseRecord record = buildPurchaseRecord(userId, operator, quotaPackage, request, checkoutResult);
+        OrderCheckoutRespVO checkoutResult = orderCheckoutService.checkout(buildCheckoutReqVO(userId, quotaPackage, paymentMethod));
+        OshToolPurchaseRecord record = buildPurchaseRecord(userId, operator, quotaPackage, paymentMethod, checkoutResult);
         if (oshToolPurchaseRecordMapper.insertToolPurchaseRecord(record) <= 0) {
-            throw new ServiceException("新增全局次数购买记录失败");
+            throw new ServiceException("新增工具点数购买记录失败");
         }
         return checkoutResult;
     }
@@ -139,7 +147,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
                 || Integer.valueOf(GRANT_STATUS_SUCCESS).equals(record.getGrantStatus())) {
             return;
         }
-        if (Integer.valueOf(PAY_TYPE_CASH_POINT).equals(record.getPackagePayTypeSnapshot())
+        if (Integer.valueOf(PAY_TYPE_POINTS).equals(record.getPackagePayTypeSnapshot())
                 && record.getPackagePointAmountSnapshot() != null
                 && record.getPackagePointAmountSnapshot() > 0) {
             refundUserPoints(record);
@@ -190,7 +198,10 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         if (request.getPrice() == null || request.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("现金金额必须大于0");
         }
-        if (request.getPayType() == null || (request.getPayType() != PAY_TYPE_CASH && request.getPayType() != PAY_TYPE_CASH_POINT)) {
+        if (request.getPayType() == null
+                || (request.getPayType() != PAY_TYPE_CASH
+                && request.getPayType() != PAY_TYPE_POINTS
+                && request.getPayType() != PAY_TYPE_CASH_OR_POINTS)) {
             throw new IllegalArgumentException("支付类型错误");
         }
     }
@@ -238,11 +249,36 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         if (payType == null) {
             throw new IllegalArgumentException("支付方式不能为空");
         }
-        if (payType != PAY_TYPE_CASH && payType != PAY_TYPE_CASH_POINT) {
-            throw new IllegalArgumentException("支付方式错误");
-        }
         if (!payType.equals(toolPackage.getPayType())) {
             throw new ServiceException("支付方式与套餐配置不一致");
+        }
+    }
+
+    private String normalizePaymentMethod(String paymentMethod) {
+        return paymentMethod == null ? "" : paymentMethod.trim().toLowerCase();
+    }
+
+    private void validatePaymentMethod(String paymentMethod, OshToolPackage toolPackage) {
+        if (!PAYMENT_METHOD_POINTS.equals(paymentMethod)
+                && !PAYMENT_METHOD_WXPAY.equals(paymentMethod)
+                && !PAYMENT_METHOD_ALIPAY.equals(paymentMethod)) {
+            throw new IllegalArgumentException("支付方式标识错误");
+        }
+
+        Integer payType = toolPackage.getPayType();
+        if (Integer.valueOf(PAY_TYPE_CASH).equals(payType) && PAYMENT_METHOD_POINTS.equals(paymentMethod)) {
+            throw new ServiceException("当前套餐不支持积分支付");
+        }
+        if (Integer.valueOf(PAY_TYPE_POINTS).equals(payType) && !PAYMENT_METHOD_POINTS.equals(paymentMethod)) {
+            throw new ServiceException("当前套餐仅支持积分支付");
+        }
+        if (Integer.valueOf(PAY_TYPE_CASH_OR_POINTS).equals(payType)) {
+            return;
+        }
+        if (Integer.valueOf(PAY_TYPE_CASH).equals(payType)
+                && !PAYMENT_METHOD_WXPAY.equals(paymentMethod)
+                && !PAYMENT_METHOD_ALIPAY.equals(paymentMethod)) {
+            throw new ServiceException("当前套餐仅支持微信或支付宝支付");
         }
     }
 
@@ -251,7 +287,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         if (pointCost <= 0) {
             throw new ServiceException("套餐积分金额配置错误");
         }
-        OshUserAsset userAsset = oshUserAssetMapper.selectById(userId);
+        OshUserAsset userAsset = oshUserAssetMapper.selectByUserIdForUpdate(userId);
         if (userAsset == null || userAsset.getPoints() == null || userAsset.getPoints() < pointCost) {
             throw new ServiceException("积分不足");
         }
@@ -267,14 +303,14 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         assetRecord.setChangeAmount((long) pointCost);
         assetRecord.setBeforeBalance(beforeBalance);
         assetRecord.setAfterBalance(userAsset.getPoints());
-        assetRecord.setRemark("购买全局次数套餐【" + toolPackage.getPackageName() + "】扣减积分");
+        assetRecord.setRemark("购买工具点数套餐【" + toolPackage.getPackageName() + "】扣减积分");
         oshUserAssetRecordMapper.insert(assetRecord);
 
         registerAssetCacheRefreshAfterCommit(userId, userAsset.getPoints());
     }
 
     private void refundUserPoints(OshToolPurchaseRecord record) {
-        OshUserAsset userAsset = oshUserAssetMapper.selectById(record.getUserId());
+        OshUserAsset userAsset = oshUserAssetMapper.selectByUserIdForUpdate(record.getUserId());
         if (userAsset == null) {
             throw new ServiceException("用户资产不存在，无法退回积分");
         }
@@ -290,7 +326,7 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         assetRecord.setChangeAmount(refundPoint);
         assetRecord.setBeforeBalance(beforeBalance);
         assetRecord.setAfterBalance(userAsset.getPoints());
-        assetRecord.setRemark("取消全局次数订单【" + record.getOrderNo() + "】退回积分");
+        assetRecord.setRemark("取消工具点数订单【" + record.getOrderNo() + "】退回积分");
         oshUserAssetRecordMapper.insert(assetRecord);
 
         registerAssetCacheRefreshAfterCommit(record.getUserId(), userAsset.getPoints());
@@ -325,25 +361,27 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         });
     }
 
-    private OrderCheckoutReqVO buildCheckoutReqVO(Long userId, OshToolPackage toolPackage, String channel) {
+    private OrderCheckoutReqVO buildCheckoutReqVO(Long userId, OshToolPackage toolPackage, String paymentMethod) {
         OrderCheckoutReqVO reqVO = new OrderCheckoutReqVO();
         reqVO.setUserId(userId);
         reqVO.setProductType(ProductTypeEnum.TOOL.getCode());
         reqVO.setProductId(toolPackage.getId());
-        reqVO.setProductName("全局工具次数套餐-" + toolPackage.getPackageName());
+        reqVO.setProductName("工具点数套餐-" + toolPackage.getPackageName());
         reqVO.setPurchaseMode(PurchaseModeEnum.NORMAL.getCode());
-        reqVO.setOriginalAmount(defaultAmount(toolPackage.getPrice()));
-        reqVO.setPayableAmount(defaultAmount(toolPackage.getPrice()));
+        BigDecimal cashAmount = defaultAmount(toolPackage.getPrice());
+        boolean pointsOnly = PAYMENT_METHOD_POINTS.equals(paymentMethod);
+        reqVO.setOriginalAmount(pointsOnly ? BigDecimal.ZERO : cashAmount);
+        reqVO.setPayableAmount(pointsOnly ? BigDecimal.ZERO : cashAmount);
         reqVO.setDiscountAmount(BigDecimal.ZERO);
-        reqVO.setChannel(channel);
+        reqVO.setChannel(pointsOnly ? PAYMENT_METHOD_WXPAY : paymentMethod);
         return reqVO;
     }
 
     private OshToolPurchaseRecord buildPurchaseRecord(Long userId,
-                                                             String operator,
-                                                             OshToolPackage toolPackage,
-                                                             ToolPurchaseCreateRequest request,
-                                                             OrderCheckoutRespVO checkoutResult) {
+                                                      String operator,
+                                                      OshToolPackage toolPackage,
+                                                      String paymentMethod,
+                                                      OrderCheckoutRespVO checkoutResult) {
         OshToolPurchaseRecord record = new OshToolPurchaseRecord();
         record.setOrderNo(checkoutResult.getOrderNo());
         record.setPaymentNo(checkoutResult.getPaymentNo());
@@ -352,8 +390,8 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
         record.setPackageNameSnapshot(toolPackage.getPackageName());
         record.setPackageUseCountSnapshot(toolPackage.getUseCount());
         record.setPackageCashAmountSnapshot(defaultAmount(toolPackage.getPrice()));
-        record.setPackagePointAmountSnapshot(defaultPoint(toolPackage.getPointCost()));
-        record.setPackagePayTypeSnapshot(request.getPayType());
+        record.setPackagePointAmountSnapshot(PAYMENT_METHOD_POINTS.equals(paymentMethod) ? defaultPoint(toolPackage.getPointCost()) : 0);
+        record.setPackagePayTypeSnapshot(resolveRecordPayType(paymentMethod));
         record.setOrderStatus(ORDER_STATUS_PENDING);
         record.setGrantStatus(GRANT_STATUS_PENDING);
         record.setRemark(null);
@@ -369,5 +407,22 @@ public class ToolPurchaseServiceImpl implements ToolPurchaseService {
 
     private Integer defaultPoint(Integer pointCost) {
         return pointCost == null ? 0 : pointCost;
+    }
+
+    private Long resolveUserPoints(Long userId) {
+        if (userId == null) {
+            return 0L;
+        }
+        OshUserAsset userAsset = oshUserAssetMapper.selectOne(
+                new LambdaQueryWrapper<OshUserAsset>().eq(OshUserAsset::getUserId, userId)
+        );
+        return userAsset == null || userAsset.getPoints() == null ? 0L : userAsset.getPoints();
+    }
+
+    private Integer resolveRecordPayType(String paymentMethod) {
+        if (PAYMENT_METHOD_POINTS.equals(paymentMethod)) {
+            return PAY_TYPE_POINTS;
+        }
+        return PAY_TYPE_CASH;
     }
 }

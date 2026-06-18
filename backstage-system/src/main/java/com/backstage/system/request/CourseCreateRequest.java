@@ -57,6 +57,9 @@ public class CourseCreateRequest {
 
     private Integer level;
 
+    /** 课程难度：1-新手入门 2-基础巩固 3-能力提升 */
+    private Integer difficulty;
+
     private Integer servicePeriod;
 
     /**
@@ -209,6 +212,14 @@ public class CourseCreateRequest {
 
     public void setLevel(Integer level) {
         this.level = level;
+    }
+
+    public Integer getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(Integer difficulty) {
+        this.difficulty = difficulty;
     }
 
     public Integer getServicePeriod() {

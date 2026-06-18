@@ -1,6 +1,7 @@
 package com.backstage.system.service.assistant;
 
 import com.backstage.system.domain.assistant.AssistantFeedbackComment;
+import com.backstage.system.domain.assistant.dto.AssistantFeedbackCommentCreateDTO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackCommentVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -22,4 +23,13 @@ public interface IAssistantFeedbackCommentService extends IService<AssistantFeed
      * @return 评论列表
      */
     List<AssistantFeedbackCommentVO> listCommentsByFeedbackId(Long feedbackId, Integer pageNum, Integer pageSize);
+
+    /**
+     * 创建评论
+     *
+     * @param feedbackId 反馈 ID
+     * @param dto        评论创建 DTO
+     * @return 评论 ID
+     */
+    Long createComment(Long feedbackId, AssistantFeedbackCommentCreateDTO dto);
 }

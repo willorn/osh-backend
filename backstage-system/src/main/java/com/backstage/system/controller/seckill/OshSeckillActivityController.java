@@ -76,7 +76,7 @@ public class OshSeckillActivityController extends BaseController {
     @PreAuthorize("hasAuthority('seckill:activity:add')")
     @Log(title = "秒杀活动", businessType = BusinessType.INSERT)
     @PostMapping("/add")
-    public R add(@Validated @RequestBody SeckillActivityAddDTO dto) {
+    public R<String> add(@Validated @RequestBody SeckillActivityAddDTO dto) {
         try {
             activityService.insertActivity(dto);
             return R.ok();
@@ -91,7 +91,7 @@ public class OshSeckillActivityController extends BaseController {
     @PreAuthorize("hasAuthority('seckill:activity:edit')")
     @Log(title = "秒杀活动", businessType = BusinessType.UPDATE)
     @PostMapping("/update")
-    public R edit(@Validated @RequestBody SeckillActivityUpdateDTO dto) {
+    public R<String> edit(@Validated @RequestBody SeckillActivityUpdateDTO dto) {
         try {
             activityService.updateActivity(dto);
             return R.ok();
@@ -106,7 +106,7 @@ public class OshSeckillActivityController extends BaseController {
     @PreAuthorize("hasAuthority('seckill:activity:status')")
     @Log(title = "秒杀活动", businessType = BusinessType.UPDATE)
     @PostMapping("/status")
-    public R updateStatus(@Validated @RequestBody SeckillActivityStatusDTO dto) {
+    public R<String> updateStatus(@Validated @RequestBody SeckillActivityStatusDTO dto) {
         try {
             activityService.updateActivityStatus(dto);
             return R.ok();

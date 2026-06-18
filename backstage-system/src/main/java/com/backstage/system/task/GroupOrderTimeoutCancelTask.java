@@ -95,6 +95,24 @@ public class GroupOrderTimeoutCancelTask {
     }
 
     /**
+     * 按订单号取消待支付拼团订单，并复用原有名额释放逻辑。
+     *
+     * @param orderNo 拼团订单号
+     */
+    public void cancelPendingOrderByOrderNo(String orderNo) {
+        OshGroupOrder order = groupServerMapper.selectGroupOrderByOrderNo(orderNo);
+        if (order == null) {
+            log.warn("拼团订单不存在，跳过取消，订单号: {}", orderNo);
+            return;
+        }
+        if (!"pending".equals(order.getStatus())) {
+            log.info("拼团订单不是待支付状态，跳过取消，订单号: {}, status={}", orderNo, order.getStatus());
+            return;
+        }
+        cancelOrder(order);
+    }
+
+    /**
      * 取消单个订单并释放名额
      */
     private void cancelOrder(OshGroupOrder order) {

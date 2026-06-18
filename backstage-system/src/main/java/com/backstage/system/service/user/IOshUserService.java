@@ -2,6 +2,7 @@ package com.backstage.system.service.user;
 
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.domain.user.vo.OshUserCardVO;
 import com.backstage.system.domain.user.vo.OshUserLoginVO;
 import com.backstage.system.request.UserListRequest;
 import org.springframework.web.multipart.MultipartFile;
@@ -33,13 +34,15 @@ public interface IOshUserService {
 
     R<String> forget(String uniqueId, String password, String repassword);
 
-    R<String> updateInfo(String username, String sex, String introduction);
+    R<String> updateInfo(String username, String sex, String introduction, String githubAccount, String wechatName);
 
     R<String> uploadAvatar(MultipartFile file);
 
     R<String> updatePassword(String opassword, String password, String repassword);
 
     R<OshUser> getUserInfo();
+
+    R<OshUserCardVO> getUserCard(Long userId, String githubAccount);
 
     R<?> getUserRoles();
 

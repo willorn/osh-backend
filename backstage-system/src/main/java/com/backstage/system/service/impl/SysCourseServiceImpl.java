@@ -1,5 +1,7 @@
 package com.backstage.system.service.impl;
 
+import com.backstage.common.enums.ResourceCodePrefixEnum;
+import com.backstage.common.utils.generate.GenerateUtil;
 import com.backstage.system.domain.course.OshCourse;
 import com.backstage.system.mapper.course.OshCourseMapper;
 import com.backstage.system.service.ISysCourseService;
@@ -52,6 +54,9 @@ public class SysCourseServiceImpl implements ISysCourseService
     @Override
     public int insertCourse(OshCourse course)
     {
+        if (course != null && (course.getNo() == null || course.getNo().isEmpty())) {
+            course.setNo(GenerateUtil.generateResourceCode(ResourceCodePrefixEnum.COURSE));
+        }
         return sysCourseMapper.insertCourse(course);
     }
 

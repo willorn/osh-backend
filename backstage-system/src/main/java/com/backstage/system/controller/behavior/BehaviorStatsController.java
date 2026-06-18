@@ -67,12 +67,12 @@ public class BehaviorStatsController {
             query = new BehaviorEventQuery();
         }
         normalizePage(query);
-        PageHelper.startPage(query.getPageNum(), query.getPageSize());
-        List<Map<String, Object>> rows = behaviorStatsMapper.selectEventPage(query);
-        PageInfo<Map<String, Object>> pageInfo = new PageInfo<>(rows);
+        int offset = (query.getPageNum() - 1) * query.getPageSize();
+        Long total = behaviorStatsMapper.selectEventCount(query);
+        List<Map<String, Object>> rows = behaviorStatsMapper.selectEventPage(query, offset, query.getPageSize());
         LinkedHashMap<String, Object> data = new LinkedHashMap<>();
-        data.put("total", pageInfo.getTotal());
-        data.put("rows", pageInfo.getList());
+        data.put("total", total == null ? 0L : total);
+        data.put("rows", rows);
         return R.ok(data);
     }
 

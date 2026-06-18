@@ -13,7 +13,9 @@ public class ToolIndexMessage {
     private String no;
     private String description;
     private String searchText;
+    private Integer accessType;
     private String routePath;
+    private String iframeUrl;
     private String githubUrl;
     private String resourceType;
     private Integer quotaCost;
@@ -84,12 +86,28 @@ public class ToolIndexMessage {
         this.searchText = searchText;
     }
 
+    public Integer getAccessType() {
+        return accessType;
+    }
+
+    public void setAccessType(Integer accessType) {
+        this.accessType = accessType;
+    }
+
     public String getRoutePath() {
         return routePath;
     }
 
     public void setRoutePath(String routePath) {
         this.routePath = routePath;
+    }
+
+    public String getIframeUrl() {
+        return iframeUrl;
+    }
+
+    public void setIframeUrl(String iframeUrl) {
+        this.iframeUrl = iframeUrl;
     }
 
     public String getGithubUrl() {

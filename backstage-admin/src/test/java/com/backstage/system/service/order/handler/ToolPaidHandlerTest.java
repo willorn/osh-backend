@@ -49,13 +49,13 @@ public class ToolPaidHandlerTest {
         record.setGrantStatus(0);
 
         when(oshToolPurchaseRecordMapper.selectByOrderNo("O20260517002")).thenReturn(record);
-        when(oshToolQuotaMapper.increaseUserGlobalQuota(9L, 50, "system")).thenReturn(0);
-        when(oshToolQuotaMapper.insertUserGlobalQuota(9L, 50, "system")).thenReturn(1);
+        when(oshToolQuotaMapper.increaseUserQuota(9L, 50, "system")).thenReturn(0);
+        when(oshToolQuotaMapper.insertUserQuota(9L, 50, "system")).thenReturn(1);
         when(oshToolPurchaseRecordMapper.updateGrantSuccess(org.mockito.ArgumentMatchers.eq(1L), any(LocalDateTime.class), org.mockito.ArgumentMatchers.eq("system"))).thenReturn(1);
 
         toolPaidHandler.handle("O20260517002");
 
-        verify(oshToolQuotaMapper).insertUserGlobalQuota(9L, 50, "system");
+        verify(oshToolQuotaMapper).insertUserQuota(9L, 50, "system");
         verify(oshToolPurchaseRecordMapper).updateGrantSuccess(org.mockito.ArgumentMatchers.eq(1L), any(LocalDateTime.class), org.mockito.ArgumentMatchers.eq("system"));
     }
 
@@ -70,6 +70,6 @@ public class ToolPaidHandlerTest {
 
         toolPaidHandler.handle("O20260517002");
 
-        verify(oshToolQuotaMapper, never()).insertUserGlobalQuota(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString());
+        verify(oshToolQuotaMapper, never()).insertUserQuota(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString());
     }
 }
