@@ -37,12 +37,6 @@ public class Resource extends OSHBaseEntity implements Serializable {
     private String name;
 
     /**
-     * 资源名称
-     */
-    @TableField("no")
-    private String no;
-
-    /**
      * 资源类型（doc/video/image/code/other）
      */
     @TableField("type")
@@ -66,14 +60,6 @@ public class Resource extends OSHBaseEntity implements Serializable {
 
     public void setId(Long id) {
         this.id = id;
-    }
-
-    public String getNo() {
-        return no;
-    }
-
-    public void setNo(String no) {
-        this.no = no;
     }
 
     public String getName() {
