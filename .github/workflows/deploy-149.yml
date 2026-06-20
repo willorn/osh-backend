@@ -1,0 +1,165 @@
+# 149 蓝/绿槽位代码部署 — 平台审批后触发，同一套 workflow，slot 区分目标
+name: Deploy Backend to 149
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Commit SHA or branch to build and deploy'
+        required: true
+      slot:
+        description: 'green=待命槽位 | blue=切流后同步蓝'
+        required: true
+        type: choice
+        options:
+          - green
+          - blue
+      release_id:
+        description: 'Release ticket ID from osh-prod-release (audit)'
+        required: false
+  repository_dispatch:
+    types: [deploy-149-approved]
+
+concurrency:
+  group: deploy-backend-149-${{ github.event.inputs.slot || github.event.client_payload.slot || 'green' }}
+  cancel-in-progress: false
+
+env:
+  JAVA_VERSION: '17'
+  GIT_REF: ${{ github.event.inputs.git_ref || github.event.client_payload.git_ref }}
+  SLOT: ${{ github.event.inputs.slot || github.event.client_payload.slot || 'green' }}
+  RELEASE_ID: ${{ github.event.inputs.release_id || github.event.client_payload.release_id || '' }}
+  DEPLOY_HOST: ${{ vars.HOST_149 || vars.GREEN149_HOST || '149.88.92.159' }}
+  DEPLOY_USER: ${{ vars.HOST_149_USER || vars.GREEN149_USER || 'root' }}
+  DEPLOY_PORT: ${{ vars.HOST_149_PORT || vars.GREEN149_PORT || '16328' }}
+  BACKEND_JAR_NAME: ${{ vars.BACKEND_JAR_NAME || 'backstage-admin.jar' }}
+  NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL || vars.NOTIFY_EMAIL || '1402272093@qq.com' }}
+  MAIL_USERNAME: ${{ secrets.MAIL_USERNAME || vars.MAIL_USERNAME || '1402272093@qq.com' }}
+  MAIL_SERVER: ${{ vars.MAIL_SERVER || 'smtp.qq.com' }}
+  MAIL_PORT: ${{ vars.MAIL_PORT || '465' }}
+
+jobs:
+  deploy:
+    name: Build and deploy backend to 149 (${{ env.SLOT }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          test -n "$GIT_REF" || { echo "git_ref required"; exit 1; }
+          test "$SLOT" = "green" || test "$SLOT" = "blue" || { echo "slot must be green|blue"; exit 1; }
+          echo "git_ref=$GIT_REF slot=$SLOT release_id=$RELEASE_ID"
+
+      - name: Resolve slot paths (green vs blue)
+        id: target
+        run: |
+          if [ "$SLOT" = "green" ]; then
+            echo "backend_dir=${{ vars.GREEN149_BACKEND_DIR || '/opt/osh-green/app/osh/osh-backend' }}" >> "$GITHUB_OUTPUT"
+            echo "container=${{ vars.GREEN149_BACKEND_CONTAINER || 'osh-g-backend' }}" >> "$GITHUB_OUTPUT"
+            echo "nginx_port=${{ vars.GREEN149_NGINX_PORT || '28080' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend_dir=${{ vars.BLUE149_BACKEND_DIR || '/opt/osh/app/osh/osh-backend' }}" >> "$GITHUB_OUTPUT"
+            echo "container=${{ vars.BLUE149_BACKEND_CONTAINER || 'osh-backend' }}" >> "$GITHUB_OUTPUT"
+            echo "nginx_port=${{ vars.BLUE149_NGINX_PORT || '58080' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout source at approved ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.GIT_REF }}
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Build backend jar
+        run: mvn clean install -DskipTests -pl '!backstage-flink'
+
+      - name: Validate jar output
+        run: |
+          test -f backstage-admin/target/backstage-admin.jar
+          unzip -t backstage-admin/target/backstage-admin.jar >/dev/null
+          sha256sum backstage-admin/target/backstage-admin.jar
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOST_149_SSH_PRIVATE_KEY || secrets.GREEN149_SSH_PRIVATE_KEY || secrets.PROD_SSH_PRIVATE_KEY || secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          for i in 1 2 3; do
+            ssh-keyscan -p "$DEPLOY_PORT" -T 15 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          test -s ~/.ssh/known_hosts
+
+      - name: Guard slot deploy paths
+        env:
+          BACKEND_DIR: ${{ steps.target.outputs.backend_dir }}
+          CONTAINER: ${{ steps.target.outputs.container }}
+        run: |
+          if [ "$SLOT" = "green" ]; then
+            case "$BACKEND_DIR" in /opt/osh-green/*) ;; *) echo "green dir must be under /opt/osh-green"; exit 1 ;; esac
+            case "$CONTAINER" in osh-g-*) ;; *) echo "green container must be osh-g-*"; exit 1 ;; esac
+          else
+            case "$BACKEND_DIR" in /opt/osh/app/*) ;; *) echo "blue dir must be under /opt/osh/app"; exit 1 ;; esac
+            case "$CONTAINER" in osh-backend) ;; *) echo "blue container must be osh-backend"; exit 1 ;; esac
+            case "$BACKEND_DIR" in /opt/osh-green/*) echo "must not deploy blue to green path"; exit 1 ;; esac
+          fi
+
+      - name: Stop backend before replacing jar
+        env:
+          BACKEND_DIR: ${{ steps.target.outputs.backend_dir }}
+          CONTAINER: ${{ steps.target.outputs.container }}
+        run: |
+          ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '$BACKEND_DIR' && docker stop '$CONTAINER' || true"
+
+      - name: Upload backend jar
+        env:
+          BACKEND_DIR: ${{ steps.target.outputs.backend_dir }}
+        run: |
+          rsync -az --inplace \
+            -e "ssh -o ConnectTimeout=30 -p $DEPLOY_PORT" \
+            backstage-admin/target/backstage-admin.jar \
+            "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DIR/$BACKEND_JAR_NAME"
+
+      - name: Verify remote jar integrity
+        env:
+          BACKEND_DIR: ${{ steps.target.outputs.backend_dir }}
+        run: |
+          local_sha="$(sha256sum backstage-admin/target/backstage-admin.jar | cut -d ' ' -f 1)"
+          remote_sha="$(ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "sha256sum '$BACKEND_DIR/$BACKEND_JAR_NAME' | cut -d ' ' -f 1")"
+          test "$local_sha" = "$remote_sha"
+
+      - name: Restart backend container
+        env:
+          CONTAINER: ${{ steps.target.outputs.container }}
+        run: |
+          ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker start '$CONTAINER' && sleep 25 && docker ps --filter name='$CONTAINER'"
+
+      - name: Health check API
+        env:
+          NGINX_PORT: ${{ steps.target.outputs.nginx_port }}
+        run: |
+          for i in $(seq 1 12); do
+            code="$(ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+              "curl -s -o /dev/null -w '%{http_code}' --max-time 10 http://127.0.0.1:${NGINX_PORT}/api/ || echo 000")"
+            if [ "$code" = "200" ] || [ "$code" = "401" ]; then exit 0; fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Show backend logs
+        if: always()
+        env:
+          CONTAINER: ${{ steps.target.outputs.container }}
+        run: |
+          ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker logs --tail 80 '$CONTAINER' 2>&1 || true" || true
