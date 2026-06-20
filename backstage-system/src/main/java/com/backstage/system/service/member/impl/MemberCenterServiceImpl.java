@@ -1,6 +1,7 @@
 package com.backstage.system.service.member.impl;
 
 import com.backstage.common.exception.ServiceException;
+import com.backstage.system.config.properties.SearchEsProperties;
 import com.backstage.system.domain.member.OshMemberOrder;
 import com.backstage.system.domain.member.OshMemberPlan;
 import com.backstage.system.domain.member.dto.MemberCheckoutDTO;
@@ -22,6 +23,7 @@ import com.backstage.system.domain.member.OshMemberBenefit;
 import com.backstage.system.mapper.member.OshMemberBenefitMapper;
 import com.backstage.system.mapper.member.OshMemberOrderMapper;
 import com.backstage.system.mapper.member.OshMemberPlanMapper;
+import com.backstage.system.service.homepage.IOshHomePageMemberPlanService;
 import com.backstage.system.service.member.MemberCenterService;
 import com.backstage.system.service.member.MemberEntitlementService;
 import com.backstage.system.service.order.OrderCheckoutService;
@@ -29,8 +31,12 @@ import com.backstage.system.service.order.OrderService;
 import com.backstage.system.utils.UserContextUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.annotation.Resource;
 import java.math.BigDecimal;
@@ -44,6 +50,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class MemberCenterServiceImpl implements MemberCenterService {
+    private static final Logger log = LoggerFactory.getLogger(MemberCenterServiceImpl.class);
     private static final String MEMBER_TYPE_VIP = "vip";
     private static final String MEMBER_TYPE_SMALL_CLASS = "small_class";
     private static final int PLAN_STATUS_ENABLED = 1;
@@ -74,6 +81,12 @@ public class MemberCenterServiceImpl implements MemberCenterService {
 
     @Resource
     private MemberEntitlementService memberEntitlementService;
+
+    @Resource
+    private IOshHomePageMemberPlanService homePageMemberPlanService;
+
+    @Resource
+    private SearchEsProperties searchEsProperties;
 
     @Override
     public MemberCenterVO getCenter(Long userId) {
@@ -165,6 +178,8 @@ public class MemberCenterServiceImpl implements MemberCenterService {
             memberBenefitMapper.insert(benefit);
             index++;
         }
+
+        scheduleHomepageMemberPlanEsUpsertAfterCommit(plan.getId());
     }
 
     @Override
@@ -183,6 +198,8 @@ public class MemberCenterServiceImpl implements MemberCenterService {
         plan.setUpdateBy(operatorId);
         plan.setUpdateTime(LocalDateTime.now());
         memberPlanMapper.updateById(plan);
+
+        scheduleHomepageMemberPlanEsUpsertAfterCommit(plan.getId());
     }
 
     @Override
@@ -591,5 +608,30 @@ public class MemberCenterServiceImpl implements MemberCenterService {
         normal.setActive(true);
         normal.setRemainingDays(0L);
         return normal;
+    }
+
+    private void scheduleHomepageMemberPlanEsUpsertAfterCommit(Long planId) {
+        if (!searchEsProperties.isEnabled() || planId == null) {
+            return;
+        }
+
+        Runnable upsertTask = () -> {
+            try {
+                homePageMemberPlanService.upsertPlanById(planId);
+            } catch (Exception exception) {
+                log.warn("sync homepage member plan to es failed, planId={}", planId, exception);
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    upsertTask.run();
+                }
+            });
+        } else {
+            upsertTask.run();
+        }
     }
 }

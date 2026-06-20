@@ -1,0 +1,23 @@
+### 测试首页公告 API
+
+### 1. 测试按资源类型分组查询公告
+GET http://localhost:8080/pc/homepage/announcement/grouped
+Content-Type: application/json
+
+### 2. 测试查询公告栏，按 resourceType 分组，每组固定 5 条
+GET http://localhost:8080/pc/homepage/announcement/notice
+Content-Type: application/json
+
+### 3. 测试查询动态栏，按 resourceType 分组，每组固定 5 条
+GET http://localhost:8080/pc/homepage/announcement/dynamic
+Content-Type: application/json
+
+### 4. 测试新增公告
+POST http://localhost:8080/pc/homepage/announcement/notice/add
+Content-Type: application/x-www-form-urlencoded
+
+title=测试公告标题&icon=📌&color=#ff6b6b&link=/test&resourceType=course&resourceId=1001&sort=100
+
+### 5. 测试删除公告（需要先获取一个有效的 ID）
+DELETE http://localhost:8080/pc/homepage/announcement/notice/1
+Content-Type: application/json

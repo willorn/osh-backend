@@ -1,15 +1,15 @@
-{
-  "mcpServers": {
-    "zentao": {
-      "disabled": false,
-      "type": "mcp",
-      "url": "http://43.242.200.25:52002/zentao/mcp",
-      "timeout": 60000,
-      "headers": {
-        "token": "",
-        "Authorization": ""
-      },
-      "apiBaseUrl": "http://43.242.200.25:52001"
-    }
-  }
+﻿{
+    "mcpServers":  {
+                       "zentao":  {
+                                      "disabled":  false,
+                                      "type":  "mcp",
+                                      "url":  "http://43.242.200.25:52002/zentao/mcp",
+                                      "timeout":  60000,
+                                      "headers":  {
+                                                      "token":  "e37a7b2f17714b1776b4a949ef44ef7f",
+                                                      "Authorization":  ""
+                                                  },
+                                      "apiBaseUrl":  "http://43.242.200.25:52001"
+                                  }
+                   }
 }

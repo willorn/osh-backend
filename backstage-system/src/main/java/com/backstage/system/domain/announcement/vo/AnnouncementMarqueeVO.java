@@ -7,13 +7,7 @@ import io.swagger.annotations.ApiModelProperty;
 import java.util.Date;
 
 /**
- * 公告跑马灯条目通用 VO。
- * <p>
- * 对应统一公告表 osh_announcement 的展示型投影，不绑定具体业务模块，
- * 供任何"跑马灯式公告"场景复用。前端固定渲染为不可点击的纯文本，
- * 因此不下发 link 字段，避免误用为可跳转入口。
- *
- * @author backstage
+ * 公告跑马灯展示 VO。
  */
 @ApiModel(description = "公告跑马灯条目")
 public class AnnouncementMarqueeVO {
@@ -21,17 +15,31 @@ public class AnnouncementMarqueeVO {
     @ApiModelProperty("公告 ID")
     private Long id;
 
-    @ApiModelProperty("公告标题（跑马灯展示文案）")
+    @ApiModelProperty("公告标题")
     private String title;
 
-    @ApiModelProperty("文案前缀 emoji 图标")
+    @ApiModelProperty("跳转链接")
+    private String link;
+
+    @ApiModelProperty("图标编码")
     private String icon;
 
-    @ApiModelProperty("圆点 / 文字色调 hex")
-    private String color;
-
-    @ApiModelProperty("栏目：1-公告 2-动态")
+    @ApiModelProperty("栏目：1-系统动态 2-业务动态")
     private Integer channel;
+
+    @ApiModelProperty("资源类型")
+    private String resourceType;
+
+    @ApiModelProperty("资源ID")
+    private Long resourceId;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty("生效开始时间")
+    private Date startTime;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty("生效结束时间")
+    private Date endTime;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @ApiModelProperty("创建时间")
@@ -53,6 +61,14 @@ public class AnnouncementMarqueeVO {
         this.title = title;
     }
 
+    public String getLink() {
+        return link;
+    }
+
+    public void setLink(String link) {
+        this.link = link;
+    }
+
     public String getIcon() {
         return icon;
     }
@@ -61,20 +77,44 @@ public class AnnouncementMarqueeVO {
         this.icon = icon;
     }
 
-    public String getColor() {
-        return color;
-    }
-
-    public void setColor(String color) {
-        this.color = color;
-    }
-
     public Integer getChannel() {
         return channel;
     }
 
     public void setChannel(Integer channel) {
         this.channel = channel;
+    }
+
+    public String getResourceType() {
+        return resourceType;
+    }
+
+    public void setResourceType(String resourceType) {
+        this.resourceType = resourceType;
+    }
+
+    public Long getResourceId() {
+        return resourceId;
+    }
+
+    public void setResourceId(Long resourceId) {
+        this.resourceId = resourceId;
+    }
+
+    public Date getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(Date startTime) {
+        this.startTime = startTime;
+    }
+
+    public Date getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(Date endTime) {
+        this.endTime = endTime;
     }
 
     public Date getCreateTime() {

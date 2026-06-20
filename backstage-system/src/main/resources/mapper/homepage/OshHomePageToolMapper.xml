@@ -13,9 +13,33 @@
             t.tool_name         AS toolName,
             t.description,
             t.resource_type     AS resourceType,
-            t.price,
+            CASE
+                WHEN UPPER(IFNULL(t.resource_type, 'FREE')) = 'CASH_POINT'
+                    THEN COALESCE(pkg.cash_point_price, pkg.min_price, 0)
+                ELSE 0
+            END                 AS price,
+            CASE
+                WHEN UPPER(IFNULL(t.resource_type, 'FREE')) = 'CASH_POINT'
+                    THEN COALESCE(pkg.cash_point_cost, 0)
+                ELSE 0
+            END                 AS pointCost,
+            CASE
+                WHEN UPPER(IFNULL(t.resource_type, 'FREE')) = 'CASH_POINT'
+                    THEN COALESCE(pkg.cash_point_pay_type, 3)
+                ELSE 0
+            END                 AS payType,
             t.total_usage       AS totalUsage
         FROM osh_tool t
+        LEFT JOIN (
+            SELECT
+                MIN(price) AS min_price,
+                MIN(CASE WHEN pay_type = 3 THEN price END) AS cash_point_price,
+                MIN(CASE WHEN pay_type = 3 THEN point_cost END) AS cash_point_cost,
+                MIN(CASE WHEN pay_type = 3 THEN pay_type END) AS cash_point_pay_type
+            FROM osh_tool_package
+            WHERE status = 1
+              AND delete_flag = 0
+        ) pkg ON 1 = 1
         WHERE t.status = 4
           AND (t.delete_flag = 0 OR t.delete_flag IS NULL)
         ORDER BY
