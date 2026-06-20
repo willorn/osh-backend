@@ -85,6 +85,9 @@ jobs:
           unzip -t backstage-admin/target/backstage-admin.jar >/dev/null
           sha256sum backstage-admin/target/backstage-admin.jar
 
+      - name: Patch jar bootstrap for 149 slot
+        run: python3 .github/scripts/patch-149-config.py --jar backstage-admin/target/backstage-admin.jar --slot "$SLOT"
+
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -138,6 +141,15 @@ jobs:
           remote_sha="$(ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
             "sha256sum '$BACKEND_DIR/$BACKEND_JAR_NAME' | cut -d ' ' -f 1")"
           test "$local_sha" = "$remote_sha"
+
+      - name: Patch deployed jar on 149 (fallback)
+        env:
+          BACKEND_DIR: ${{ steps.target.outputs.backend_dir }}
+        run: |
+          ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "test -x /opt/osh-green/005-scripts/patch-149-config.py && \
+             python3 /opt/osh-green/005-scripts/patch-149-config.py --jar '$BACKEND_DIR/$BACKEND_JAR_NAME' --slot '$SLOT' || \
+             echo 'skip remote patch (script missing)'"
 
       - name: Restart backend container
         env:
