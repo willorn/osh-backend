@@ -1,0 +1,128 @@
+# 149 蓝/绿槽位代码部署 — 平台审批后触发，同一套 workflow，slot 区分目标
+name: Deploy Frontend to 149
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Commit SHA or branch to build and deploy'
+        required: true
+      slot:
+        description: 'green=待命槽位 | blue=切流后同步蓝'
+        required: true
+        type: choice
+        options:
+          - green
+          - blue
+      release_id:
+        description: 'Release ticket ID from osh-prod-release (audit)'
+        required: false
+  repository_dispatch:
+    types: [deploy-149-approved]
+
+concurrency:
+  group: deploy-frontend-149-${{ github.event.inputs.slot || github.event.client_payload.slot || 'green' }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '18'
+  GIT_REF: ${{ github.event.inputs.git_ref || github.event.client_payload.git_ref }}
+  SLOT: ${{ github.event.inputs.slot || github.event.client_payload.slot || 'green' }}
+  RELEASE_ID: ${{ github.event.inputs.release_id || github.event.client_payload.release_id || '' }}
+  DEPLOY_HOST: ${{ vars.HOST_149 || vars.GREEN149_HOST || '149.88.92.159' }}
+  DEPLOY_USER: ${{ vars.HOST_149_USER || vars.GREEN149_USER || 'root' }}
+  DEPLOY_PORT: ${{ vars.HOST_149_PORT || vars.GREEN149_PORT || '16328' }}
+  NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL || vars.NOTIFY_EMAIL || '1402272093@qq.com' }}
+  MAIL_USERNAME: ${{ secrets.MAIL_USERNAME || vars.MAIL_USERNAME || '1402272093@qq.com' }}
+  MAIL_SERVER: ${{ vars.MAIL_SERVER || 'smtp.qq.com' }}
+  MAIL_PORT: ${{ vars.MAIL_PORT || '465' }}
+
+jobs:
+  deploy:
+    name: Build and deploy frontend to 149 (${{ env.SLOT }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs
+        run: |
+          test -n "$GIT_REF" || { echo "git_ref required"; exit 1; }
+          test "$SLOT" = "green" || test "$SLOT" = "blue" || { echo "slot must be green|blue"; exit 1; }
+
+      - name: Resolve slot paths (green vs blue)
+        id: target
+        run: |
+          if [ "$SLOT" = "green" ]; then
+            echo "frontend_dir=${{ vars.GREEN149_FRONTEND_DIR || '/opt/osh-green/app/osh/osh-frontend/html' }}" >> "$GITHUB_OUTPUT"
+            echo "nginx_port=${{ vars.GREEN149_NGINX_PORT || '28080' }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend_dir=${{ vars.BLUE149_FRONTEND_DIR || '/opt/osh/app/osh/osh-frontend/html' }}" >> "$GITHUB_OUTPUT"
+            echo "nginx_port=${{ vars.BLUE149_NGINX_PORT || '58080' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout source at approved ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.GIT_REF }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build static site
+        run: npm run generate
+
+      - name: Validate build output
+        run: test -d .output/public && test -f .output/public/index.html
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HOST_149_SSH_PRIVATE_KEY || secrets.GREEN149_SSH_PRIVATE_KEY || secrets.PROD_SSH_PRIVATE_KEY || secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          for i in 1 2 3; do
+            ssh-keyscan -p "$DEPLOY_PORT" -T 15 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          test -s ~/.ssh/known_hosts
+
+      - name: Guard slot deploy paths
+        env:
+          FRONTEND_DIR: ${{ steps.target.outputs.frontend_dir }}
+        run: |
+          if [ "$SLOT" = "green" ]; then
+            case "$FRONTEND_DIR" in /opt/osh-green/*) ;; *) echo "green dir must be under /opt/osh-green"; exit 1 ;; esac
+          else
+            case "$FRONTEND_DIR" in /opt/osh/app/*) ;; *) echo "blue dir must be under /opt/osh/app"; exit 1 ;; esac
+            case "$FRONTEND_DIR" in /opt/osh-green/*) echo "must not deploy blue to green path"; exit 1 ;; esac
+          fi
+
+      - name: Ensure remote directory exists
+        env:
+          FRONTEND_DIR: ${{ steps.target.outputs.frontend_dir }}
+        run: |
+          ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '$FRONTEND_DIR'"
+
+      - name: Upload frontend
+        env:
+          FRONTEND_DIR: ${{ steps.target.outputs.frontend_dir }}
+        run: |
+          rsync -az --delete --exclude='.user.ini' \
+            -e "ssh -o ConnectTimeout=30 -p $DEPLOY_PORT" \
+            .output/public/ \
+            "$DEPLOY_USER@$DEPLOY_HOST:$FRONTEND_DIR/"
+
+      - name: Health check frontend
+        env:
+          NGINX_PORT: ${{ steps.target.outputs.nginx_port }}
+        run: |
+          code="$(ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:${NGINX_PORT}/ || echo 000")"
+          test "$code" = "200"
