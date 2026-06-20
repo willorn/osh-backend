@@ -29,10 +29,8 @@ public class WebsiteAnnouncementServiceImpl implements IWebsiteAnnouncementServi
     private static final int CHANNEL_DYNAMIC = 2;
 
     private static final String NOTICE_ICON   = "🌐";
-    private static final String NOTICE_COLOR  = "#3b82f6";
 
     private static final String DYNAMIC_ICON  = "👍";
-    private static final String DYNAMIC_COLOR = "#10b981";
 
     private static final String RESOURCE_TYPE_WEBSITE = "website";
 
@@ -57,7 +55,7 @@ public class WebsiteAnnouncementServiceImpl implements IWebsiteAnnouncementServi
             }
             String link = "/website/detail/" + websiteId;
             announcementMapper.insertWebsiteAnnouncement(
-                    title, link, NOTICE_ICON, NOTICE_COLOR,
+                    title, link, NOTICE_ICON,
                     RESOURCE_TYPE_WEBSITE, websiteId, CHANNEL_NOTICE);
             log.info("【网站公告】写入成功，websiteId={}, title={}", websiteId, title);
         } catch (Exception e) {
@@ -80,7 +78,7 @@ public class WebsiteAnnouncementServiceImpl implements IWebsiteAnnouncementServi
                 return;
             }
             announcementMapper.insertWebsiteAnnouncement(
-                    title, "", DYNAMIC_ICON, DYNAMIC_COLOR,
+                    title, "", DYNAMIC_ICON,
                     RESOURCE_TYPE_WEBSITE, websiteId, CHANNEL_DYNAMIC);
             log.info("【网站动态】写入成功，websiteId={}, title={}", websiteId, title);
         } catch (Exception e) {

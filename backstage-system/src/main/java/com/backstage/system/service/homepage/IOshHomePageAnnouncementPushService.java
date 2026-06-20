@@ -3,7 +3,6 @@ package com.backstage.system.service.homepage;
 import com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 首页公告服务。
@@ -11,30 +10,22 @@ import java.util.Map;
 public interface IOshHomePageAnnouncementPushService {
 
     /**
-     * 查询首页系统通知。
-     *
-     * @param limit 返回条数
-     * @return 系统通知列表
+     * 系统通知，按资源类型分组，每组最近 5 条。
      */
-    Map<String, List<AnnouncementMarqueeVO>> getSystemNotice();
+    List<AnnouncementMarqueeVO> getSystemNotice();
 
     /**
-     * 查询首页业务动态。
-     *
-     * @param limit 返回条数
-     * @return 业务动态列表
+     * 业务动态，按资源类型分组，每组最近 5 条。
      */
-    Map<String, List<AnnouncementMarqueeVO>> getBusinessDynamic();
+    List<AnnouncementMarqueeVO> getBusinessDynamic();
 
     /**
-     * 每小时广播首页公告刷新事件。
+     * 给所有在线已登录用户广播首页刷新事件。
      */
     void pushAllModulesAnnouncementsData();
 
     /**
-     * 用户 WebSocket 建连后推送一次首页公告刷新事件。
-     *
-     * @param userId 用户ID
+     * 给指定用户推送一次首页刷新事件。
      */
     void pushAnnouncementsToUser(Long userId);
 }

@@ -62,5 +62,6 @@ public class WsNotifyMessage extends OSHBaseEntity implements Serializable {
     public void setBizId(String bizId) { this.bizId = bizId; }
 
     public boolean isRequireAuth() { return requireAuth; }
+    public boolean getRequireAuth() { return requireAuth; }
     public void setRequireAuth(boolean requireAuth) { this.requireAuth = requireAuth; }
 }

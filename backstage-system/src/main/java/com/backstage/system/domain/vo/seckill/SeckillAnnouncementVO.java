@@ -27,9 +27,6 @@ public class SeckillAnnouncementVO {
     @ApiModelProperty("图标 emoji")
     private String icon;
 
-    @ApiModelProperty("图标颜色")
-    private String iconColor;
-
     @ApiModelProperty("栏目：1-系统动态（公告栏） 2-业务动态（动态栏）")
     private Integer channel;
 
@@ -48,9 +45,6 @@ public class SeckillAnnouncementVO {
 
     public String getIcon() { return icon; }
     public void setIcon(String icon) { this.icon = icon; }
-
-    public String getIconColor() { return iconColor; }
-    public void setIconColor(String iconColor) { this.iconColor = iconColor; }
 
     public Integer getChannel() { return channel; }
     public void setChannel(Integer channel) { this.channel = channel; }

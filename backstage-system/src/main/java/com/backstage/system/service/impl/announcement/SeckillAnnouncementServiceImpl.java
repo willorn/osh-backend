@@ -45,11 +45,9 @@ public class SeckillAnnouncementServiceImpl implements ISeckillAnnouncementServi
 
     /** 公告栏图标与颜色 */
     private static final String NOTICE_ICON  = "🔥";
-    private static final String NOTICE_COLOR = "#ef4444";
 
     /** 动态栏图标与颜色 */
     private static final String DYNAMIC_ICON  = "💳";
-    private static final String DYNAMIC_COLOR = "#10b981";
 
     /** 秒杀资源类型 */
     private static final String RESOURCE_TYPE_SECKILL = "seckill";
@@ -114,7 +112,7 @@ public class SeckillAnnouncementServiceImpl implements ISeckillAnnouncementServi
                 int sort = item.getSort() != null ? item.getSort() : 0;
 
                 announcementMapper.insertSeckillAnnouncement(
-                        title, link, NOTICE_ICON, NOTICE_COLOR,
+                        title, link, NOTICE_ICON,
                         RESOURCE_TYPE_SECKILL, activity.getId(), sort, CHANNEL_NOTICE);
                 insertCount++;
             }
@@ -165,7 +163,7 @@ public class SeckillAnnouncementServiceImpl implements ISeckillAnnouncementServi
             }
 
             announcementMapper.insertSeckillAnnouncement(
-                    title, "", DYNAMIC_ICON, DYNAMIC_COLOR,
+                    title, "", DYNAMIC_ICON,
                     RESOURCE_TYPE_SECKILL, 0L, 0, CHANNEL_DYNAMIC);
             insertCount++;
         }
@@ -183,7 +181,7 @@ public class SeckillAnnouncementServiceImpl implements ISeckillAnnouncementServi
         String title = buildDynamicTitle(username, goodsTitle);
         try {
             announcementMapper.insertSeckillAnnouncement(
-                    title, "", DYNAMIC_ICON, DYNAMIC_COLOR,
+                    title, "", DYNAMIC_ICON,
                     RESOURCE_TYPE_SECKILL, goodsId != null ? goodsId : 0L, 0, CHANNEL_DYNAMIC);
             logger.info("【秒杀动态写入】成功，title={}", title);
 

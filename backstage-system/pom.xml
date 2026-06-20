@@ -13,6 +13,7 @@
                 <directory>src/main/resources</directory>
                 <includes>
                     <include>**/*.xml</include>
+                    <include>**/*.json</include>
                     <include>**/*.html</include>
                     <include>**/templates/**</include>
                     <include>**/static/**</include>

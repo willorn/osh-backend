@@ -3,127 +3,26 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.backstage.system.mapper.homepage.OshHomePageAnnouncementMapper">
 
-    <select id="selectByChannel" resultType="com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO">
-        SELECT
-            id,
-            title,
-            link,
-            icon,
-            color,
-            channel,
-            module,
-            resource_type AS resourceType,
-            resource_id AS resourceId,
-            start_time AS startTime,
-            end_time AS endTime,
-            is_top AS isTop,
-            create_time AS createTime
-        FROM osh_announcement
-        WHERE delete_flag = 0
-          AND status in (0,2,4)
-          AND channel = #{channel}
-          AND (start_time IS NULL OR start_time &lt;= NOW())
-          AND (end_time IS NULL OR end_time &gt;= NOW())
-        ORDER BY is_top DESC, sort DESC, create_time DESC
-        LIMIT #{limit}
-    </select>
-
-    <select id="selectByChannelGrouped" resultType="com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO">
-        SELECT
-            ranked.id,
-            ranked.title,
-            ranked.link,
-            ranked.icon,
-            ranked.color,
-            ranked.channel,
-            ranked.module,
-            ranked.resourceType,
-            ranked.resourceId,
-            ranked.startTime,
-            ranked.endTime,
-            ranked.isTop,
-            ranked.createTime
-        FROM (
-            SELECT
-                id,
-                title,
-                link,
-                icon,
-                color,
-                channel,
-                module,
-                resource_type AS resourceType,
-                resource_id AS resourceId,
-                start_time AS startTime,
-                end_time AS endTime,
-                is_top AS isTop,
-                create_time AS createTime,
-                ROW_NUMBER() OVER (
-                    PARTITION BY resource_type
-                    ORDER BY is_top DESC, sort DESC, create_time DESC
-                ) AS row_num
-            FROM osh_announcement
-            WHERE delete_flag = 0
-              AND status in (0,2,4)
-              AND module = 'homepage'
-              AND channel = #{channel}
-              AND resource_type IS NOT NULL
-              AND resource_type != ''
-              AND (start_time IS NULL OR start_time &lt;= NOW())
-              AND (end_time IS NULL OR end_time &gt;= NOW())
-        ) ranked
-        WHERE ranked.row_num &lt;= #{limitPerType}
-        ORDER BY ranked.resourceType ASC, ranked.isTop DESC, ranked.createTime DESC
-    </select>
-
-    <select id="selectByResourceType" resultType="com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO">
-        SELECT
-            id,
-            title,
-            link,
-            icon,
-            color,
-            channel,
-            module,
-            resource_type AS resourceType,
-            resource_id AS resourceId,
-            start_time AS startTime,
-            end_time AS endTime,
-            is_top AS isTop,
-            create_time AS createTime
-        FROM osh_announcement
-        WHERE delete_flag = 0
-            AND status in (0,2,4)
-          AND resource_type = #{resourceType}
-          AND (start_time IS NULL OR start_time &lt;= NOW())
-          AND (end_time IS NULL OR end_time &gt;= NOW())
-        ORDER BY is_top DESC, sort DESC, create_time DESC
-        LIMIT #{limit}
-    </select>
-
     <select id="selectByResourceTypeAndChannel" resultType="com.backstage.system.domain.announcement.vo.AnnouncementMarqueeVO">
         SELECT
             id,
             title,
             link,
-            icon,
-            color,
+            icon_code AS icon,
             channel,
-            module,
             resource_type AS resourceType,
             resource_id AS resourceId,
             start_time AS startTime,
             end_time AS endTime,
-            is_top AS isTop,
             create_time AS createTime
         FROM osh_announcement
         WHERE delete_flag = 0
-          AND status in (0,2,4)
-          AND resource_type = #{resourceType}
+          AND status IN (0, 2, 4)
           AND channel = #{channel}
+          AND resource_type = #{resourceType}
           AND (start_time IS NULL OR start_time &lt;= NOW())
           AND (end_time IS NULL OR end_time &gt;= NOW())
-        ORDER BY is_top DESC, sort DESC, create_time DESC
+        ORDER BY sort DESC, IFNULL(update_time, create_time) DESC, create_time DESC, id DESC
         LIMIT #{limit}
     </select>
 

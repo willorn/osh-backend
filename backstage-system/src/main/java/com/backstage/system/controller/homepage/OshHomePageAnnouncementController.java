@@ -13,12 +13,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 /**
- * 首页公告栏 Controller
+ * 首页公告接口。
  */
-@Api(tags = "首页-公告栏")
+@Api(tags = "首页-公告")
 @RestController
 @RequestMapping("/pc/homepage/announcement")
 public class OshHomePageAnnouncementController extends BaseController {
@@ -26,17 +25,17 @@ public class OshHomePageAnnouncementController extends BaseController {
     @Autowired
     private IOshHomePageAnnouncementPushService announcementPushService;
 
-    @ApiOperation("查询首页系统通知(channel=1)，按 resourceType 分组，每组固定 5 条")
+    @ApiOperation("查询首页系统通知，按 resourceType 分组，每组最近 5 条")
     @GetMapping("/notice")
     @Anonymous
-    public R<Map<String, List<AnnouncementMarqueeVO>>> getSystemNotice() {
+    public R<List<AnnouncementMarqueeVO>> getSystemNotice() {
         return R.ok(announcementPushService.getSystemNotice());
     }
 
-    @ApiOperation("查询首页业务动态(channel=2)，按 resourceType 分组，每组固定 5 条")
+    @ApiOperation("查询首页业务动态，按 resourceType 分组，每组最近 5 条")
     @GetMapping("/dynamic")
     @Anonymous
-    public R<Map<String, List<AnnouncementMarqueeVO>>> getBusinessDynamic() {
+    public R<List<AnnouncementMarqueeVO>> getBusinessDynamic() {
         return R.ok(announcementPushService.getBusinessDynamic());
     }
 }
