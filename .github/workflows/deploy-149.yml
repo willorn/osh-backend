@@ -7,10 +7,12 @@ on:
       git_ref:
         description: 'Commit SHA or branch to build and deploy'
         required: true
+        default: 'release/20260628'
       slot:
         description: 'green=待命槽位 | blue=切流后同步蓝'
         required: true
         type: choice
+        default: 'green'
         options:
           - green
           - blue
@@ -40,7 +42,7 @@ env:
 
 jobs:
   deploy:
-    name: Build and deploy backend to 149 (${{ env.SLOT }})
+    name: Build and deploy backend to 149 (${{ github.event.inputs.slot || github.event.client_payload.slot || 'green' }})
     runs-on: ubuntu-latest
     steps:
       - name: Validate inputs
@@ -86,7 +88,7 @@ jobs:
       - name: Setup SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.HOST_149_SSH_PRIVATE_KEY || secrets.GREEN149_SSH_PRIVATE_KEY || secrets.PROD_SSH_PRIVATE_KEY || secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.HOST_149_SSH_PRIVATE_KEY }}
 
       - name: Add server to known_hosts
         run: |
