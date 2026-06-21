@@ -2,6 +2,17 @@
 
 Shared policy source: `AGENTS.md` at repository root. Keep this file aligned with that source.
 
+## SDD / OpenSpec workflow
+
+Before medium or large code changes, read:
+
+1. `docs/ai/README.md`
+2. `docs/ai/workflow.md`
+3. `openspec/project.md`
+4. The active change under `openspec/changes/<change-id>/`
+
+Do not change API contracts, permissions, data models, middleware configuration, deployment behavior, or storage behavior without an OpenSpec change, unless the PR explicitly declares `OpenSpec-Exempt: true` with a clear reason.
+
 ## ZenTao MCP token guard
 
 Before any operation that uses `mcpServers.zentao` from `MCP.json`, run the token guard script first:
@@ -33,4 +44,3 @@ The same workflow is mirrored in:
 - `.cursorrules`
 - `CLAUDE.md`
 - `GEMINI.md`
-
