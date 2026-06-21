@@ -4,15 +4,15 @@
 
 ## 必读顺序
 
-1. [小白上手教程](newcomer-guide.md)
-2. [AI 开发工作流](workflow.md)
-3. [Codex Harness 使用规范](codex-harness.md)
-4. [架构说明](architecture.md)
-5. [代码风格](code-style.md)
-6. [测试规范](testing.md)
-7. [代码审核标准](review-rubric.md)
-8. [发布流程](release-flow.md)
-9. [升级策略](upgrade-strategy.md)
+1. [小白上手教程](01-newcomer-guide.md)
+2. [AI 开发工作流](02-workflow.md)
+3. [Codex Harness 使用规范](03-codex-harness.md)
+4. [架构说明](04-architecture.md)
+5. [代码风格](05-code-style.md)
+6. [测试规范](06-testing.md)
+7. [代码审核标准](07-review-rubric.md)
+8. [发布流程](08-release-flow.md)
+9. [升级策略](09-upgrade-strategy.md)
 
 ## 核心约束
 

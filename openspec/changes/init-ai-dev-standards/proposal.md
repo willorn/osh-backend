@@ -33,7 +33,7 @@
 
 - 中大型需求需要先写 OpenSpec change。
 - PR 会自动触发流程检查。
-- 新人从 `docs/ai/newcomer-guide.md` 开始上手。
+- 新人从 `docs/ai/01-newcomer-guide.md` 开始上手。
 
 ## 风险
 
@@ -46,7 +46,7 @@
 ## 验收标准
 
 - [ ] `openspec/project.md` 和模板存在。
-- [ ] `docs/ai/newcomer-guide.md` 足够新人理解概念和流程。
+- [ ] `docs/ai/01-newcomer-guide.md` 足够新人理解概念和流程。
 - [ ] PR 模板包含 OpenSpec 和风险回滚检查。
 - [ ] CI 包含 `Spec & Process Guard`。
 - [ ] 验证脚本本地可运行。

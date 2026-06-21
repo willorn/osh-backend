@@ -54,7 +54,7 @@ Harness 的职责是：
 - 调用终端、编辑文件、运行测试。
 - 把结果反馈给人。
 
-所以我们要写 `AGENTS.md`、`.github/copilot-instructions.md`、`docs/ai/codex-harness.md`，让不同 AI 工具都知道团队规矩。
+所以我们要写 `AGENTS.md`、`.github/copilot-instructions.md`、`docs/ai/03-codex-harness.md`，让不同 AI 工具都知道团队规矩。
 
 ### 1.4 Superpowers 是什么
 
@@ -106,7 +106,7 @@ docs/ai/               AI 开发规范和新人教程
 
 1. `docs/ai/README.md`
 2. `openspec/project.md`
-3. `docs/ai/architecture.md`
+3. `docs/ai/04-architecture.md`
 4. `docs/ai/conventions/springboot.md`
 5. `docs/ai/conventions/api.md`
 6. `CODE_REVIEW.md`

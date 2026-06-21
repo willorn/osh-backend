@@ -7,7 +7,7 @@ Shared policy source: `AGENTS.md` at repository root. Keep this file aligned wit
 Before medium or large code changes, read:
 
 1. `docs/ai/README.md`
-2. `docs/ai/workflow.md`
+2. `docs/ai/02-workflow.md`
 3. `openspec/project.md`
 4. The active change under `openspec/changes/<change-id>/`
 

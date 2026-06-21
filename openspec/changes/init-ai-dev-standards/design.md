@@ -20,7 +20,7 @@
 | `openspec/project.md` | 项目级 SDD/OpenSpec 总说明 |
 | `openspec/templates/*` | change 模板 |
 | `openspec/specs/baseline/spec.md` | 当前行为基线 |
-| `docs/ai/newcomer-guide.md` | 小白上手教程 |
+| `docs/ai/01-newcomer-guide.md` | 小白上手教程 |
 | `docs/ai/conventions/*` | 技术约定 |
 | `AGENTS.md` | Codex/AI Agent 根规则 |
 | `scripts/verify-ai-process.sh` | CI 流程检查 |

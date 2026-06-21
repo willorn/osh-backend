@@ -4,7 +4,7 @@
 
 1. 从最新 `qa/**` 或负责人指定分支创建 feature/codex 分支。
 2. 判断是否需要 OpenSpec change。
-3. 阅读 `docs/ai/newcomer-guide.md` 和 `docs/ai/workflow.md`。
+3. 阅读 `docs/ai/01-newcomer-guide.md` 和 `docs/ai/02-workflow.md`。
 
 ## 必须建 OpenSpec 的情况
 
@@ -23,4 +23,4 @@
 
 ## 代码风格
 
-见 `docs/ai/code-style.md` 和 `docs/ai/conventions/`。
+见 `docs/ai/05-code-style.md` 和 `docs/ai/conventions/`。

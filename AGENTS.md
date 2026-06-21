@@ -9,7 +9,7 @@ This repository uses SDD + OpenSpec + harness discipline for all AI-assisted dev
 Before code changes, every agent must read:
 
 1. `docs/ai/README.md`
-2. `docs/ai/workflow.md`
+2. `docs/ai/02-workflow.md`
 3. `openspec/project.md`
 4. The active change under `openspec/changes/<change-id>/`, unless the task is explicitly OpenSpec-exempt.
 

@@ -1,6 +1,6 @@
 # Code Review
 
-代码审核以 `docs/ai/review-rubric.md` 为准。
+代码审核以 `docs/ai/07-review-rubric.md` 为准。
 
 Reviewer 必须检查：
 

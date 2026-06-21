@@ -24,7 +24,7 @@
 
 ### Requirement: 新人必须有统一上手入口
 
-仓库 SHALL 提供 `docs/ai/newcomer-guide.md`，解释 SDD、Harness、OpenSpec、Superpowers、开发流程、PR 前检查和审查方式。
+仓库 SHALL 提供 `docs/ai/01-newcomer-guide.md`，解释 SDD、Harness、OpenSpec、Superpowers、开发流程、PR 前检查和审查方式。
 
 #### Scenario: 新人第一次进入仓库
 
