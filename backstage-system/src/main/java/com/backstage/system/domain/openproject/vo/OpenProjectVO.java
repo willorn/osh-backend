@@ -42,6 +42,8 @@ public class OpenProjectVO {
     private List<OshOpenProjectTechComponentRel> techComponents;
     private OshOpenProjectContributor leader;
     private Boolean canEdit;
+    private Boolean canEditCore;
+    private Boolean canEditCollaboration;
 
     /** 当前用户是否已收藏 */
     private Boolean favorited;
@@ -127,4 +129,8 @@ public class OpenProjectVO {
     public void setLeader(OshOpenProjectContributor leader) { this.leader = leader; }
     public Boolean getCanEdit() { return canEdit; }
     public void setCanEdit(Boolean canEdit) { this.canEdit = canEdit; }
+    public Boolean getCanEditCore() { return canEditCore; }
+    public void setCanEditCore(Boolean canEditCore) { this.canEditCore = canEditCore; }
+    public Boolean getCanEditCollaboration() { return canEditCollaboration; }
+    public void setCanEditCollaboration(Boolean canEditCollaboration) { this.canEditCollaboration = canEditCollaboration; }
 }

@@ -17,6 +17,7 @@ import com.backstage.system.domain.openproject.dto.OpenProjectModuleMemberDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectQueryDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectResourceDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectTechComponentDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectTechComponentLibraryDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectVO;
 import com.backstage.system.domain.openproject.vo.OpenProjectModuleVO;
 import com.backstage.system.domain.openproject.vo.OpenProjectResourceOptionVO;
@@ -59,6 +60,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
@@ -77,6 +79,7 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
     private static final int MAX_MODULE_COUNT = 30;
     private static final int MAX_MODULE_MEMBER_COUNT = 20;
     private static final int MAX_TECH_COMPONENT_COUNT = 30;
+    private static final String TECH_COMPONENT_NO_PREFIX = "tc";
     private static final int FOUNDER_LEVEL = 6;
     private static final Set<String> ALLOWED_RESOURCE_TYPES =
             new HashSet<>(Arrays.asList("course", "book", "tool"));
@@ -183,22 +186,17 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateProject(OpenProjectEditDTO dto) {
+        updateProjectCore(dto);
+        updateProjectCollaboration(dto);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProjectCore(OpenProjectEditDTO dto) {
         if (dto == null) {
             throw new IllegalArgumentException("编辑内容不能为空");
         }
-        if (dto.getId() == null) {
-            throw new IllegalArgumentException("项目ID不能为空");
-        }
-        OshOpenProject project = projectMapper.selectOne(new LambdaQueryWrapper<OshOpenProject>()
-                .eq(OshOpenProject::getId, dto.getId())
-                .eq(OshOpenProject::getDeleteFlag, (byte) 0)
-                .last("limit 1"));
-        if (project == null) {
-            throw new IllegalArgumentException("项目不存在");
-        }
-        if (project.getGithubRepoId() == null && !StringUtils.hasText(project.getGithubOwner())) {
-            throw new IllegalArgumentException("只能编辑从 GitHub 数据源同步的开源项目");
-        }
+        OshOpenProject project = requireEditableGithubProject(dto.getId());
         assertCanEditProject(project);
 
         String projectName = trimToMax(dto.getProjectName(), MAX_NAME_LENGTH);
@@ -211,9 +209,20 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         project.setStatus(1);
         projectMapper.updateById(project);
 
+        replaceProjectContributors(project.getId(), dto.getContributors());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateProjectCollaboration(OpenProjectEditDTO dto) {
+        if (dto == null) {
+            throw new IllegalArgumentException("编辑内容不能为空");
+        }
+        OshOpenProject project = requireEditableGithubProject(dto.getId());
+        assertCanEditProjectCollaboration();
+
         replaceProjectTags(project.getId(), dto.getTagIds(), dto.getCustomTags());
         replaceProjectResources(project.getId(), dto.getResources());
-        replaceProjectContributors(project.getId(), dto.getContributors());
         replaceProjectModules(project.getId(), dto.getModules());
         replaceProjectTechComponents(project.getId(), dto.getTechComponents());
     }
@@ -285,6 +294,80 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
                         .eq(OshOpenProjectTag::getDeleteFlag, (byte) 0)
                         .orderByAsc(OshOpenProjectTag::getSortOrder)
         );
+    }
+
+    @Override
+    public List<OshOpenProjectTechComponent> listTechComponentLibrary(String keyword) {
+        LambdaQueryWrapper<OshOpenProjectTechComponent> wrapper = new LambdaQueryWrapper<OshOpenProjectTechComponent>()
+                .eq(OshOpenProjectTechComponent::getDeleteFlag, (byte) 0);
+        if (StringUtils.hasText(keyword)) {
+            String kw = "%" + keyword.trim() + "%";
+            wrapper.and(w -> w.like(OshOpenProjectTechComponent::getComponentName, kw)
+                    .or().like(OshOpenProjectTechComponent::getComponentDesc, kw));
+        }
+        wrapper.orderByAsc(OshOpenProjectTechComponent::getSortOrder)
+                .orderByDesc(OshOpenProjectTechComponent::getUpdateTime)
+                .orderByDesc(OshOpenProjectTechComponent::getId);
+        return techComponentMapper.selectList(wrapper);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public OshOpenProjectTechComponent saveTechComponentLibrary(OpenProjectTechComponentLibraryDTO dto) {
+        assertCanEditProjectCollaboration();
+        if (dto == null || !StringUtils.hasText(dto.getComponentName())) {
+            throw new IllegalArgumentException("组件名称不能为空");
+        }
+        String componentName = trimToMax(dto.getComponentName(), MAX_NAME_LENGTH);
+        OshOpenProjectTechComponent sameName = techComponentMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectTechComponent>()
+                .eq(OshOpenProjectTechComponent::getDeleteFlag, (byte) 0)
+                .eq(OshOpenProjectTechComponent::getComponentName, componentName)
+                .ne(dto.getId() != null, OshOpenProjectTechComponent::getId, dto.getId())
+                .last("limit 1"));
+        if (sameName != null) {
+            throw new IllegalArgumentException("技术组件已存在");
+        }
+
+        OshOpenProjectTechComponent component = dto.getId() == null ? null : techComponentMapper.selectById(dto.getId());
+        if (component == null) {
+            component = new OshOpenProjectTechComponent();
+            component.setNo(generateTechComponentNo());
+            component.setDeleted(false);
+        } else if (component.getDeleteFlag() != null && component.getDeleteFlag() == 1) {
+            throw new IllegalArgumentException("技术组件不存在");
+        } else if (!StringUtils.hasText(component.getNo())) {
+            component.setNo(generateTechComponentNo());
+        }
+        component.setComponentName(componentName);
+        component.setComponentCode(componentName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", ""));
+        component.setComponentDesc(trimToMax(dto.getComponentDesc(), MAX_TEXT_LENGTH));
+        component.setOfficialUrl(trimToMax(dto.getOfficialUrl(), MAX_URL_LENGTH));
+        component.setSortOrder(dto.getSortOrder() == null ? 0 : dto.getSortOrder());
+        component.setDeleted(false);
+        if (component.getId() == null) {
+            techComponentMapper.insert(component);
+        } else {
+            techComponentMapper.updateById(component);
+        }
+        return component;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTechComponentLibrary(Long id) {
+        assertCanEditProjectCollaboration();
+        if (id == null) {
+            throw new IllegalArgumentException("组件ID不能为空");
+        }
+        OshOpenProjectTechComponent component = techComponentMapper.selectById(id);
+        if (component == null || (component.getDeleteFlag() != null && component.getDeleteFlag() == 1)) {
+            throw new IllegalArgumentException("技术组件不存在");
+        }
+        component.setDeleted(true);
+        techComponentMapper.updateById(component);
+        techComponentRelMapper.update(null, new LambdaUpdateWrapper<OshOpenProjectTechComponentRel>()
+                .eq(OshOpenProjectTechComponentRel::getComponentId, id)
+                .set(OshOpenProjectTechComponentRel::getDeleteFlag, (byte) 1));
     }
 
     private List<OpenProjectVO> buildProjectVOs(List<OshOpenProject> projects, Long currentUserId) {
@@ -400,7 +483,11 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             vo.setLeader(findPrimaryContributor(projectContributors));
             vo.setModules(projectModuleMap.getOrDefault(project.getId(), Collections.emptyList()));
             vo.setTechComponents(projectTechComponentMap.getOrDefault(project.getId(), Collections.emptyList()));
-            vo.setCanEdit(canEditProject(projectContributors));
+            boolean canEditCore = canEditProject(projectContributors);
+            boolean canEditCollaboration = canEditProjectCollaboration();
+            vo.setCanEdit(canEditCore || canEditCollaboration);
+            vo.setCanEditCore(canEditCore);
+            vo.setCanEditCollaboration(canEditCollaboration);
             vo.setFavorited(userFavoriteIds.contains(project.getId()));
             return vo;
         }).collect(Collectors.toList());
@@ -679,10 +766,16 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
 
         int sort = 0;
         for (OpenProjectTechComponentDTO item : limitList(techComponents, MAX_TECH_COMPONENT_COUNT)) {
-            if (item == null || !StringUtils.hasText(item.getComponentName())) {
+            if (item == null || item.getComponentId() == null) {
                 continue;
             }
-            OshOpenProjectTechComponent component = findOrCreateTechComponent(item);
+            OshOpenProjectTechComponent component = techComponentMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectTechComponent>()
+                    .eq(OshOpenProjectTechComponent::getId, item.getComponentId())
+                    .eq(OshOpenProjectTechComponent::getDeleteFlag, (byte) 0)
+                    .last("limit 1"));
+            if (component == null) {
+                continue;
+            }
             OshOpenProjectTechComponentRel rel = new OshOpenProjectTechComponentRel();
             rel.setProjectId(projectId);
             rel.setComponentId(component.getId());
@@ -838,6 +931,33 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         }
     }
 
+    private OshOpenProject requireEditableGithubProject(Long projectId) {
+        if (projectId == null) {
+            throw new IllegalArgumentException("项目ID不能为空");
+        }
+        OshOpenProject project = projectMapper.selectOne(new LambdaQueryWrapper<OshOpenProject>()
+                .eq(OshOpenProject::getId, projectId)
+                .eq(OshOpenProject::getDeleteFlag, (byte) 0)
+                .last("limit 1"));
+        if (project == null) {
+            throw new IllegalArgumentException("项目不存在");
+        }
+        if (project.getGithubRepoId() == null && !StringUtils.hasText(project.getGithubOwner())) {
+            throw new IllegalArgumentException("只能编辑从 GitHub 数据源同步的开源项目");
+        }
+        return project;
+    }
+
+    private boolean canEditProjectCollaboration() {
+        return getCurrentUserLevelForPermission() >= 4;
+    }
+
+    private void assertCanEditProjectCollaboration() {
+        if (!canEditProjectCollaboration()) {
+            throw new IllegalArgumentException("只有 level>=4 的用户才能编辑标签、项目模块、技术组件和绑定资源");
+        }
+    }
+
     private int getCurrentUserLevelForPermission() {
         Integer level = UserContextUtil.getCurrentLevelSafely();
         if (level != null && level > 0) {
@@ -879,6 +999,38 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
         return result;
     }
 
+    private String generateTechComponentNo() {
+        for (int i = 0; i < 20; i++) {
+            String no = TECH_COMPONENT_NO_PREFIX + randomLetters(2) + randomDigits(2) + randomLetters(2);
+            Long count = techComponentMapper.selectCount(new LambdaQueryWrapper<OshOpenProjectTechComponent>()
+                    .eq(OshOpenProjectTechComponent::getNo, no));
+            if (count == null || count == 0L) {
+                return no;
+            }
+        }
+        throw new IllegalStateException("生成技术组件编号失败");
+    }
+
+    private String randomLetters(int length) {
+        String letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        StringBuilder builder = new StringBuilder(length);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int i = 0; i < length; i++) {
+            builder.append(letters.charAt(random.nextInt(letters.length())));
+        }
+        return builder.toString();
+    }
+
+    private String randomDigits(int length) {
+        String digits = "0123456789";
+        StringBuilder builder = new StringBuilder(length);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int i = 0; i < length; i++) {
+            builder.append(digits.charAt(random.nextInt(digits.length())));
+        }
+        return builder.toString();
+    }
+
     private OshOpenProjectContributor resolveContributorForModule(Long projectId, Map<String, OshOpenProjectContributor> contributorMap, OpenProjectModuleMemberDTO dto) {
         OshOpenProjectContributor contributor = null;
         if (dto.getContributorId() != null) {
@@ -895,31 +1047,6 @@ public class OshOpenProjectServiceImpl implements IOshOpenProjectService {
             }
         }
         return contributor;
-    }
-
-    private OshOpenProjectTechComponent findOrCreateTechComponent(OpenProjectTechComponentDTO dto) {
-        OshOpenProjectTechComponent component = dto.getComponentId() == null ? null : techComponentMapper.selectById(dto.getComponentId());
-        if (component == null) {
-            component = techComponentMapper.selectOne(new LambdaQueryWrapper<OshOpenProjectTechComponent>()
-                    .eq(OshOpenProjectTechComponent::getComponentName, trimToMax(dto.getComponentName(), MAX_NAME_LENGTH))
-                    .eq(OshOpenProjectTechComponent::getDeleteFlag, (byte) 0)
-                    .last("limit 1"));
-        }
-        if (component == null) {
-            component = new OshOpenProjectTechComponent();
-            component.setDeleted(false);
-        }
-        component.setComponentName(trimToMax(dto.getComponentName(), MAX_NAME_LENGTH));
-        component.setComponentCode(trimToMax(dto.getComponentCode(), 100));
-        component.setComponentDesc(trimToMax(dto.getComponentDesc(), MAX_TEXT_LENGTH));
-        component.setOfficialUrl(trimToMax(dto.getOfficialUrl(), MAX_URL_LENGTH));
-        component.setSortOrder(dto.getSortOrder());
-        if (component.getId() == null) {
-            techComponentMapper.insert(component);
-        } else {
-            techComponentMapper.updateById(component);
-        }
-        return component;
     }
 
     private void fillGithubFields(OpenProjectVO vo, OshOpenProject p) {

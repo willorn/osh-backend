@@ -1,10 +1,13 @@
 package com.backstage.system.service.openproject.impl;
 
+import com.alibaba.fastjson2.JSON;
 import com.backstage.system.domain.openproject.OshOpenProject;
 import com.backstage.system.domain.openproject.OshOpenProjectContributor;
 import com.backstage.system.domain.openproject.OshOpenProjectSource;
+import com.backstage.system.domain.websocket.WsNotifyMessage;
 import com.backstage.system.domain.openproject.dto.OpenProjectSourceDTO;
 import com.backstage.system.domain.user.OshUser;
+import com.backstage.system.mapper.openproject.OshOpenProjectAnnouncementMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectContributorMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectMapper;
 import com.backstage.system.mapper.openproject.OshOpenProjectSourceMapper;
@@ -14,6 +17,7 @@ import com.backstage.system.service.openproject.GitHubOpenProjectClient;
 import com.backstage.system.service.openproject.GitHubRepositoryDTO;
 import com.backstage.system.service.openproject.IOshOpenProjectRankService;
 import com.backstage.system.service.openproject.IOshOpenProjectSourceService;
+import com.backstage.system.service.websocket.WebSocketNotifyService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -33,9 +39,14 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
     private static final int MAX_URL_LENGTH = 500;
     private static final int MAX_TEXT_LENGTH = 500;
     private static final String MASKED_TOKEN = "******";
+    private static final String ANNOUNCEMENT_REFRESH = "ANNOUNCEMENT_REFRESH";
+    private static final String OPENPROJECT_MODULE = "openproject";
 
     @Autowired
     private OshOpenProjectSourceMapper sourceMapper;
+
+    @Autowired
+    private OshOpenProjectAnnouncementMapper announcementMapper;
 
     @Autowired
     private OshOpenProjectMapper projectMapper;
@@ -51,6 +62,9 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
 
     @Autowired
     private IOshOpenProjectRankService rankService;
+
+    @Autowired
+    private WebSocketNotifyService webSocketNotifyService;
 
     @Override
     public List<OshOpenProjectSource> listSources() {
@@ -93,9 +107,11 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
         source.setEnabled(dto.getEnabled() == null ? 1 : (dto.getEnabled() == 1 ? 1 : 0));
         source.setRemark(trimToMax(dto.getRemark(), 500));
 
-        if (source.getId() == null) {
+        boolean insert = source.getId() == null;
+        if (insert) {
             ensureOwnerNotExists(owner, null);
             sourceMapper.insert(source);
+            publishSourceAnnouncement(source);
         } else {
             ensureOwnerNotExists(owner, source.getId());
             sourceMapper.updateById(source);
@@ -198,10 +214,66 @@ public class OshOpenProjectSourceServiceImpl implements IOshOpenProjectSourceSer
         if (insert) {
             projectMapper.insert(project);
             ensureOwnerLeader(project);
+            publishProjectAnnouncement(project);
         } else {
             projectMapper.updateById(project);
         }
         return project;
+    }
+
+    private void publishProjectAnnouncement(OshOpenProject project) {
+        if (project == null || project.getId() == null) {
+            return;
+        }
+        if (announcementMapper.countByResource(1, "openproject", project.getId()) > 0) {
+            return;
+        }
+        announcementMapper.insertOpenProjectAnnouncement(
+                "最新同步开源项目：" + project.getProjectName(),
+                "/openproject/list",
+                "publish",
+                1,
+                "openproject",
+                project.getId(),
+                0);
+        broadcastAnnouncementRefresh();
+    }
+
+    private void publishSourceAnnouncement(OshOpenProjectSource source) {
+        if (source == null || source.getId() == null) {
+            return;
+        }
+        if (announcementMapper.countByResource(2, "openproject_source", source.getId()) > 0) {
+            return;
+        }
+        announcementMapper.insertOpenProjectAnnouncement(
+                "新配置 GitHub 数据源：" + source.getGithubUrl(),
+                source.getGithubUrl(),
+                "online",
+                2,
+                "openproject_source",
+                source.getId(),
+                0);
+        broadcastAnnouncementRefresh();
+    }
+
+    private void broadcastAnnouncementRefresh() {
+        try {
+            Map<String, Object> content = new HashMap<>();
+            content.put("module", OPENPROJECT_MODULE);
+            content.put("action", "refresh");
+            content.put("refresh", true);
+            content.put("noticeApi", "/pc/openproject/announcement/notice");
+            content.put("dynamicApi", "/pc/openproject/announcement/dynamic");
+            WsNotifyMessage message = new WsNotifyMessage();
+            message.setType(ANNOUNCEMENT_REFRESH);
+            message.setBizId(OPENPROJECT_MODULE);
+            message.setTitle("开源项目公告刷新");
+            message.setContent(JSON.toJSONString(content));
+            webSocketNotifyService.broadcast(message);
+        } catch (Exception ignored) {
+            // Announcement refresh is best-effort and should not interrupt sync.
+        }
     }
 
     private void syncContributors(OshOpenProject project, String token) {

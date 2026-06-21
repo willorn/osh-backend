@@ -2,6 +2,7 @@ package com.backstage.system.controller.user;
 
 import com.backstage.common.annotation.Anonymous;
 import com.backstage.common.annotation.OshUserEvent;
+import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.core.controller.BaseController;
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.user.OshUser;
@@ -147,7 +148,7 @@ public class OshUserController extends BaseController {
 
     @ApiOperation("获取用户名片")
     @GetMapping("/card")
-    @Anonymous
+    @OshUserLevel(value = 4)
     public R<?> getUserCard(
             @ApiParam("网校 appid") @RequestHeader(value = "appid", required = false) String appid,
             @RequestParam(value = "userId", required = false) Long userId,

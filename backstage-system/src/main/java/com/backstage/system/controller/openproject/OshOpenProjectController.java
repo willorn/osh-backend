@@ -7,9 +7,11 @@ import com.backstage.common.annotation.OshUserLevel;
 import com.backstage.common.constant.ResourceType;
 import com.backstage.common.core.domain.R;
 import com.backstage.system.domain.openproject.OshOpenProjectTag;
+import com.backstage.system.domain.openproject.OshOpenProjectTechComponent;
 import com.backstage.system.domain.openproject.dto.OpenProjectEditDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectLeaderTransferDTO;
 import com.backstage.system.domain.openproject.dto.OpenProjectQueryDTO;
+import com.backstage.system.domain.openproject.dto.OpenProjectTechComponentLibraryDTO;
 import com.backstage.system.domain.openproject.vo.OpenProjectRankVO;
 import com.backstage.system.domain.openproject.vo.OpenProjectResourceOptionVO;
 import com.backstage.system.domain.openproject.vo.OpenProjectVO;
@@ -30,7 +32,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -57,10 +58,21 @@ public class OshOpenProjectController {
     @Anonymous
     @OshUserEvent(module = "开源项目", actionType = "查询", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "查询开源项目公告", recordAnonymous = true)
     public R<List<ToolAnnouncementVO>> getAnnouncements() {
-        List<ToolAnnouncementVO> announcements = new ArrayList<>();
-        announcements.addAll(announcementMapper.selectLatestSyncedProjectAnnouncement());
-        announcements.addAll(announcementMapper.selectLatestSourceAnnouncement());
-        return R.ok(announcements);
+        return R.ok(announcementMapper.selectLatestAnnouncements(10));
+    }
+
+    @GetMapping("/announcement/notice")
+    @Anonymous
+    @OshUserEvent(module = "开源项目", actionType = "查询", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "查询开源项目同步公告", recordAnonymous = true)
+    public R<List<ToolAnnouncementVO>> getNoticeAnnouncements(@RequestParam(defaultValue = "5") int limit) {
+        return R.ok(announcementMapper.selectLatestByChannel(1, safeAnnouncementLimit(limit)));
+    }
+
+    @GetMapping("/announcement/dynamic")
+    @Anonymous
+    @OshUserEvent(module = "开源项目", actionType = "查询", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "查询开源项目数据源动态", recordAnonymous = true)
+    public R<List<ToolAnnouncementVO>> getDynamicAnnouncements(@RequestParam(defaultValue = "5") int limit) {
+        return R.ok(announcementMapper.selectLatestByChannel(2, safeAnnouncementLimit(limit)));
     }
 
     @PostMapping("/list")
@@ -76,6 +88,30 @@ public class OshOpenProjectController {
     public R<Void> edit(@RequestBody OpenProjectEditDTO dto) {
         try {
             openProjectService.updateProject(dto);
+            return R.ok();
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        }
+    }
+
+    @PostMapping("/edit/core")
+    @OshUserLevel(value = 4)
+    @OshUserEvent(module = "开源项目", actionType = "编辑", resourceType = ResourceType.OPEN_PROJECT_TYPE, resourceNameExpression = "#p0.projectName", description = "编辑开源项目核心信息")
+    public R<Void> editCore(@RequestBody OpenProjectEditDTO dto) {
+        try {
+            openProjectService.updateProjectCore(dto);
+            return R.ok();
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        }
+    }
+
+    @PostMapping("/edit/collaboration")
+    @OshUserLevel(value = 4)
+    @OshUserEvent(module = "开源项目", actionType = "编辑", resourceType = ResourceType.OPEN_PROJECT_TYPE, resourceNameExpression = "#p0.projectName", description = "编辑开源项目协作信息")
+    public R<Void> editCollaboration(@RequestBody OpenProjectEditDTO dto) {
+        try {
+            openProjectService.updateProjectCollaboration(dto);
             return R.ok();
         } catch (IllegalArgumentException e) {
             return R.fail(e.getMessage());
@@ -99,6 +135,36 @@ public class OshOpenProjectController {
     @OshUserEvent(module = "开源项目", actionType = "查询", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "查询开源项目标签", recordAnonymous = true)
     public R<List<OshOpenProjectTag>> tags() {
         return R.ok(openProjectService.listTags());
+    }
+
+    @GetMapping("/tech-components")
+    @Anonymous
+    @OshUserEvent(module = "开源项目", actionType = "查询", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "查询开源项目技术组件库", recordAnonymous = true)
+    public R<List<OshOpenProjectTechComponent>> techComponents(@RequestParam(required = false) String keyword) {
+        return R.ok(openProjectService.listTechComponentLibrary(keyword));
+    }
+
+    @PostMapping("/tech-components/save")
+    @OshUserLevel(value = 4)
+    @OshUserEvent(module = "开源项目", actionType = "编辑", resourceType = ResourceType.OPEN_PROJECT_TYPE, resourceNameExpression = "#p0.componentName", description = "保存开源项目技术组件库")
+    public R<OshOpenProjectTechComponent> saveTechComponent(@RequestBody OpenProjectTechComponentLibraryDTO dto) {
+        try {
+            return R.ok(openProjectService.saveTechComponentLibrary(dto));
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        }
+    }
+
+    @PostMapping("/tech-components/delete")
+    @OshUserLevel(value = 4)
+    @OshUserEvent(module = "开源项目", actionType = "删除", resourceType = ResourceType.OPEN_PROJECT_TYPE, description = "删除开源项目技术组件库")
+    public R<Void> deleteTechComponent(@RequestParam Long id) {
+        try {
+            openProjectService.deleteTechComponentLibrary(id);
+            return R.ok();
+        } catch (IllegalArgumentException e) {
+            return R.fail(e.getMessage());
+        }
     }
 
     @GetMapping("/resource/search")
@@ -175,5 +241,9 @@ public class OshOpenProjectController {
             @RequestParam(defaultValue = "7") int period,
             @RequestParam(defaultValue = "10") int topN) {
         return R.ok(rankService.getRank(rankType, period, topN));
+    }
+
+    private int safeAnnouncementLimit(int limit) {
+        return Math.max(1, Math.min(limit, 20));
     }
 }
