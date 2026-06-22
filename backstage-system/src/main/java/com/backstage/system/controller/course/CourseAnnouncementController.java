@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// Course module announcement endpoints (system notice + user dynamic feed)
 @Api(tags = "课程公告")
 @RestController
 @RequestMapping("/pc/course/announcement")
