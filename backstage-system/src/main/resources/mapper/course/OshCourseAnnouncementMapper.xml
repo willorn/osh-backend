@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.backstage.system.mapper.course.OshCourseAnnouncementMapper">
+
+    <select id="selectLatestCourseAnnouncementsByChannel" resultType="com.backstage.system.domain.course.vo.CourseAnnouncementVO">
+        select id,
+               title,
+               link,
+               create_time as createTime
+        from osh_announcement
+        where delete_flag = 0
+          and status = 0
+          and resource_type = 'course'
+          and channel = #{channel}
+        order by create_time desc
+        limit 5
+    </select>
+
+    <insert id="insertCourseAnnouncement">
+        insert into osh_announcement (
+            title,
+            link,
+            resource_type,
+            channel,
+            status,
+            delete_flag,
+            create_by,
+            create_time,
+            update_by,
+            update_time
+        ) values (
+            #{title},
+            #{link},
+            'course',
+            #{channel},
+            0,
+            0,
+            #{operator},
+            now(),
+            #{operator},
+            now()
+        )
+    </insert>
+
+</mapper>
