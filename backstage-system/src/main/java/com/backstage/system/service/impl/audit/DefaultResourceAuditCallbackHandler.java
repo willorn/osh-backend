@@ -39,7 +39,6 @@ public class DefaultResourceAuditCallbackHandler implements ResourceAuditCallbac
     @Override
     public List<ResourceTypeEnum> resourceTypes() {
         return Arrays.asList(
-                ResourceTypeEnum.COURSE,
                 ResourceTypeEnum.QA_QUESTION,
                 ResourceTypeEnum.QA_ANSWER,
                 ResourceTypeEnum.BOOK,

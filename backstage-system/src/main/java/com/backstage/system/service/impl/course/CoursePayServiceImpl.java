@@ -14,6 +14,7 @@ import com.backstage.system.domain.vo.order.PayResponse;
 import com.backstage.system.mapper.course.CourseBuyMapper;
 import com.backstage.system.mapper.course.OshCourseMapper;
 import com.backstage.system.service.behavior.ContributionService;
+import com.backstage.system.service.course.CoursePurchaseAnnouncementPublisher;
 import com.backstage.system.service.course.ICoursePayService;
 import com.backstage.system.utils.SignUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,6 +56,9 @@ public class CoursePayServiceImpl implements ICoursePayService {
 
     @Autowired
     private ContributionService contributionService;
+
+    @Autowired
+    private CoursePurchaseAnnouncementPublisher coursePurchaseAnnouncementPublisher;
 
     @Override
     public PayResponse createCoursePay(Long courseId, String payType, String clientIp, Long userId) {
@@ -146,6 +150,7 @@ public class CoursePayServiceImpl implements ICoursePayService {
                 int updated = courseBuyMapper.markPaidByOrderNoAndUserId(outTradeNo, userId);
                 if (updated > 0) {
                     recordCourseRevenue(courseBuy, outTradeNo, userId);
+                    publishCoursePurchaseNotice(courseBuy, outTradeNo, userId);
                 }
             }
             return paid;
@@ -188,6 +193,19 @@ public class CoursePayServiceImpl implements ICoursePayService {
                 || isPaidValue(dataStatus)
                 || isPaidValue(dataTradeStatus)
                 || ("1".equals(String.valueOf(topCode)) && (isPaidValue(topStatus) || isPaidValue(dataStatus)));
+    }
+
+    private void publishCoursePurchaseNotice(Map<String, Object> courseBuy, String outTradeNo, Long userId) {
+        Long courseId = toLong(courseBuy == null ? null : courseBuy.get("courseId"));
+        if (courseId == null) {
+            return;
+        }
+        try {
+            coursePurchaseAnnouncementPublisher.publishPurchaseSuccess(userId, courseId, outTradeNo);
+        } catch (Exception e) {
+            log.warn("publish course purchase announcement failed, orderNo={}, userId={}, courseId={}",
+                    outTradeNo, userId, courseId, e);
+        }
     }
 
     private void recordCourseRevenue(Map<String, Object> courseBuy, String outTradeNo, Long userId) {
