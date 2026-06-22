@@ -12,13 +12,14 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
-  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || vars.DEPLOY_HOST || '43.242.200.25' }}
-  DEPLOY_USER: ${{ secrets.DEPLOY_USER || vars.DEPLOY_USER || 'root' }}
-  DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || vars.DEPLOY_PORT || '58753' }}
-  BACKEND_DEPLOY_DIR: ${{ vars.BACKEND_DEPLOY_DIR || '/www/ruoyi' }}
-  BACKEND_JAR_NAME: ${{ vars.BACKEND_JAR_NAME || 'backstage-admin.jar' }}
-  DOCKER_COMPOSE_DIR: ${{ vars.DOCKER_COMPOSE_DIR || '/opt/docker-apps' }}
-  BACKEND_SERVICE_NAME: ${{ vars.BACKEND_SERVICE_NAME || 'backstage-admin' }}
+  # 25 测试机专用变量（与 149 的 DEPLOY_HOST/DEPLOY_PORT 隔离，在 GitHub Variables 配置 TEST25_*）
+  DEPLOY_HOST: ${{ vars.TEST25_DEPLOY_HOST }}
+  DEPLOY_USER: ${{ vars.TEST25_DEPLOY_USER || 'root' }}
+  DEPLOY_PORT: ${{ vars.TEST25_DEPLOY_PORT }}
+  BACKEND_DEPLOY_DIR: ${{ vars.TEST25_BACKEND_DEPLOY_DIR || '/www/ruoyi' }}
+  BACKEND_JAR_NAME: ${{ vars.TEST25_BACKEND_JAR_NAME || 'backstage-admin.jar' }}
+  DOCKER_COMPOSE_DIR: ${{ vars.TEST25_DOCKER_COMPOSE_DIR || '/opt/docker-apps' }}
+  BACKEND_SERVICE_NAME: ${{ vars.TEST25_BACKEND_SERVICE_NAME || 'backstage-admin' }}
   NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL || vars.NOTIFY_EMAIL || '1402272093@qq.com' }}
   MAIL_USERNAME: ${{ secrets.MAIL_USERNAME || vars.MAIL_USERNAME || '1402272093@qq.com' }}
   MAIL_SERVER: ${{ vars.MAIL_SERVER || 'smtp.qq.com' }}
