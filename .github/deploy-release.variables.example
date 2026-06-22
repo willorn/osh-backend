@@ -1,0 +1,20 @@
+# GitHub Repository Variables — 25 测试机 deploy-release.yml 专用（触发分支：qa/**）
+# Settings → Secrets and variables → Actions → Variables
+# 与 149 的 DEPLOY_HOST / GREEN149_* 等变量完全分开，互不影响。
+#
+# 【必填】
+TEST25_DEPLOY_HOST=43.242.200.25
+TEST25_DEPLOY_PORT=58753
+#
+# 【可选，25 路径与默认不一致时再配】
+# TEST25_DEPLOY_USER=root
+# TEST25_BACKEND_DEPLOY_DIR=/opt/osh/app/osh/osh-backend
+# TEST25_BACKEND_JAR_NAME=backstage-admin.jar
+# TEST25_DOCKER_COMPOSE_DIR=/opt/osh-deploy-tools/bundle
+# TEST25_DOCKER_COMPOSE_FILE=docker-compose.osh.yml
+# TEST25_DOCKER_COMPOSE_ENV=/opt/osh/001-docker-compose/osh/osh-stack.env
+# TEST25_DOCKER_COMPOSE_PROJECT=osh
+# TEST25_BACKEND_SERVICE_NAME=osh-backend
+#
+# Secrets（与 149 可共用同一把 SSH 私钥，若 25/149 均授权）
+# DEPLOY_SSH_PRIVATE_KEY — deploy-release.yml 仍读取此 Secret

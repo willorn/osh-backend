@@ -16,10 +16,13 @@ env:
   DEPLOY_HOST: ${{ vars.TEST25_DEPLOY_HOST }}
   DEPLOY_USER: ${{ vars.TEST25_DEPLOY_USER || 'root' }}
   DEPLOY_PORT: ${{ vars.TEST25_DEPLOY_PORT }}
-  BACKEND_DEPLOY_DIR: ${{ vars.TEST25_BACKEND_DEPLOY_DIR || '/www/ruoyi' }}
+  BACKEND_DEPLOY_DIR: ${{ vars.TEST25_BACKEND_DEPLOY_DIR || '/opt/osh/app/osh/osh-backend' }}
   BACKEND_JAR_NAME: ${{ vars.TEST25_BACKEND_JAR_NAME || 'backstage-admin.jar' }}
-  DOCKER_COMPOSE_DIR: ${{ vars.TEST25_DOCKER_COMPOSE_DIR || '/opt/docker-apps' }}
-  BACKEND_SERVICE_NAME: ${{ vars.TEST25_BACKEND_SERVICE_NAME || 'backstage-admin' }}
+  DOCKER_COMPOSE_DIR: ${{ vars.TEST25_DOCKER_COMPOSE_DIR || '/opt/osh-deploy-tools/bundle' }}
+  DOCKER_COMPOSE_FILE: ${{ vars.TEST25_DOCKER_COMPOSE_FILE || 'docker-compose.osh.yml' }}
+  DOCKER_COMPOSE_ENV: ${{ vars.TEST25_DOCKER_COMPOSE_ENV || '/opt/osh/001-docker-compose/osh/osh-stack.env' }}
+  DOCKER_COMPOSE_PROJECT: ${{ vars.TEST25_DOCKER_COMPOSE_PROJECT || 'osh' }}
+  BACKEND_SERVICE_NAME: ${{ vars.TEST25_BACKEND_SERVICE_NAME || 'osh-backend' }}
   NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL || vars.NOTIFY_EMAIL || '1402272093@qq.com' }}
   MAIL_USERNAME: ${{ secrets.MAIL_USERNAME || vars.MAIL_USERNAME || '1402272093@qq.com' }}
   MAIL_SERVER: ${{ vars.MAIL_SERVER || 'smtp.qq.com' }}
@@ -90,7 +93,7 @@ jobs:
           ssh -o ConnectTimeout=30 \
             -p "$DEPLOY_PORT" \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "mkdir -p '$BACKEND_DEPLOY_DIR' && cd '$DOCKER_COMPOSE_DIR' && docker-compose stop '$BACKEND_SERVICE_NAME' || true"
+            "mkdir -p '$BACKEND_DEPLOY_DIR' && cd '$DOCKER_COMPOSE_DIR' && docker compose -p '$DOCKER_COMPOSE_PROJECT' --env-file '$DOCKER_COMPOSE_ENV' -f '$DOCKER_COMPOSE_FILE' stop '$BACKEND_SERVICE_NAME' || true"
 
       - name: Upload backend jar safely
         if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
@@ -116,7 +119,7 @@ jobs:
         run: |
           ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "cd '$DOCKER_COMPOSE_DIR' && docker-compose up -d '$BACKEND_SERVICE_NAME' && sleep 20 && docker-compose ps '$BACKEND_SERVICE_NAME'"
+            "cd '$DOCKER_COMPOSE_DIR' && docker compose -p '$DOCKER_COMPOSE_PROJECT' --env-file '$DOCKER_COMPOSE_ENV' -f '$DOCKER_COMPOSE_FILE' up -d '$BACKEND_SERVICE_NAME' && sleep 20 && docker compose -p '$DOCKER_COMPOSE_PROJECT' --env-file '$DOCKER_COMPOSE_ENV' -f '$DOCKER_COMPOSE_FILE' ps '$BACKEND_SERVICE_NAME'"
 
       - name: Show backend logs
         if: always() && (github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch)
