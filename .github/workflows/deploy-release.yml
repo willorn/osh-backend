@@ -3,7 +3,7 @@ name: Deploy Backend Release
 on:
   push:
     branches:
-      - 'release/**'
+      - 'qa/**'
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +12,7 @@ concurrency:
 
 env:
   JAVA_VERSION: '17'
-  # 25 测试机专用变量（与 149 的 DEPLOY_HOST/DEPLOY_PORT 隔离，在 GitHub Variables 配置 TEST25_*）
+  # 25 测试机：push 到 qa/** 自动部署（仅最新 qa 分支，如 qa/20260708）
   DEPLOY_HOST: ${{ vars.TEST25_DEPLOY_HOST }}
   DEPLOY_USER: ${{ vars.TEST25_DEPLOY_USER || 'root' }}
   DEPLOY_PORT: ${{ vars.TEST25_DEPLOY_PORT }}
@@ -33,23 +33,23 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Detect latest release branch
-        id: latest_release
+      - name: Detect latest qa branch
+        id: latest_qa
         run: |
-          git fetch --prune --prune-tags origin '+refs/heads/release/*:refs/remotes/origin/release/*'
-          latest_branch="$(git branch -r --list 'origin/release/*' | sed 's#^[[:space:]]*origin/##' | sort -V | tail -n 1)"
+          git fetch --prune --prune-tags origin '+refs/heads/qa/*:refs/remotes/origin/qa/*'
+          latest_branch="$(git branch -r --list 'origin/qa/*' | sed 's#^[[:space:]]*origin/##' | sort -V | tail -n 1)"
           echo "latest_branch=$latest_branch" >> "$GITHUB_OUTPUT"
-          echo "Latest release branch: $latest_branch"
+          echo "Latest qa branch: $latest_branch"
 
-      - name: Skip non-latest release branch
-        if: github.event_name == 'push' && github.ref_name != steps.latest_release.outputs.latest_branch
+      - name: Skip non-latest qa branch
+        if: github.event_name == 'push' && github.ref_name != steps.latest_qa.outputs.latest_branch
         run: |
-          echo "Current branch ${{ github.ref_name }} is not the latest release branch."
-          echo "Latest release branch is ${{ steps.latest_release.outputs.latest_branch }}."
+          echo "Current branch ${{ github.ref_name }} is not the latest qa branch."
+          echo "Latest qa branch is ${{ steps.latest_qa.outputs.latest_branch }}."
           exit 0
 
       - name: Setup JDK
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,24 +57,24 @@ jobs:
           cache: maven
 
       - name: Build backend jar
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: mvn clean install -DskipTests -pl '!backstage-flink'
 
       - name: Validate jar output
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: |
           test -f backstage-admin/target/backstage-admin.jar
           unzip -t backstage-admin/target/backstage-admin.jar >/tmp/backend-jar-check.log
           sha256sum backstage-admin/target/backstage-admin.jar | tee /tmp/backend-jar.sha256
 
       - name: Setup SSH agent
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
       - name: Add server to known_hosts
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: |
           mkdir -p ~/.ssh
           for i in 1 2 3; do
@@ -85,7 +85,7 @@ jobs:
           test -s ~/.ssh/known_hosts || { echo "ERROR: known_hosts is empty"; exit 1; }
 
       - name: Stop backend before replacing jar
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: |
           ssh -o ConnectTimeout=30 \
             -p "$DEPLOY_PORT" \
@@ -93,7 +93,7 @@ jobs:
             "mkdir -p '$BACKEND_DEPLOY_DIR' && cd '$DOCKER_COMPOSE_DIR' && docker-compose stop '$BACKEND_SERVICE_NAME' || true"
 
       - name: Upload backend jar safely
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: |
           rsync -az --inplace --progress \
             -e "ssh -o ConnectTimeout=30 -p $DEPLOY_PORT" \
@@ -101,7 +101,7 @@ jobs:
             "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_DIR/$BACKEND_JAR_NAME"
 
       - name: Verify remote jar integrity
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: |
           local_sha="$(sha256sum backstage-admin/target/backstage-admin.jar | cut -d ' ' -f 1)"
           remote_sha="$(ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" \
@@ -112,21 +112,21 @@ jobs:
           test "$local_sha" = "$remote_sha"
 
       - name: Restart backend service
-        if: github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch
+        if: github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch
         run: |
           ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '$DOCKER_COMPOSE_DIR' && docker-compose up -d '$BACKEND_SERVICE_NAME' && sleep 20 && docker-compose ps '$BACKEND_SERVICE_NAME'"
 
       - name: Show backend logs
-        if: always() && (github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch)
+        if: always() && (github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch)
         run: |
           ssh -o ConnectTimeout=30 -p "$DEPLOY_PORT" \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "docker logs --tail 80 '$BACKEND_SERVICE_NAME' 2>&1 || true" || true
 
       - name: Notify on success
-        if: success() && (github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch)
+        if: success() && (github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch)
         continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
@@ -151,7 +151,7 @@ jobs:
             访问地址：http://43.242.200.25:8081/
 
       - name: Notify on failure
-        if: failure() && (github.event_name != 'push' || github.ref_name == steps.latest_release.outputs.latest_branch)
+        if: failure() && (github.event_name != 'push' || github.ref_name == steps.latest_qa.outputs.latest_branch)
         continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
