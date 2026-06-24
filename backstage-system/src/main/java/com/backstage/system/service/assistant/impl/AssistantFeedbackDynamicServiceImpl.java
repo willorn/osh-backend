@@ -77,8 +77,13 @@ public class AssistantFeedbackDynamicServiceImpl implements IAssistantFeedbackDy
                 // 根据类型组装文案
                 if (TYPE_LIKE.equals(vo.getType())) {
                     vo.setTitle(userName + " 点赞了《" + truncate(feedbackTitle, 20) + "》");
+                    vo.setIcon("like");
                 } else {
                     vo.setTitle(userName + " 收藏了《" + truncate(feedbackTitle, 20) + "》");
+                    vo.setIcon("favorite");
+                }
+                if (vo.getFeedbackId() != null) {
+                    vo.setLink("/feedback/detail/" + vo.getFeedbackId());
                 }
             });
         }

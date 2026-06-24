@@ -1,19 +1,20 @@
 package com.backstage.system.service.assistant.impl;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.backstage.common.core.domain.AjaxResult;
+import com.backstage.common.enums.AnnouncementModuleEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.domain.assistant.AssistantFeedback;
 import com.backstage.system.domain.assistant.AssistantFeedbackLike;
 import com.backstage.system.mapper.assistant.AssistantFeedbackLikeMapper;
 import com.backstage.system.mapper.assistant.AssistantFeedbackMapper;
+import com.backstage.system.service.announcement.AnnouncementRefreshBroadcaster;
 import com.backstage.system.service.assistant.IAssistantFeedbackLikeService;
 import com.backstage.system.util.FeedbackHotScoreCalculator;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,13 +30,17 @@ public class AssistantFeedbackLikeServiceImpl implements IAssistantFeedbackLikeS
 
     private static final Logger log = LoggerFactory.getLogger(AssistantFeedbackLikeServiceImpl.class);
 
-    public AssistantFeedbackLikeServiceImpl(AssistantFeedbackMapper assistantFeedbackMapper, AssistantFeedbackLikeMapper assistantFeedbackLikeMapper) {
+    public AssistantFeedbackLikeServiceImpl(AssistantFeedbackMapper assistantFeedbackMapper,
+                                            AssistantFeedbackLikeMapper assistantFeedbackLikeMapper,
+                                            AnnouncementRefreshBroadcaster announcementRefreshBroadcaster) {
         this.assistantFeedbackMapper = assistantFeedbackMapper;
         this.assistantFeedbackLikeMapper = assistantFeedbackLikeMapper;
+        this.announcementRefreshBroadcaster = announcementRefreshBroadcaster;
     }
 
     private final AssistantFeedbackMapper assistantFeedbackMapper;
     private final AssistantFeedbackLikeMapper assistantFeedbackLikeMapper;
+    private final AnnouncementRefreshBroadcaster announcementRefreshBroadcaster;
 
     /**
      * 点赞（事务保证原子性）
@@ -63,6 +68,7 @@ public class AssistantFeedbackLikeServiceImpl implements IAssistantFeedbackLikeS
         }
 
         log.info("用户 {} 点赞反馈 {}", userId, feedbackId);
+        announcementRefreshBroadcaster.broadcastRefresh(AnnouncementModuleEnum.FEEDBACK);
         return AjaxResult.success("点赞成功");
     }
 
@@ -91,6 +97,7 @@ public class AssistantFeedbackLikeServiceImpl implements IAssistantFeedbackLikeS
         );
 
         log.info("用户 {} 取消点赞反馈 {}", userId, feedbackId);
+        announcementRefreshBroadcaster.broadcastRefresh(AnnouncementModuleEnum.FEEDBACK);
         return AjaxResult.success("已取消点赞");
     }
 

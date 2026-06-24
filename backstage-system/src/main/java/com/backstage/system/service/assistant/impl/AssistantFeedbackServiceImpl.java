@@ -3,6 +3,8 @@ package com.backstage.system.service.assistant.impl;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.backstage.common.core.page.TableDataInfo;
+import com.backstage.common.enums.AnnouncementChannelEnum;
+import com.backstage.common.enums.AnnouncementModuleEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.config.properties.SearchEsProperties;
 import com.backstage.system.domain.assistant.AssistantFeedback;
@@ -18,8 +20,10 @@ import com.backstage.system.domain.assistant.vo.AssistantFeedbackTagVO;
 import com.backstage.system.domain.assistant.vo.AssistantFeedbackVO;
 import com.backstage.system.domain.user.OshUser;
 import com.backstage.system.domain.websocket.WsNotifyMessage;
+import com.backstage.system.mapper.announcement.OshAnnouncementMapper;
 import com.backstage.system.mapper.assistant.AssistantFeedbackMapper;
 import com.backstage.system.mapper.user.OshUserMapper;
+import com.backstage.system.service.announcement.AnnouncementRefreshBroadcaster;
 import com.backstage.system.service.assistant.*;
 import com.backstage.system.service.assistant.support.AssistantFeedbackQuerySupport;
 import com.backstage.system.service.assistant.support.AssistantFeedbackViewAssembler;
@@ -57,6 +61,7 @@ public class AssistantFeedbackServiceImpl extends ServiceImpl<AssistantFeedbackM
     private static final String FEEDBACK_PENDING_CONFIRM_REMINDER_DAY3 = "FEEDBACK_PENDING_CONFIRM_REMINDER_DAY3";
     private static final String FEEDBACK_PENDING_CONFIRM_REMINDER_DAY6 = "FEEDBACK_PENDING_CONFIRM_REMINDER_DAY6";
     private static final String FEEDBACK_AUTO_CONFIRMED = "FEEDBACK_AUTO_CONFIRMED";
+    private static final String SYSTEM_OPERATOR = "system";
 
     private final IAssistantFeedbackCategoryService categoryService;
     private final IAssistantFeedbackLikeService likeService;
@@ -64,11 +69,14 @@ public class AssistantFeedbackServiceImpl extends ServiceImpl<AssistantFeedbackM
     private final IAssistantFeedbackProcessRecordService processRecordService;
     private final IAssistantFeedbackTagService feedbackTagService;
     private final IAssistantFeedbackEsService feedbackEsService;
+    private final FeedbackStatusMailNotifier feedbackStatusMailNotifier;
     private final OshUserMapper oshUserMapper;
     private final AssistantFeedbackQuerySupport feedbackQuerySupport;
     private final AssistantFeedbackViewAssembler feedbackViewAssembler;
     private final WebSocketNotifyService webSocketNotifyService;
     private final SearchEsProperties searchEsProperties;
+    private final OshAnnouncementMapper announcementMapper;
+    private final AnnouncementRefreshBroadcaster announcementRefreshBroadcaster;
 
     public AssistantFeedbackServiceImpl(IAssistantFeedbackCategoryService categoryService,
                                         IAssistantFeedbackLikeService likeService,
@@ -76,22 +84,28 @@ public class AssistantFeedbackServiceImpl extends ServiceImpl<AssistantFeedbackM
                                         IAssistantFeedbackProcessRecordService processRecordService,
                                         IAssistantFeedbackTagService feedbackTagService,
                                         IAssistantFeedbackEsService feedbackEsService,
+                                        FeedbackStatusMailNotifier feedbackStatusMailNotifier,
                                         OshUserMapper oshUserMapper,
                                         AssistantFeedbackQuerySupport feedbackQuerySupport,
                                         AssistantFeedbackViewAssembler feedbackViewAssembler,
                                         WebSocketNotifyService webSocketNotifyService,
-                                        SearchEsProperties searchEsProperties) {
+                                        SearchEsProperties searchEsProperties,
+                                        OshAnnouncementMapper announcementMapper,
+                                        AnnouncementRefreshBroadcaster announcementRefreshBroadcaster) {
         this.categoryService = categoryService;
         this.likeService = likeService;
         this.favoriteService = favoriteService;
         this.processRecordService = processRecordService;
         this.feedbackTagService = feedbackTagService;
         this.feedbackEsService = feedbackEsService;
+        this.feedbackStatusMailNotifier = feedbackStatusMailNotifier;
         this.oshUserMapper = oshUserMapper;
         this.feedbackQuerySupport = feedbackQuerySupport;
         this.feedbackViewAssembler = feedbackViewAssembler;
         this.webSocketNotifyService = webSocketNotifyService;
         this.searchEsProperties = searchEsProperties;
+        this.announcementMapper = announcementMapper;
+        this.announcementRefreshBroadcaster = announcementRefreshBroadcaster;
     }
 
     @Override
@@ -193,11 +207,13 @@ public class AssistantFeedbackServiceImpl extends ServiceImpl<AssistantFeedbackM
         feedback.setResult(StrUtil.blankToDefault(remark, ""));
         feedback.setHandlerId(handlerId);
         feedback.setHandlerName(handlerName);
+        feedback.setHandledTime(handledTime);
+        feedback.setCloseReason(AssistantTicketStatus.CLOSED.getCode().equals(targetStatus) ? StrUtil.blankToDefault(remark, "") : null);
         feedback.setUpdateBy(handlerId);
         this.updateById(feedback);
         safeCreateProcessRecord(ticketId, currentStatus, targetStatus, handlerId, handlerName, remark);
-        feedback.setHandledTime(handledTime);
-        feedback.setCloseReason(AssistantTicketStatus.CLOSED.getCode().equals(targetStatus) ? StrUtil.blankToDefault(remark, "") : null);
+        publishFeedbackStatusAnnouncement(feedback, targetStatus, handlerId);
+        feedbackStatusMailNotifier.notifyStatusChanged(feedback, currentStatus, targetStatus, remark, handlerName);
         notifySubmitterStatusChanged(feedback, currentStatus, targetStatus, remark);
         syncFeedbackToEs(ticketId);
         return feedbackViewAssembler.toFeedbackVO(feedback);
@@ -562,5 +578,76 @@ public class AssistantFeedbackServiceImpl extends ServiceImpl<AssistantFeedbackM
         } catch (Exception exception) {
             log.warn("sync feedback to es failed, feedbackId={}", feedbackId, exception);
         }
+    }
+
+    /**
+     * 管理员处理反馈后，同步写入统一公告表，供前端公共公告组件读取。
+     *
+     * @param feedback     反馈工单
+     * @param targetStatus 目标状态
+     * @param handlerId    处理人 ID
+     */
+    private void publishFeedbackStatusAnnouncement(AssistantFeedback feedback, String targetStatus, Long handlerId) {
+        if (feedback == null || feedback.getId() == null) {
+            return;
+        }
+        String announcementTitle = buildFeedbackAnnouncementTitle(feedback, targetStatus);
+        if (StrUtil.isBlank(announcementTitle)) {
+            return;
+        }
+        announcementMapper.insertFeedbackAnnouncement(
+                announcementTitle,
+                "/feedback/detail/" + feedback.getId(),
+                resolveFeedbackAnnouncementIcon(targetStatus),
+                AnnouncementChannelEnum.SYSTEM_NOTICE.getCode(),
+                feedback.getId(),
+                resolveFeedbackAnnouncementSort(targetStatus),
+                resolveFeedbackAnnouncementOperator(handlerId)
+        );
+        announcementRefreshBroadcaster.broadcastRefresh(AnnouncementModuleEnum.FEEDBACK);
+    }
+
+    private String buildFeedbackAnnouncementTitle(AssistantFeedback feedback, String targetStatus) {
+        String safeTitle = StrUtil.blankToDefault(StrUtil.trim(feedback.getTitle()), "未命名反馈");
+        String statusText = AssistantTicketStatus.getDescriptionByCode(targetStatus);
+        return "反馈处理通知：《" + safeTitle + "》状态已更新为" + statusText;
+    }
+
+    private String resolveFeedbackAnnouncementIcon(String targetStatus) {
+        if (AssistantTicketStatus.REJECTED.getCode().equals(targetStatus)) {
+            return "reject";
+        }
+        if (AssistantTicketStatus.CLOSED.getCode().equals(targetStatus)) {
+            return "update";
+        }
+        if (AssistantTicketStatus.PENDING_CONFIRM.getCode().equals(targetStatus)
+                || AssistantTicketStatus.RESOLVED.getCode().equals(targetStatus)) {
+            return "approved";
+        }
+        if (AssistantTicketStatus.PROCESSING.getCode().equals(targetStatus)
+                || AssistantTicketStatus.TRIAGED.getCode().equals(targetStatus)
+                || AssistantTicketStatus.REOPENED.getCode().equals(targetStatus)) {
+            return "refresh";
+        }
+        return "publish";
+    }
+
+    private int resolveFeedbackAnnouncementSort(String targetStatus) {
+        if (AssistantTicketStatus.PENDING_CONFIRM.getCode().equals(targetStatus)
+                || AssistantTicketStatus.RESOLVED.getCode().equals(targetStatus)) {
+            return 20;
+        }
+        if (AssistantTicketStatus.REJECTED.getCode().equals(targetStatus)
+                || AssistantTicketStatus.CLOSED.getCode().equals(targetStatus)) {
+            return 10;
+        }
+        return 15;
+    }
+
+    private String resolveFeedbackAnnouncementOperator(Long handlerId) {
+        if (handlerId == null) {
+            return SYSTEM_OPERATOR;
+        }
+        return String.valueOf(handlerId);
     }
 }

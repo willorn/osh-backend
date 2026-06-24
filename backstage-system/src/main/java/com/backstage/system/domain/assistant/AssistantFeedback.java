@@ -2,7 +2,6 @@ package com.backstage.system.domain.assistant;
 
 import com.backstage.common.core.domain.entity.OSHBaseEntity;
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -105,19 +104,16 @@ public class AssistantFeedback extends OSHBaseEntity {
     /**
      * 处理人名称
      */
-    @TableField(exist = false)
     private String handlerName;
 
     /**
      * 最近处理时间
      */
-    @TableField(exist = false)
     private LocalDateTime handledTime;
 
     /**
      * 关闭原因
      */
-    @TableField(exist = false)
     private String closeReason;
 
     /**

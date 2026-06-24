@@ -26,6 +26,12 @@ public class FeedbackDynamicVO {
     @ApiModelProperty("互动类型：LIKE-点赞, FAVORITE-收藏")
     private String type;
 
+    @ApiModelProperty("公告组件图标编码")
+    private String icon;
+
+    @ApiModelProperty("公告组件跳转链接")
+    private String link;
+
     @ApiModelProperty("用户 ID")
     private Long userId;
 
@@ -58,6 +64,22 @@ public class FeedbackDynamicVO {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon;
+    }
+
+    public String getLink() {
+        return link;
+    }
+
+    public void setLink(String link) {
+        this.link = link;
     }
 
     public Long getUserId() {

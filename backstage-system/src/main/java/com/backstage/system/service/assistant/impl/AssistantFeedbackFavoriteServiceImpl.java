@@ -1,19 +1,20 @@
 package com.backstage.system.service.assistant.impl;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.backstage.common.core.domain.AjaxResult;
+import com.backstage.common.enums.AnnouncementModuleEnum;
 import com.backstage.common.exception.ServiceException;
 import com.backstage.system.domain.assistant.AssistantFeedback;
 import com.backstage.system.domain.assistant.AssistantFeedbackFavorite;
 import com.backstage.system.mapper.assistant.AssistantFeedbackFavoriteMapper;
 import com.backstage.system.mapper.assistant.AssistantFeedbackMapper;
+import com.backstage.system.service.announcement.AnnouncementRefreshBroadcaster;
 import com.backstage.system.service.assistant.IAssistantFeedbackFavoriteService;
 import com.backstage.system.util.FeedbackHotScoreCalculator;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +33,17 @@ public class AssistantFeedbackFavoriteServiceImpl implements IAssistantFeedbackF
 
     private static final Logger log = LoggerFactory.getLogger(AssistantFeedbackFavoriteServiceImpl.class);
 
-    public AssistantFeedbackFavoriteServiceImpl(AssistantFeedbackMapper assistantFeedbackMapper, AssistantFeedbackFavoriteMapper assistantFeedbackFavoriteMapper) {
+    public AssistantFeedbackFavoriteServiceImpl(AssistantFeedbackMapper assistantFeedbackMapper,
+                                                AssistantFeedbackFavoriteMapper assistantFeedbackFavoriteMapper,
+                                                AnnouncementRefreshBroadcaster announcementRefreshBroadcaster) {
         this.assistantFeedbackMapper = assistantFeedbackMapper;
         this.assistantFeedbackFavoriteMapper = assistantFeedbackFavoriteMapper;
+        this.announcementRefreshBroadcaster = announcementRefreshBroadcaster;
     }
 
     private final AssistantFeedbackMapper assistantFeedbackMapper;
     private final AssistantFeedbackFavoriteMapper assistantFeedbackFavoriteMapper;
+    private final AnnouncementRefreshBroadcaster announcementRefreshBroadcaster;
 
     /**
      * 收藏（事务保证原子性）
@@ -66,6 +71,7 @@ public class AssistantFeedbackFavoriteServiceImpl implements IAssistantFeedbackF
         }
 
         log.info("用户 {} 收藏反馈 {}", userId, feedbackId);
+        announcementRefreshBroadcaster.broadcastRefresh(AnnouncementModuleEnum.FEEDBACK);
         return AjaxResult.success("收藏成功");
     }
 
@@ -94,6 +100,7 @@ public class AssistantFeedbackFavoriteServiceImpl implements IAssistantFeedbackF
         );
 
         log.info("用户 {} 取消收藏反馈 {}", userId, feedbackId);
+        announcementRefreshBroadcaster.broadcastRefresh(AnnouncementModuleEnum.FEEDBACK);
         return AjaxResult.success("已取消收藏");
     }
 
