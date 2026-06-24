@@ -29,15 +29,12 @@
             s.status,
             s.username,
             s.likeCount,
-            s.commentCount,
             s.viewCount,
             s.collectCount,
-            s.hotScore,
-            s.createTime,
             (
                 SELECT t.name
-                FROM assistant_feedback_tag ft
-                JOIN assistant_feedback_category t ON t.id = ft.tag_id
+                FROM assistant_feedback_tag_rel ft
+                         JOIN assistant_feedback_tag t ON t.id = ft.tag_id
                 WHERE ft.feedback_id = s.id
                 LIMIT 1
             ) AS tagName
@@ -51,9 +48,8 @@
                 f.status,
                 u.username,
                 IFNULL(f.like_count, 0)    AS likeCount,
-                IFNULL(f.comment_count, 0) AS commentCount,
                 IFNULL(f.view_count, 0)    AS viewCount,
-                IFNULL(f.collect_count, 0) AS collectCount,
+                IFNULL(f.favorite_count, 0) AS collectCount,
                 f.create_time              AS createTime,
                 ROUND(
                     (
@@ -63,8 +59,8 @@
                                         FROM assistant_feedback x
                                         WHERE x.delete_flag = 0 AND x.status != 'CLOSED'), 0), 0)
                         -- 0.25 × 收藏分（对数归一化）
-                      + 0.25 * IFNULL(LN(1 + IFNULL(f.collect_count, 0)) /
-                                NULLIF((SELECT MAX(LN(1 + IFNULL(x.collect_count, 0)))
+                      + 0.25 * IFNULL(LN(1 + IFNULL(f.favorite_count, 0)) /
+                                NULLIF((SELECT MAX(LN(1 + IFNULL(x.favorite_count, 0)))
                                         FROM assistant_feedback x
                                         WHERE x.delete_flag = 0 AND x.status != 'CLOSED'), 0), 0)
                         -- 0.20 × 阅读分（对数归一化）

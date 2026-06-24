@@ -149,6 +149,25 @@ public interface OshAnnouncementMapper {
                                                    @Param("title") String title,
                                                    @Param("channel") int channel);
 
+    // ==================== 反馈公告/动态 ====================
+
+    /**
+     * 插入一条反馈状态公告记录
+     */
+    @Insert("INSERT INTO osh_announcement " +
+            "(title, link, icon_code, status, channel, resource_type, resource_id, " +
+            " sort, delete_flag, source, source_module, create_by, create_time, update_by, update_time) " +
+            "VALUES " +
+            "(#{title}, #{link}, #{iconCode}, 4, #{channel}, 'feedback', #{resourceId}, " +
+            " #{sort}, 0, 'system', 'feedback', #{operator}, NOW(), #{operator}, NOW())")
+    int insertFeedbackAnnouncement(@Param("title") String title,
+                                   @Param("link") String link,
+                                   @Param("iconCode") String iconCode,
+                                   @Param("channel") int channel,
+                                   @Param("resourceId") Long resourceId,
+                                   @Param("sort") int sort,
+                                   @Param("operator") String operator);
+
     // ==================== 首页公告栏按资源类型查询 ====================
 
     /**
